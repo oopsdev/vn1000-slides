@@ -7,3 +7,8 @@ its diagrams so the deck can be viewed in a browser.
 - **View the slides:** https://oopsdev.github.io/vn1000-slides/
 - `index.html` - the deck (vanilla JS: arrows / buttons / `F` fullscreen / page jump / `P` PDF).
 - `diagrams/` - the SVG figures it embeds.
+
+## License
+
+Copyright (c) 2026 Nike Chen. Licensed under **CC BY 4.0** (see [LICENSE](LICENSE)) - you may share
+and adapt with attribution. (The VN1000 *driver source code*, in the private main repo, is GPL-2.0.)

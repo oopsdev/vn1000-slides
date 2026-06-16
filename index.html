@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<!-- SPDX-License-Identifier: GPL-2.0
+<!-- SPDX-License-Identifier: CC-BY-4.0
+     Copyright (c) 2026 Nike Chen. Teaching slides - licensed CC BY 4.0 (the VN1000
+     driver source code is GPL-2.0; this deck is documentation/content).
      VN1000 teaching slides - self-contained (vanilla JS nav, one slide per screen).
      Diagrams: external SVGs under diagrams/ (referenced via <img>, single-sourced
      with the docs) plus inline CSS box-and-arrow figures.
@@ -89,7 +91,7 @@
     @page{ size:A4 landscape; margin:10mm; }
     html,body{ height:auto; overflow:visible; background:var(--bg); }
     *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
-    .nav,.bar,.tag{ display:none !important; }
+    .nav,.bar{ display:none !important; }   /* keep .tag (the copyright footer) on PDF */
     .deck{ position:static; height:auto; width:auto; }
     .slide{
       display:flex !important; position:relative !important; inset:auto !important;
@@ -590,7 +592,7 @@
   <button id="full" aria-label="Toggle fullscreen" title="Toggle fullscreen (F)">Fullscreen</button>
   <button id="pdf" aria-label="Export PDF" title="Print / Save as PDF - one slide per page">PDF</button>
 </div>
-<div class="tag">VN1000 teaching slides</div>
+<div class="tag">&copy; 2026 Nike Chen &middot; VN1000 teaching slides &middot; CC BY 4.0</div>
 
 <script>
   var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
