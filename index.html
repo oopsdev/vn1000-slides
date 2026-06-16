@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: GPL-2.0
+     VN1000 teaching slides - self-contained (vanilla JS nav, one slide per screen).
+     Diagrams: external SVGs under diagrams/ (referenced via <img>, single-sourced
+     with the docs) plus inline CSS box-and-arrow figures.
+     Open directly in a browser; arrows / Space / the on-screen buttons navigate. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VN1000 - a Linux PCIe NIC from the stack to the silicon</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --ink:#e2e8f0; --muted:#94a3b8;
+    --accent:#38bdf8; --accent2:#34d399; --warn:#fbbf24; --line:#334155;
+    --box:#243449; --box2:#2b3b52;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:16px/1.5 -apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+    overflow:hidden;
+  }
+  .deck{height:100vh;width:100vw;position:relative}
+  .slide{
+    position:absolute; inset:0; display:none; flex-direction:column;
+    padding:3.2vh 5vw 9vh; overflow:auto;
+  }
+  .slide.active{display:flex}
+  h1{font-size:clamp(28px,4.4vw,54px); margin:.1em 0 .3em; color:#fff; line-height:1.12}
+  h2{font-size:clamp(22px,3vw,36px); margin:0 0 .55em; color:var(--accent);
+     border-bottom:2px solid var(--line); padding-bottom:.25em}
+  h3{font-size:clamp(17px,1.7vw,22px); margin:.7em 0 .25em; color:var(--accent2)}
+  p,li{font-size:clamp(14px,1.45vw,19px)}
+  ul{margin:.2em 0 .4em 1.1em} li{margin:.18em 0}
+  code{background:#0b1220; color:#9be7ff; padding:.05em .35em; border-radius:4px;
+       font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; font-size:.92em}
+  .sub{color:var(--muted); font-size:clamp(15px,1.6vw,21px)}
+  .kg{color:var(--warn)}
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:2.2vw; align-items:start}
+  .three{display:grid; grid-template-columns:1fr 1fr 1fr; gap:1.4vw}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:12px;
+        padding:.9em 1.1em}
+  /* .shrink: tighten a dense card so its slide does not need scrolling */
+  .card.shrink{padding:.85em 1.05em}
+  .card.shrink h3{font-size:clamp(16px,1.65vw,21px); margin:.3em 0 .3em}
+  .card.shrink p,.card.shrink li{font-size:clamp(13px,1.32vw,17px); line-height:1.45}
+  .card.shrink ul{margin:.25em 0 .35em 1.1em} .card.shrink li{margin:.16em 0}
+  .center{align-items:center; text-align:center; justify-content:center}
+  .imgwrap{display:flex; justify-content:center; align-items:center; flex:1; min-height:0}
+  .imgwrap img{max-width:100%; max-height:64vh; border-radius:10px; background:#fff;
+        border:1px solid var(--line)}
+  .svgwrap{flex:1; display:flex; align-items:flex-start; justify-content:center; min-height:0; margin-top:.2em}
+  .diagram{max-width:100%; max-height:62vh; height:auto}
+  .cap{color:var(--muted); font-size:.86em; text-align:center; margin-top:.5em}
+  /* box-and-arrow flow */
+  .flow{display:flex; flex-direction:column; gap:.45em; margin:.4em 0}
+  .flow.h{flex-direction:row; flex-wrap:wrap; align-items:center}
+  .node{background:var(--box); border:1px solid var(--line); border-left:4px solid var(--accent);
+        border-radius:8px; padding:.5em .8em}
+  .node b{color:#fff} .node .t{color:var(--muted); font-size:.86em}
+  .arr{color:var(--accent); text-align:center; font-size:1.1em}
+  .arr.h{padding:0 .3em}
+  table{border-collapse:collapse; width:100%; font-size:clamp(12px,1.25vw,16px)}
+  th,td{border:1px solid var(--line); padding:.35em .55em; text-align:left; vertical-align:top}
+  th{background:#0b1220; color:var(--accent)}
+  td code{font-size:.86em}
+  .pill{display:inline-block; background:#0b1220; border:1px solid var(--line);
+        border-radius:999px; padding:.1em .7em; color:var(--accent2); font-size:.82em; margin:.15em .2em 0 0}
+  .big{font-size:clamp(30px,5vw,64px); color:var(--accent2); font-weight:700}
+  .lvl1{border-left-color:var(--warn)} .lvl2{border-left-color:var(--accent2)}
+  /* nav */
+  .nav{position:fixed; right:2.2vw; bottom:2.2vh; display:flex; gap:.5em; align-items:center; z-index:10}
+  .nav button{background:var(--panel); color:var(--ink); border:1px solid var(--line);
+       border-radius:8px; padding:.5em .9em; font-size:16px; cursor:pointer}
+  .nav button:hover{border-color:var(--accent); color:#fff}
+  .nav .count{color:var(--muted); font-variant-numeric:tabular-nums; min-width:4.5em; text-align:center}
+  .nav input{width:3.6em; background:var(--panel); color:var(--ink); border:1px solid var(--line);
+       border-radius:8px; padding:.5em .3em; font-size:15px; text-align:center}
+  .nav input:focus{outline:none; border-color:var(--accent)}
+  .bar{position:fixed; top:0; left:0; height:4px; background:var(--accent); z-index:10; transition:width .2s}
+  .tag{position:fixed; left:2.2vw; bottom:2.4vh; color:var(--muted); font-size:.8em; z-index:10}
+
+  /* PDF export: one slide per printed page (browser "Save as PDF").
+     Show every slide, drop the chrome, keep the dark theme, and use fixed pt
+     sizes so the layout is deterministic on the print canvas (vw is not). */
+  @media print{
+    @page{ size:A4 landscape; margin:10mm; }
+    html,body{ height:auto; overflow:visible; background:var(--bg); }
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+    .nav,.bar,.tag{ display:none !important; }
+    .deck{ position:static; height:auto; width:auto; }
+    .slide{
+      display:flex !important; position:relative !important; inset:auto !important;
+      height:auto; min-height:0; overflow:visible; background:var(--bg);
+      padding:9mm 11mm; break-after:page; page-break-after:always; break-inside:avoid;
+    }
+    .slide:last-child{ break-after:auto; page-break-after:auto; }
+    .imgwrap{ min-height:0; } .imgwrap img{ max-height:12.5cm; }
+    .svgwrap{ margin-top:0; } .diagram{ max-height:15.5cm; }
+    h1{ font-size:30pt } h2{ font-size:21pt } h3{ font-size:14pt }
+    p,li{ font-size:12pt } .sub{ font-size:12.5pt } table{ font-size:9.5pt }
+    .big{ font-size:30pt } .cap{ font-size:10pt }
+    .node b{ font-size:12pt } .node .t{ font-size:10pt }
+  }
+</style>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="deck" id="deck">
+
+  <!-- 0 -->
+  <section class="slide active center">
+    <div class="big">VN1000</div>
+    <h1>A Linux PCIe NIC, from the stack to the silicon (simulated)</h1>
+    <p class="sub">How a network card driver actually works - TCP/IP down to descriptors, DMA and MSI -
+       built three ways: an in-kernel engine, an emulated QEMU PCIe device, and a real tap to the host.</p>
+    <p class="sub">Navigate: <b>&larr; &rarr;</b> / buttons &middot; <b>F</b> fullscreen &middot; <b>Home</b> first slide &middot; type a page number to jump &middot; <b>P</b> print/PDF.</p>
+  </section>
+
+  <!-- 1 agenda -->
+  <section class="slide">
+    <h2>Agenda</h2>
+    <ol>
+      <li>TCP stream TX / RX flow (an HTTP example) - socket, ports, segmentation, checksum, IP routing &amp; forwarding, ARP, Ethernet</li>
+      <li>The PCIe NIC: anatomy &amp; a sample datasheet</li>
+      <li>Linux PCIe NIC driver framework - TX/RX flow, init, MMIO &amp; barriers, probe, DMA, ISR, cleanup</li>
+      <li>The QEMU PCIe NIC device model</li>
+      <li>The vNIC project goal - Level 1 &amp; Level 2</li>
+      <li>Development environment setup</li>
+      <li>Test environment setup</li>
+      <li>Performance benchmark</li>
+    </ol>
+  </section>
+
+  <!-- 2 TCP TX flow -->
+  <section class="slide">
+    <h2>1.1 &middot; TCP TX flow (HTTP GET) - source -&gt; router -&gt; destination</h2>
+    <div class="svgwrap">
+    <img class="diagram" src="diagrams/tcp-tx-encap.svg" alt="TCP TX encapsulation across source, router and destination">
+    </div>
+    <p class="cap">Encapsulation adds one header per layer (ports identify the connection, IP the host, MAC the <i>next hop</i>). Blue = encapsulate, green = decapsulate. Routing &amp; ARP detail on the next slide.</p>
+  </section>
+
+  <!-- 3 IP routing & forwarding & ARP -->
+  <section class="slide">
+    <h2>1.2 &middot; IP routing, forwarding, and the next-hop MAC</h2>
+    <div class="two">
+      <div>
+        <h3>Routing (the sender)</h3>
+        <ul>
+          <li>The route table maps a destination to an <b>egress interface</b> + a <b>next hop</b> (the gateway, or the dest if on-link).</li>
+          <li>The frame's <b>destination MAC = the next hop's MAC</b>, never the final host's (unless same subnet).</li>
+        </ul>
+        <h3>ARP</h3>
+        <ul>
+          <li>"who-has &lt;next-hop IP&gt;?" broadcast -> the owner replies "is-at &lt;MAC&gt;".</li>
+          <li>Cached in the neighbour table; that MAC fills the Ethernet dst.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Forwarding (a router in the middle)</h3>
+        <p>At each hop the IP packet is delivered up to L3, re-routed, and re-framed:</p>
+        <ul>
+          <li><b>IP addresses stay the same</b> end to end.</li>
+          <li><b>TTL is decremented</b> (and the IP checksum updated).</li>
+          <li>The <b>L2 header is rewritten</b>: new src MAC = this router's egress MAC, <b class="kg">new dst MAC = the next hop's MAC</b> (resolved by ARP).</li>
+        </ul>
+        <div class="card"><span class="t">So: one IP journey, many Ethernet frames - the dst MAC is rewritten at every hop, the IP is not.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 RX flow -->
+  <section class="slide">
+    <h2>1.3 &middot; RX flow (HTTP response) - decapsulation up the stack</h2>
+    <div class="svgwrap">
+    <img class="diagram" src="diagrams/tcp-rx-decap.svg" alt="RX decapsulation up the stack">
+    </div>
+    <p class="cap">Each layer verifies then strips its header. The NIC driver owns L1/L2 (DMA, MSI, NAPI - the rest of this deck); the kernel stack owns L3/L4 up to the socket.</p>
+  </section>
+
+  <!-- 5 PCIe NIC anatomy -->
+  <section class="slide">
+    <h2>2.1 &middot; Anatomy of a PCIe NIC</h2>
+    <div class="two">
+      <div>
+        <div class="flow">
+          <div class="node"><b>PCI config space</b><div class="t">vendor/device ID, class, the BAR sizing + the MSI capability - how the host enumerates &amp; maps it</div></div>
+          <div class="node"><b>BAR0 = MMIO registers (CSR)</b><div class="t">the control surface: identity, control/status, ring base/head/tail, interrupt cause/mask</div></div>
+          <div class="node"><b>Descriptor rings (in host RAM)</b><div class="t">TX + RX arrays of {addr,len,flags,status}; the device DMA-reads/writes them</div></div>
+          <div class="node"><b>DMA engine</b><div class="t">reads descriptors + packet buffers, writes RX data + completion status, by bus address</div></div>
+          <div class="node"><b>MSI / MSI-X</b><div class="t">completion interrupt = a memory write to the CPU's APIC</div></div>
+        </div>
+      </div>
+      <div>
+        <h3>The contract</h3>
+        <ul>
+          <li>The driver talks to the device <b>only</b> through (a) MMIO register reads/writes and (b) shared-memory descriptor rings.</li>
+          <li>The device reaches host memory by <b>DMA</b> at the bus addresses the driver programmed.</li>
+          <li>Ownership of each descriptor flips between driver and device via a <b>status (DD) bit</b> + memory barriers.</li>
+          <li>The driver kicks the device with a <b>doorbell</b> (a tail-register MMIO write); the device answers with an <b>interrupt</b>.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5b host address space block diagram -->
+  <section class="slide">
+    <h2>2.2 &middot; How the host sees the NIC - address space, MMIO &amp; DMA</h2>
+    <div class="svgwrap">
+    <img class="diagram" src="diagrams/host-address-space.svg" alt="How the host sees the NIC - address space, MMIO and DMA">
+    </div>
+    <p class="cap">The CPU reaches RAM directly (load/store) and the NIC's registers through the <b>BAR0 MMIO window</b> (<code>readl</code>/<code>writel</code> - e.g. the TDT doorbell). The NIC's <b>DMA engine</b> is a bus master: it reads/writes the descriptor rings + buffers in RAM itself; completions raise an <b>MSI</b>. The transceiver (PHY) drives the wire.</p>
+  </section>
+
+  <!-- 6 sample datasheet -->
+  <section class="slide">
+    <h2>2.3 &middot; Sample datasheet - the VN1000 register &amp; descriptor map</h2>
+    <div class="two">
+      <div>
+        <h3>BAR0 registers (32-bit, little-endian)</h3>
+        <table>
+          <tr><th>Offset</th><th>Name</th><th>Meaning</th></tr>
+          <tr><td><code>0x00</code></td><td>ID</td><td>RO identity = <code>0x564E3130</code> ("VN10")</td></tr>
+          <tr><td><code>0x10</code></td><td>CTRL</td><td>EN / RST / TXEN / RXEN</td></tr>
+          <tr><td><code>0x14</code></td><td>STATUS</td><td>RUNNING / LINK_UP</td></tr>
+          <tr><td><code>0x100..</code></td><td>TDBAL/H,TDLEN,TDH,TDT</td><td>TX ring base / len / head / <b>tail doorbell</b></td></tr>
+          <tr><td><code>0x200..</code></td><td>RDBAL/H,RDLEN,RDH,RDT</td><td>RX ring base / len / head / refill tail</td></tr>
+          <tr><td><code>0x300..</code></td><td>ICR/ICS/IMS/IMC</td><td>interrupt cause (read-to-clear) / set / mask-set / mask-clear</td></tr>
+          <tr><td><code>0x310</code></td><td>ITR</td><td>interrupt moderation (microseconds)</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>Descriptor (16 bytes) - <code>struct vn_desc</code></h3>
+        <table>
+          <tr><th>Field</th><th>Bytes</th><th>Use</th></tr>
+          <tr><td><code>addr</code></td><td>8</td><td>buffer bus (DMA) address</td></tr>
+          <tr><td><code>len</code></td><td>4</td><td>TX: packet length; RX: bytes received</td></tr>
+          <tr><td><code>flags</code></td><td>2</td><td>TX cmd (EOP / RS); RX result</td></tr>
+          <tr><td><code>status</code></td><td>2</td><td><b>DD</b> = descriptor done (ownership)</td></tr>
+        </table>
+        <p class="sub" style="margin-top:1em">One spec header, <code>include/vnic_regs.h</code>, is shared by <b>both</b> the Linux driver and the QEMU device - so they cannot drift.</p>
+        <p><span class="pill">single queue</span><span class="pill">single MSI</span><span class="pill">MTU 68-9000 B (jumbo)</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6b descriptor placement: RAM vs MMIO -->
+  <section class="slide">
+    <h2>2.4 &middot; Where the descriptor ring lives - host RAM vs device MMIO</h2>
+    <div class="two">
+      <div>
+        <h3>Two models</h3>
+        <ul>
+          <li><b>Ring in RAM</b> (mainstream - VN1000 / e1000 / virtio): the descriptor array is in
+              coherent DMA memory; only the <b>head/tail</b> (<code>TDH/TDT</code>) are MMIO. The CPU
+              writes descriptors with cheap cached stores + one doorbell; the device <b>DMA-reads</b> a
+              burst (with an on-chip prefetcher).</li>
+          <li><b>Descriptors in device MMIO</b> (minority): the descriptor <i>is</i> a register the CPU
+              writes - so the ring is <b>small and fixed</b>.</li>
+        </ul>
+        <div class="card"><span class="t">CPU MMIO writes are uncached and costly, so writing a whole descriptor per packet does not scale - RAM ring + one doorbell wins for throughput. MMIO descriptors only pay off for tiny/embedded or ultra-low latency (Mellanox BlueFlame).</span></div>
+      </div>
+      <div>
+        <h3>Textbook datasheet example: Realtek RTL8139</h3>
+        <ul>
+          <li>TX has <b>no ring in RAM</b> - just <b>4 fixed register pairs</b> in the chip:
+              <code>TSAD0..3</code> (the packet's <b>DMA address</b> -&gt; RAM) + <code>TSD0..3</code>
+              (length / status). The driver round-robins <code>NUM_TX_DESC = 4</code>.</li>
+          <li>Matches "descriptors in MMIO, ring fixed at 4, buffer in RAM" exactly.</li>
+          <li>Its cost (only 4 in-flight TX) is why <b>RTL8169 / e1000</b> switched to an in-RAM ring -
+              the VN1000 model.</li>
+        </ul>
+        <p class="sub">VN1000 deliberately uses the mainstream RAM-ring model (background-knowledge topic 8).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 driver framework overview -->
+  <section class="slide">
+    <h2>3.1 &middot; Linux PCIe NIC driver framework</h2>
+    <div class="two">
+      <div>
+        <div class="flow">
+          <div class="node"><b>net_device + net_device_ops</b><div class="t">ndo_open / stop / start_xmit / get_stats / change_mtu</div></div>
+          <div class="arr">&darr;</div>
+          <div class="node"><b>core datapath</b><div class="t">TX/RX rings, the DD handshake, NAPI poll - hardware-independent</div></div>
+          <div class="arr">&darr;</div>
+          <div class="node"><b>HAL seam</b><div class="t">rd32/wr32, ring alloc, map/unmap, irq, init - the one place hardware-specifics live</div></div>
+          <div class="arr">&darr;</div>
+          <div class="node lvl2"><b>device backend</b><div class="t">MMIO + DMA + MSI to a real (here: emulated) PCIe device</div></div>
+        </div>
+      </div>
+      <div>
+        <h3>The lifecycle</h3>
+        <ul>
+          <li><b>Probe</b> - the PCI core finds a matching device, the driver claims it and registers the netdev.</li>
+          <li><b>Open</b> - post RX buffers, request the IRQ, enable the device, start the queue.</li>
+          <li><b>TX / RX</b> - the steady-state datapath (next slides).</li>
+          <li><b>Stop / Remove</b> - disable, quiesce, free, unregister.</li>
+        </ul>
+        <p class="sub">The next slides walk each piece: TX, RX, init/probe, MMIO &amp; barriers, DMA, ISR, cleanup.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 TX flow diagram -->
+  <section class="slide">
+    <h2>3.2 &middot; Linux NIC TX flow</h2>
+    <div class="imgwrap"><img src="diagrams/tx-path.svg" alt="TX packet transmission path"></div>
+    <p class="cap">ndo_start_xmit -> map + fill descriptor -> <b>dma_wmb</b> -> ring TDT doorbell -> device DMA-reads &amp; sends -> sets DD + MSI -> ISR -> <b>napi_schedule</b> -> poll: dma_unmap + free skb.</p>
+  </section>
+
+  <!-- 9 RX flow diagram -->
+  <section class="slide">
+    <h2>3.3 &middot; Linux NIC RX flow</h2>
+    <div class="imgwrap"><img src="diagrams/rx-path.svg" alt="RX packet reception path"></div>
+    <p class="cap">pre-posted buffers -> device DMA-writes a frame + sets DD + MSI -> ISR masks + <b>napi_schedule</b> -> poll: <b>dma_rmb</b>, skb_put + eth_type_trans + napi_gro_receive -> refill + RDT.</p>
+  </section>
+
+  <!-- 10 init + probe -->
+  <section class="slide">
+    <h2>3.4 &middot; Driver init &amp; probe</h2>
+    <div class="two">
+      <div>
+        <h3>Module init</h3>
+        <ul>
+          <li><code>pci_register_driver()</code> with an ID table (<code>{vendor, device}</code>).</li>
+          <li>The PCI core enumerates the bus; on a match it calls <b>probe</b>.</li>
+        </ul>
+        <h3>Probe</h3>
+        <ul>
+          <li><code>pci_enable_device</code> + <code>pci_request_regions</code></li>
+          <li><code>pci_iomap(BAR0)</code> -> the MMIO base</li>
+          <li><code>pci_set_master</code> (bus-master, for DMA) + <code>dma_set_mask</code></li>
+          <li>allocate the descriptor rings; verify the ID reads back</li>
+          <li><code>alloc_etherdev</code> + <code>register_netdev</code> -> the interface appears</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Why this order</h3>
+        <p>Enable + map before touching registers; set the DMA mask before any DMA alloc; register the netdev <b>last</b>, once the device is ready - so the first <code>open</code> can't race an unfinished setup.</p>
+        <p class="sub"><b>register != open:</b> after probe the interface <b>exists but is DOWN</b>; <code>insmod</code> does not bring the link up. <code>ndo_open</code> (on <code>ip link set up</code>) is what posts RX buffers, requests the IRQ, and starts the queue.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 MMIO + barriers -->
+  <section class="slide">
+    <h2>3.5 &middot; MMIO, barriers &amp; the DD handshake</h2>
+    <div class="two">
+      <div>
+        <h3>MMIO - <code>readl</code> / <code>writel</code></h3>
+        <ul>
+          <li>Register access goes through accessors, never a raw pointer dereference.</li>
+          <li>They guarantee a single, ordered, never-elided access of the right width + correct endianness.</li>
+          <li>Writing the <b>tail (TDT/RDT)</b> register is the <b>doorbell</b>.</li>
+        </ul>
+        <h3>The DD ownership handshake</h3>
+        <ul>
+          <li>Producer: write buffer/len, <code>dma_wmb()</code>, then set <b>DD</b> (publish).</li>
+          <li>Consumer: <code>READ_ONCE(DD)</code>, <code>dma_rmb()</code>, then read the buffer (observe).</li>
+          <li><code>dma_*</code> (not <code>smp_*</code>) because the peer is a <b>device</b> (L1 engine: <code>smp_*</code>).</li>
+        </ul>
+      </div>
+      <div class="card shrink">
+        <h3>Synchronization is <i>not</i> a lock</h3>
+        <p>You cannot lock a device, so the rings are race-free by four cooperating guarantees:</p>
+        <ul>
+          <li><b>Single-owner protocol</b> - <code>DD</code> says who owns each descriptor; only the owner writes it.</li>
+          <li><b>Ordering</b> - <code>dma_wmb</code> before the flag, <code>dma_rmb</code> after it (no "saw DD, read stale payload").</li>
+          <li><b><code>READ_ONCE</code></b> - forces a fresh reload of the flag so the compiler can't spin on a cached value. It is <i>not</i> a fence - the compiler-level companion to <code>dma_rmb</code>.</li>
+          <li><b>Reachable memory</b> - coherent ring + buffers <code>dma_unmap</code>'d before the CPU reads them.</li>
+        </ul>
+        <p class="sub">The driver's <code>tx_ring.lock</code> only serialises its own xmit (process) vs clean (softirq) - not the device.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 DMA -->
+  <section class="slide">
+    <h2>3.6 &middot; Driver DMA</h2>
+    <div class="two">
+      <div>
+        <h3>Two kinds of mapping</h3>
+        <ul>
+          <li><b>Coherent</b> (<code>dma_alloc_coherent</code>) - the descriptor <b>ring</b>: CPU and device both see it without explicit syncs; its bus address goes into TDBAL/H, RDBAL/H.</li>
+          <li><b>Streaming</b> (<code>dma_map_single</code>) - the packet <b>buffers</b>: mapped per transfer, with a direction; unmapped on completion (which also syncs for the CPU).</li>
+        </ul>
+      </div>
+      <div>
+        <h3>The bus-address view</h3>
+        <ul>
+          <li>The device DMAs to <b>bus (DMA) addresses</b>, not CPU pointers - that is what goes in <code>vn_desc.addr</code>.</li>
+          <li>Bus-master must be enabled; an IOMMU (if present) translates these.</li>
+          <li>Always check <code>dma_mapping_error()</code>; keep the original <code>skb</code> separately to free it (the token is opaque).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 ISR + NAPI -->
+  <section class="slide">
+    <h2>3.7 &middot; Driver ISR &amp; NAPI</h2>
+    <div class="two">
+      <div>
+        <h3>Top half (the ISR)</h3>
+        <ul>
+          <li>Runs in hard-IRQ context - do the <b>minimum</b>.</li>
+          <li>Read <b>ICR</b> (read-to-clear), <b>mask</b> the cause (IMC), <b><code>napi_schedule()</code></b>. Done.</li>
+        </ul>
+        <h3>Bottom half (NAPI poll, softirq)</h3>
+        <ul>
+          <li>Does the work: clean TX completions, receive RX up to a <b>budget</b>.</li>
+          <li>Drained below budget -> <code>napi_complete_done()</code> + re-enable the interrupt (IMS).</li>
+        </ul>
+        <p class="sub"><b>Why IMS/IMC (and ICR/ICS) are split pairs:</b> write-1-to-set / write-1-to-clear lets the ISR <i>mask</i> and the poll <i>re-arm</i> flip only their own bits with one atomic write - no read-modify-write race, no costly MMIO read of the mask.</p>
+      </div>
+      <div class="card">
+        <h3>Why interrupt + polling?</h3>
+        <p>One interrupt wakes a poll that drains <b>many</b> packets, then re-arms - this avoids an interrupt-per-packet storm at high load while staying low-latency when idle (NAPI).</p>
+        <p class="sub">Interrupt moderation (ITR) is a second, device-side cap on the interrupt rate.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14 cleanup -->
+  <section class="slide">
+    <h2>3.8 &middot; Driver cleanup</h2>
+    <div class="two">
+      <div>
+        <h3>Stop (interface down)</h3>
+        <ul>
+          <li>Stop the queue (wait out any in-flight xmit).</li>
+          <li>Disable the device (clear CTRL); <b>quiesce</b> (wait out in-flight device work / <code>synchronize_irq</code>).</li>
+          <li>Stop NAPI, mask all interrupts, free the IRQ.</li>
+          <li><b>Drain</b> the rings: unmap + free every buffer the driver still owns.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Remove (module / device gone)</h3>
+        <ul>
+          <li><code>unregister_netdev</code> (closes the device first if up).</li>
+          <li>Free the rings, unmap BAR0, release regions, disable the PCI device.</li>
+        </ul>
+        <div class="card"><span class="t">Ordering matters: never free memory the device might still be DMA-ing into - disable + quiesce first, then drain.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15 QEMU device model -->
+  <section class="slide">
+    <h2>4 &middot; The QEMU PCIe NIC device model</h2>
+    <div class="two">
+      <div>
+        <h3>How the host side is built</h3>
+        <ul>
+          <li><b>QOM type</b> parented to <code>TYPE_PCI_DEVICE</code>; instance struct embeds <code>PCIDevice</code>.</li>
+          <li><b>realize()</b> = the constructor: create the BAR <code>MemoryRegion</code> + <code>pci_register_bar</code>; <code>msi_init</code>; (real NIC) create the backend.</li>
+          <li><b>MMIO callbacks</b> (<code>MemoryRegionOps.read/write</code>) = the device's register logic (the doorbell, ICR/IMS/...).</li>
+          <li><b>DMA</b>: <code>pci_dma_read</code>/<code>pci_dma_write</code> at the driver's bus addresses.</li>
+          <li><b>Interrupt</b>: <code>msi_notify</code>.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Each guest action -> a callback</h3>
+        <table>
+          <tr><th>Guest does</th><th>QEMU runs</th></tr>
+          <tr><td>readl/writel on BAR0</td><td><code>vnic_mmio_read/write</code></td></tr>
+          <tr><td>writel(TDT) doorbell</td><td>walk the ring, <code>pci_dma_read</code> + send</td></tr>
+          <tr><td>(device DMA)</td><td><code>pci_dma_read/write</code> guest RAM</td></tr>
+          <tr><td>request_irq fires</td><td><code>msi_notify</code> -> APIC injects</td></tr>
+        </table>
+        <p class="sub" style="margin-top:.8em">A backend (<code>-netdev tap</code>) carries frames out: TX <code>qemu_send_packet</code>, RX a <code>receive()</code> callback.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 16 project goal -->
+  <section class="slide">
+    <h2>5 &middot; The vNIC project goal</h2>
+    <p class="sub">Understand the Linux NIC driver working flow by building one - the same driver core, three progressively more real "devices" behind one HAL seam.</p>
+    <div class="two">
+      <div class="card">
+        <h3 style="color:var(--warn)">Level 1 - in-kernel engine</h3>
+        <ul>
+          <li>Pure kernel module: <code>vnic_loop0</code>.</li>
+          <li>"Device" = an engine <b>kthread</b>; fake registers; the buffer pointer is the DMA token; a simulated-MSI <b>tasklet</b>.</li>
+          <li>Internal IP-swap <b>loopback</b> - exercises the whole datapath with no hardware.</li>
+          <li>Goal: real-NIC structure (netdev + rings + NAPI + the interrupt protocol), validated by a test suite.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--accent2)">Level 2 - QEMU PCIe device</h3>
+        <ul>
+          <li><code>vnic0</code>, bound to an emulated PCIe device in a self-built QEMU.</li>
+          <li>Real <b>MMIO</b>, <b>DMA</b> (coherent ring + streaming buffers), real <b>MSI</b>.</li>
+          <li>Default loopback; or a real <b>tap</b> backend -> ping the host, reach the internet.</li>
+          <li>Goal: the same core, now over a real PCIe/DMA/MSI path; <b>both levels load at once</b>.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 17 dev env -->
+  <section class="slide">
+    <h2>6 &middot; Development environment</h2>
+    <div class="two">
+      <div>
+        <h3>Host: WSL2 + a QEMU guest</h3>
+        <ul>
+          <li>Edit on Windows; build/run in a <b>QEMU Ubuntu guest</b> (kernel headers available, kgdb works, a panic only kills the guest).</li>
+          <li>Guest built from an Ubuntu cloud image + cloud-init (<code>dev-setup.md</code>).</li>
+          <li><code>scripts/run-qemu.sh</code> boots it (q35, <code>-s</code> gdbstub).</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Level 2: a self-built QEMU</h3>
+        <ul>
+          <li>No stable out-of-tree device ABI -> the device (<code>qemu-device/vnic.c</code>) is compiled <b>into</b> a QEMU source tree (<code>hw/net/</code> + a meson/Kconfig hook), pinned to the guest's QEMU version.</li>
+          <li><code>QEMU=... VNIC_DEVICE=1 run-qemu.sh</code> boots the guest under it.</li>
+          <li>SOP: <code>qemu-build.md</code>.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 18 test env -->
+  <section class="slide">
+    <h2>7 &middot; Test environment</h2>
+    <div class="two">
+      <div>
+        <h3>Loopback suite (in the guest)</h3>
+        <ul>
+          <li><code>tests/run-all.sh</code> = 01-smoke, 02-lifecycle, 03-concurrency, 04-ringfull, 05-edge, 06-faultinject.</li>
+          <li>Pings a fictional peer over the internal loopback (a static neighbour stands in for ARP), iperf3, stats, dmesg-clean, kmemleak.</li>
+          <li>Selected by <code>MODULE=</code>: same suite runs on L1 (<code>vnic_loop0</code>) and L2 (<code>vnic0</code>).</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Tap variant (real host)</h3>
+        <ul>
+          <li><code>tests/07-tap.sh</code>: ping the host, iperf3 both ways, optional reach to the internet.</li>
+          <li>Host side: a tap (<code>ip tuntap</code>) + optional router/NAT (<code>scripts/tap-nat.sh</code>).</li>
+          <li>Both drivers coexist (distinct names + subnets) and test independently.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 19 performance -->
+  <section class="slide">
+    <h2>8 &middot; Performance benchmark (Level 2, tap, QEMU+KVM)</h2>
+    <table>
+      <tr><th>Lever</th><th>What it changes</th><th>Measured</th></tr>
+      <tr><td><b>TX doorbell batching</b><br><span class="sub">batch the TDT write over an xmit_more burst</span></td>
+          <td>fewer per-packet MMIO VM-exits</td>
+          <td class="big" style="font-size:clamp(18px,2vw,26px)">414 Mbit/s &rarr; 1.86 Gbit/s <span class="pill">~4.5x</span></td></tr>
+      <tr><td><b>ITR interrupt moderation</b><br><span class="sub">coalesce MSIs to &le; 1 per ITR us</span></td>
+          <td>fewer interrupts / less CPU, throughput flat</td>
+          <td class="big" style="font-size:clamp(18px,2vw,26px)">849 &rarr; 14 ints/s <span class="pill">~60x</span></td></tr>
+      <tr><td><b>MTU (jumbo)</b><br><span class="sub">amortize per-packet cost over more bytes</span></td>
+          <td>higher throughput; does <i>not</i> cut interrupts (NAPI-driven)</td>
+          <td class="big" style="font-size:clamp(18px,2vw,26px)">1500 &rarr; 9000: RX ~7.4 / TX ~8.4 Gbit/s <span class="pill">~2.5x</span></td></tr>
+    </table>
+    <h3>The lens: per-packet vs per-byte</h3>
+    <p>Doorbell-batching, ITR and MTU all attack the <b>per-packet fixed cost</b> (descriptor, DMA-map, skb, stack, the MMIO exit). Checksum is <b>per-byte</b> - only an offload removes it. Coalescing buys throughput/CPU at the cost of latency; polling buys latency at the cost of CPU.</p>
+  </section>
+
+  <!-- 20 closing -->
+  <section class="slide center">
+    <h1>From <code>HTTP GET</code> to a descriptor on a ring</h1>
+    <p class="sub">net_device + descriptor rings + the DD/barrier handshake + an MMIO doorbell + an MSI + a NAPI poll - one loop, built three ways behind one HAL seam.</p>
+    <p class="sub">Start here: <code>docs/nic-driver-walkthrough.md</code> &middot; design: <code>architecture.md</code> &middot;
+       why: <code>design-decisions.md</code> &middot; mechanisms: <code>background-knowledge.md</code> &middot;
+       findings: <code>lessons-learned.md</code></p>
+    <p class="big" style="font-size:clamp(22px,3vw,40px)">Thank you</p>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="home" aria-label="First slide" title="First slide (Home)">&#8962; Home</button>
+  <button id="prev" aria-label="Previous">&larr; Prev</button>
+  <input id="goto" type="number" min="1" aria-label="Go to page" title="Type a page number, Enter to jump">
+  <span class="count" id="count">1 / 1</span>
+  <button id="next" aria-label="Next">Next &rarr;</button>
+  <button id="full" aria-label="Toggle fullscreen" title="Toggle fullscreen (F)">Fullscreen</button>
+  <button id="pdf" aria-label="Export PDF" title="Print / Save as PDF - one slide per page">PDF</button>
+</div>
+<div class="tag">VN1000 teaching slides</div>
+
+<script>
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var i = 0;
+  var countEl = document.getElementById('count');
+  var barEl = document.getElementById('bar');
+  var gotoEl = document.getElementById('goto');
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function(s, k){ s.classList.toggle('active', k === i); });
+    countEl.textContent = (i + 1) + ' / ' + slides.length;
+    gotoEl.value = i + 1;
+    gotoEl.max = slides.length;
+    barEl.style.width = ((i + 1) / slides.length * 100) + '%';
+    if (location.hash !== '#' + (i + 1)) history.replaceState(null, '', '#' + (i + 1));
+    slides[i].scrollTop = 0;
+  }
+  function next(){ show(i + 1); }
+  function prev(){ show(i - 1); }
+  function toggleFull(){
+    var d = document, el = d.documentElement;
+    if (!d.fullscreenElement && !d.webkitFullscreenElement) {
+      (el.requestFullscreen || el.webkitRequestFullscreen || function(){}).call(el);
+    } else {
+      (d.exitFullscreen || d.webkitExitFullscreen || function(){}).call(d);
+    }
+  }
+  function syncFull(){
+    var on = document.fullscreenElement || document.webkitFullscreenElement;
+    document.getElementById('full').textContent = on ? 'Exit full' : 'Fullscreen';
+  }
+  document.getElementById('home').onclick = function(){ show(0); };
+  document.getElementById('next').onclick = next;
+  document.getElementById('prev').onclick = prev;
+  document.getElementById('full').onclick = toggleFull;
+  document.getElementById('pdf').onclick = function(){ window.print(); };
+  gotoEl.addEventListener('keydown', function(e){
+    e.stopPropagation();
+    if (e.key === 'Enter') { var v = parseInt(gotoEl.value, 10); if (!isNaN(v)) show(v - 1); gotoEl.blur(); }
+  });
+  gotoEl.addEventListener('change', function(){ var v = parseInt(gotoEl.value, 10); if (!isNaN(v)) show(v - 1); });
+  document.addEventListener('fullscreenchange', syncFull);
+  document.addEventListener('webkitfullscreenchange', syncFull);
+  document.addEventListener('keydown', function(e){
+    if (e.target && e.target.tagName === 'INPUT') return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { next(); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { prev(); e.preventDefault(); }
+    else if (e.key === 'Home') { show(0); }
+    else if (e.key === 'End') { show(slides.length - 1); }
+    else if (e.key === 'p' || e.key === 'P') { window.print(); }
+    else if (e.key === 'f' || e.key === 'F') { toggleFull(); }
+  });
+  var start = parseInt((location.hash || '#1').slice(1), 10);
+  show(isNaN(start) ? 0 : start - 1);
+</script>
+</body>
+</html>
