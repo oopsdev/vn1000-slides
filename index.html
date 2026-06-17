@@ -318,9 +318,9 @@
         <h3>TX in five steps (A-E)</h3>
         <ul>
           <li><b>A - init</b>: alloc + map the TX ring; program its base + head/tail (<code>TDH</code>/<code>TDT</code>) into the CSR.</li>
-          <li><b>B - submit</b> (<code>ndo_start_xmit</code>): DMA-map the skb, fill a descriptor, <code>dma_wmb</code>, then ring the <b><code>TDT</code> doorbell</b>.</li>
-          <li><b>C - device + DMA</b>: the NIC DMA-reads the descriptor + packet and sends it on the wire.</li>
-          <li><b>D - completion IRQ</b>: it writes back <b><code>DD</code></b> and raises a (coalesced) <b>MSI</b>; the ISR masks the cause + <code>napi_schedule()</code>.</li>
+          <li><b>B - submit</b> (<code>ndo_start_xmit</code>): DMA-map the skb, fill a descriptor (<b>clear <code>DD</code></b> = NIC-owned), <code>dma_wmb</code>, then ring the <b><code>TDT</code> doorbell</b>.</li>
+          <li><b>C - device + DMA</b>: the NIC DMA-reads the descriptor + packet, sends it on the wire, then <b>writes back <code>DD</code></b> (done = driver-owned).</li>
+          <li><b>D - completion IRQ</b>: it raises a (coalesced) <b>MSI</b>; the ISR acks <code>ICR</code>, masks the cause, and <code>napi_schedule()</code>.</li>
           <li><b>E - cleanup</b>: the NAPI poll reaps <code>DD</code> descriptors, <code>dma_unmap</code> + frees the skb, wakes the queue, re-arms the IRQ.</li>
         </ul>
       </div>
