@@ -53,6 +53,9 @@
   .imgwrap{display:flex; justify-content:center; align-items:center; flex:1; min-height:0}
   .imgwrap img{max-width:100%; max-height:72vh; border-radius:10px; background:#fff;
         border:1px solid var(--line)}
+  /* ring-state slides (3.2/3.3): the SVG carries its own legend, so cap it short
+     to leave room for the caption below instead of letting it fill 72vh */
+  .imgwrap.ring img{max-height:48vh}
   /* .steps: the A-E text block beside the TX/RX flow diagrams (3.2/3.3) */
   .steps h3{font-size:clamp(15px,1.65vw,20px); margin:.2em 0 .4em}
   .steps ul{margin:.25em 0 .35em 1.1em}
@@ -334,7 +337,7 @@
   <!-- 8b TX ring state: DD ownership + the NTU/NTC cursors -->
   <section class="slide">
     <h2>3.2 &middot; TX ring &mdash; DD ownership &amp; the driver's cursors</h2>
-    <div class="imgwrap"><img src="diagrams/tx-ring.svg" alt="TX ring snapshot: completed (DD=1) slots awaiting reclaim, submitted (DD=0) device-owned slots, and free slots, with the TDH/TDT pointers and the NTU/NTC software cursors"></div>
+    <div class="imgwrap ring"><img src="diagrams/tx-ring.svg" alt="TX ring snapshot: completed (DD=1) slots awaiting reclaim, submitted (DD=0) device-owned slots, and free slots, with the TDH/TDT pointers and the NTU/NTC software cursors"></div>
     <p class="cap"><b>Driver produces, device consumes.</b> <code>DD</code> is the ownership bit - <span style="color:#6ee7b7">green <code>DD=1</code></span> = driver-owned (completed, reclaim it), <span style="color:#fcd34d">amber <code>DD=0</code></span> = device-owned (in flight). The hardware pointers <code>TDH</code>/<code>TDT</code> sit beside the driver's two software cursors: <b>NTU</b> (<code>next_to_use</code>, the producer - next slot to fill) and <b>NTC</b> (<code>next_to_clean</code>, the reclaim point). NTU may lead the published <code>TDT</code> when the doorbell is batched.</p>
   </section>
 
@@ -359,7 +362,7 @@
   <!-- 9b RX ring state: DD ownership + the single NTC cursor (NTU unused) -->
   <section class="slide">
     <h2>3.3 &middot; RX ring &mdash; DD ownership &amp; the driver's cursor</h2>
-    <div class="imgwrap"><img src="diagrams/rx-ring.svg" alt="RX ring snapshot: received (DD=1) slots to process, posted-empty (DD=0) device-owned slots awaiting a frame, and one unused slot, with the RDH/RDT pointers and the NTC cursor"></div>
+    <div class="imgwrap ring"><img src="diagrams/rx-ring.svg" alt="RX ring snapshot: received (DD=1) slots to process, posted-empty (DD=0) device-owned slots awaiting a frame, and one unused slot, with the RDH/RDT pointers and the NTC cursor"></div>
     <p class="cap"><b>Device produces, driver consumes</b> - the mirror of TX. <span style="color:#6ee7b7">green <code>DD=1</code></span> = a received frame (driver-owned, hand it up); <span style="color:#fcd34d">amber <code>DD=0</code></span> = a posted-empty buffer the device still owns. Here only <b>NTC</b> (<code>next_to_clean</code>) is used - it consumes a frame then refills the slot, publishing <code>RDT = NTC</code> at end of poll. <b>NTU is unused on RX</b>, because the <i>device</i> is the producer (it advances <code>RDH</code>).</p>
   </section>
 
