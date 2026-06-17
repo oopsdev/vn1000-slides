@@ -3,7 +3,7 @@
      frame by DMA+IRQ, the driver hands it up via NAPI, the stack strips
      L2->L3->L4 and demuxes to a socket. Standalone copy of slide 1.3; dark
      background baked in so it reads on a light markdown page. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 600" width="1180" height="600"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 620" width="1180" height="620"
      font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img"
      aria-label="Receive path: the NIC delivers a frame by DMA and interrupt, the driver hands it up via NAPI, and the stack strips L2 to L4 and demuxes to a socket">
   <defs>
@@ -51,5 +51,6 @@
   <text x="760" y="338" fill="#fbbf24" font-size="11">napi_gro_receive() coalesces same-flow segments here (GRO)</text>
 
   <!-- takeaway -->
-  <text x="590" y="575" text-anchor="middle" fill="#cbd5e1" font-size="12.5">RX is decapsulation: the NIC delivers the frame by DMA + IRQ, the driver hands it up via NAPI, the stack strips L2-&gt;L3-&gt;L4 and demuxes the bytes to the right socket (5-tuple).</text>
+  <text x="590" y="574" text-anchor="middle" fill="#cbd5e1" font-size="15">RX is decapsulation: the NIC delivers the frame by DMA + IRQ, the driver hands it up via NAPI,</text>
+  <text x="590" y="596" text-anchor="middle" fill="#cbd5e1" font-size="15">then the stack strips L2 -&gt; L3 -&gt; L4 and demuxes the bytes to the right socket (5-tuple).</text>
 </svg>
