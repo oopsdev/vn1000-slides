@@ -298,7 +298,8 @@
       <div>
         <h3>The lifecycle</h3>
         <ul>
-          <li><b>Probe</b> - the PCI core finds a matching device, the driver claims it and registers the netdev.</li>
+          <li><b>Init</b> (<code>module_init</code>) - <code>pci_register_driver()</code> with an ID table; the PCI core then calls probe on a match (L1 has no bus, so it builds the netdev directly).</li>
+          <li><b>Probe</b> - the driver claims the matched device, maps the BAR, allocs the rings, and <b>registers the netdev</b> (it appears, but DOWN).</li>
           <li><b>Open</b> - post RX buffers, request the IRQ, enable the device, start the queue.</li>
           <li><b>TX / RX</b> - the steady-state datapath (next slides).</li>
           <li><b>Stop / Remove</b> - disable, quiesce, free, unregister.</li>
