@@ -55,12 +55,12 @@
   <text x="782" y="127" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">DMA engine</text>
   <rect x="704" y="143" width="156" height="48" rx="5" fill="#2b3b52" stroke="#475569"/>
   <text x="782" y="172" text-anchor="middle" fill="#cbd5e1" font-size="12">FIFO</text>
-  <rect x="922" y="100" width="194" height="106" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
-  <text x="1019" y="147" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Transceiver</text>
-  <text x="1019" y="167" text-anchor="middle" fill="#cbd5e1" font-size="12">(PHY)</text>
+  <rect x="992" y="100" width="124" height="106" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
+  <text x="1054" y="147" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">Transceiver</text>
+  <text x="1054" y="167" text-anchor="middle" fill="#cbd5e1" font-size="12">(PHY)</text>
   <!-- DMA engine FIFO <-> transceiver: frames both ways (TX out, RX in) -->
-  <line x1="880" y1="167" x2="922" y2="167" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
-  <text x="901" y="157" text-anchor="middle" fill="#94a3b8" font-size="10">frames</text>
+  <line x1="880" y1="167" x2="992" y2="167" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
+  <text x="936" y="157" text-anchor="middle" fill="#94a3b8" font-size="10">frames</text>
 
   <!-- Register file (CSR): the SAME registers as BAR0, in the device - same offset bands, row-aligned -->
   <rect x="678" y="294" width="446" height="314" rx="8" fill="#243449" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6 4"/>
@@ -95,8 +95,8 @@
 
   <!-- bus-master DMA in the top lane, above the TDBAL/RDBAL pointer lines -->
   <line x1="684" y1="122" x2="578" y2="122" stroke="#34d399" stroke-width="3" marker-start="url(#hgr)" marker-end="url(#hgr)"/>
-  <text x="631" y="100" text-anchor="middle" fill="#34d399" font-size="12" font-weight="700">bus-master DMA</text>
-  <text x="631" y="113" text-anchor="middle" fill="#34d399" font-size="11">reads/writes the rings</text>
+  <text x="631" y="84" text-anchor="middle" fill="#34d399" font-size="12" font-weight="700">bus-master DMA</text>
+  <text x="631" y="97" text-anchor="middle" fill="#34d399" font-size="11">reads/writes the rings</text>
 
   <path d="M700,612 L700,634 L-30,634 L-30,322 L30,322" fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ha)"/>
   <text x="362" y="626" text-anchor="middle" fill="#fbbf24" font-size="12">MSI interrupt -&gt; CPU</text>
