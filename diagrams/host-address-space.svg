@@ -4,7 +4,7 @@
      baked in so it reads on a light markdown page. The BAR0 window (host side)
      and the CSR register file (device side) are drawn as the SAME offset-band
      list, row-aligned, to show they are one set of registers in two spaces. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 0 1280 650" width="1280" height="650"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 52 1280 590" width="1280" height="590"
      font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img"
      aria-label="The CPU accesses RAM directly and the NIC registers through the BAR0 MMIO window; the same registers are the device's CSR file; the NIC DMA engine reads and writes the rings in RAM; the transceiver drives the wire">
   <defs>
@@ -52,10 +52,15 @@
   <rect x="660" y="60" width="480" height="560" rx="10" fill="#1e293b" fill-opacity="0.5" stroke="#34d399" stroke-opacity="0.6" stroke-width="1.5"/>
   <text x="678" y="82" fill="#34d399" font-size="14" font-weight="700">NIC</text>
   <rect x="684" y="100" width="196" height="106" rx="8" fill="#243449" stroke="#34d399" stroke-width="1.5"/>
-  <text x="782" y="159" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">DMA engine</text>
+  <text x="782" y="127" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">DMA engine</text>
+  <rect x="704" y="143" width="156" height="48" rx="5" fill="#2b3b52" stroke="#475569"/>
+  <text x="782" y="172" text-anchor="middle" fill="#cbd5e1" font-size="12">FIFO</text>
   <rect x="922" y="100" width="194" height="106" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
   <text x="1019" y="147" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Transceiver</text>
   <text x="1019" y="167" text-anchor="middle" fill="#cbd5e1" font-size="12">(PHY)</text>
+  <!-- DMA engine FIFO <-> transceiver: frames both ways (TX out, RX in) -->
+  <line x1="880" y1="167" x2="922" y2="167" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
+  <text x="901" y="157" text-anchor="middle" fill="#94a3b8" font-size="10">frames</text>
 
   <!-- Register file (CSR): the SAME registers as BAR0, in the device - same offset bands, row-aligned -->
   <rect x="678" y="294" width="446" height="314" rx="8" fill="#243449" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6 4"/>
