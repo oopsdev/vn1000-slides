@@ -10,9 +10,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 472" width="1000" height="472"
      font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img"
      aria-label="TX ring snapshot: the driver fills descriptors and the device sends them. Green slots are completed (DD=1) awaiting reclaim, amber slots are submitted and device-owned (DD=0), gray slots are free.">
-  <defs>
-    <marker id="tu" markerWidth="11" markerHeight="11" refX="5" refY="2" orient="auto"><path d="M5,0 L10,9 L0,9 z" fill="#e2e8f0"/></marker>
-  </defs>
   <rect x="0" y="0" width="1000" height="472" fill="#0f172a"/>
 
   <text x="500" y="38" text-anchor="middle" fill="#fff" font-size="20" font-weight="700">TX ring &#8211; driver produces, device consumes</text>
@@ -62,12 +59,12 @@
 
   <!-- cursors -->
   <g text-anchor="middle">
-    <line x1="138" y1="214" x2="138" y2="187" stroke="#e2e8f0" stroke-width="2" marker-end="url(#tu)"/>
-    <text x="138" y="234" fill="#e2e8f0" font-size="13" font-weight="700" font-family="monospace">NTC</text>
-    <line x1="338" y1="214" x2="338" y2="187" stroke="#e2e8f0" stroke-width="2" marker-end="url(#tu)"/>
-    <text x="338" y="234" fill="#e2e8f0" font-size="13" font-weight="700" font-family="monospace">TDH</text>
-    <line x1="638" y1="214" x2="638" y2="187" stroke="#e2e8f0" stroke-width="2" marker-end="url(#tu)"/>
-    <text x="638" y="234" fill="#e2e8f0" font-size="13" font-weight="700" font-family="monospace">TDT / NTU</text>
+    <polygon points="138,188 129,207 147,207" fill="#e2e8f0"/>
+    <text x="138" y="230" fill="#e2e8f0" font-size="13" font-weight="700" font-family="monospace">NTC</text>
+    <polygon points="338,188 329,207 347,207" fill="#e2e8f0"/>
+    <text x="338" y="230" fill="#e2e8f0" font-size="13" font-weight="700" font-family="monospace">TDH</text>
+    <polygon points="638,188 629,207 647,207" fill="#e2e8f0"/>
+    <text x="638" y="230" fill="#e2e8f0" font-size="13" font-weight="700" font-family="monospace">TDT / NTU</text>
   </g>
 
   <!-- legend -->
