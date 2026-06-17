@@ -23,7 +23,7 @@
 
   <!-- HOST ADDRESS SPACE -->
   <rect x="200" y="60" width="400" height="560" rx="10" fill="#1e293b" fill-opacity="0.5" stroke="#64748b" stroke-dasharray="7 5"/>
-  <text x="400" y="82" text-anchor="middle" fill="#cbd5e1" font-size="14" font-weight="700">HOST ADDRESS SPACE</text>
+  <text x="400" y="82" text-anchor="middle" fill="#cbd5e1" font-size="14" font-weight="700">HOST MEMORY ADDRESS SPACE</text>
 
   <!-- RAM -->
   <rect x="222" y="98" width="356" height="180" rx="8" fill="#243449" stroke="#38bdf8" stroke-width="1.5"/>
