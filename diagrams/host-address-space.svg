@@ -12,6 +12,7 @@
     <marker id="hb" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="#38bdf8"/></marker>
     <marker id="hgr" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="#34d399"/></marker>
     <marker id="ha" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="#fbbf24"/></marker>
+    <marker id="hc" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#7dd3fc"/></marker>
   </defs>
 
   <rect x="-60" y="0" width="1280" height="650" fill="#0f172a"/>
@@ -76,14 +77,21 @@
   <path d="M100,370 L100,440 L222,440" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-start="url(#hb)" marker-end="url(#hb)"/>
   <text x="161" y="432" text-anchor="middle" fill="#38bdf8" font-size="11">MMIO  readl / writel</text>
 
-  <!-- BAR0 and CSR are the same registers (row-aligned); PCIe maps the device CSRs into the BAR -->
-  <line x1="578" y1="467" x2="694" y2="467" stroke="#fbbf24" stroke-width="2" stroke-dasharray="7 5" marker-start="url(#ha)" marker-end="url(#ha)"/>
-  <text x="636" y="447" text-anchor="middle" fill="#fbbf24" font-size="11">same regs</text>
-  <text x="636" y="459" text-anchor="middle" fill="#fbbf24" font-size="11">(BAR0 = CSR)</text>
+  <!-- TDBAL / RDBAL hold the base addresses of the rings in RAM -->
+  <line x1="694" y1="445" x2="562" y2="162" stroke="#7dd3fc" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#hc)"/>
+  <line x1="694" y1="489" x2="562" y2="236" stroke="#7dd3fc" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#hc)"/>
+  <text x="586" y="176" fill="#7dd3fc" font-size="10">TDBAL</text>
+  <text x="586" y="250" fill="#7dd3fc" font-size="10">RDBAL</text>
 
-  <line x1="684" y1="150" x2="578" y2="208" stroke="#34d399" stroke-width="3" marker-start="url(#hgr)" marker-end="url(#hgr)"/>
-  <text x="628" y="120" text-anchor="middle" fill="#34d399" font-size="12" font-weight="700">bus-master DMA</text>
-  <text x="628" y="135" text-anchor="middle" fill="#34d399" font-size="11">reads/writes the rings</text>
+  <!-- BAR0 and CSR are the same registers (row-aligned); placed low to clear the pointer lines -->
+  <line x1="578" y1="560" x2="694" y2="560" stroke="#fbbf24" stroke-width="2" stroke-dasharray="7 5" marker-start="url(#ha)" marker-end="url(#ha)"/>
+  <text x="636" y="540" text-anchor="middle" fill="#fbbf24" font-size="11">same regs</text>
+  <text x="636" y="552" text-anchor="middle" fill="#fbbf24" font-size="11">(BAR0 = CSR)</text>
+
+  <!-- bus-master DMA in the top lane, above the TDBAL/RDBAL pointer lines -->
+  <line x1="684" y1="136" x2="560" y2="112" stroke="#34d399" stroke-width="3" marker-start="url(#hgr)" marker-end="url(#hgr)"/>
+  <text x="622" y="92" text-anchor="middle" fill="#34d399" font-size="12" font-weight="700">bus-master DMA</text>
+  <text x="622" y="105" text-anchor="middle" fill="#34d399" font-size="11">reads/writes the rings</text>
 
   <path d="M700,612 L700,634 L-30,634 L-30,322 L30,322" fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ha)"/>
   <text x="362" y="626" text-anchor="middle" fill="#fbbf24" font-size="12">MSI interrupt -&gt; CPU</text>
