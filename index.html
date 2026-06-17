@@ -312,15 +312,37 @@
   <!-- 8 TX flow diagram -->
   <section class="slide">
     <h2>3.2 &middot; Linux NIC TX flow</h2>
-    <div class="imgwrap"><img src="diagrams/tx-path.svg" alt="TX packet transmission path"></div>
-    <p class="cap">ndo_start_xmit -> map + fill descriptor -> <b>dma_wmb</b> -> ring TDT doorbell -> device DMA-reads &amp; sends -> sets DD + MSI -> ISR -> <b>napi_schedule</b> -> poll: dma_unmap + free skb.</p>
+    <div class="two" style="grid-template-columns:1.5fr 1fr">
+      <div class="imgwrap"><img src="diagrams/tx-path.svg" alt="TX packet transmission path"></div>
+      <div>
+        <h3>TX in five steps (A-E)</h3>
+        <ul>
+          <li><b>A - init</b>: alloc + map the TX ring; program its base + head/tail (<code>TDH</code>/<code>TDT</code>) into the CSR.</li>
+          <li><b>B - submit</b> (<code>ndo_start_xmit</code>): DMA-map the skb, fill a descriptor, <code>dma_wmb</code>, then ring the <b><code>TDT</code> doorbell</b>.</li>
+          <li><b>C - device + DMA</b>: the NIC DMA-reads the descriptor + packet and sends it on the wire.</li>
+          <li><b>D - completion IRQ</b>: it writes back <b><code>DD</code></b> and raises a (coalesced) <b>MSI</b>; the ISR masks the cause + <code>napi_schedule()</code>.</li>
+          <li><b>E - cleanup</b>: the NAPI poll reaps <code>DD</code> descriptors, <code>dma_unmap</code> + frees the skb, wakes the queue, re-arms the IRQ.</li>
+        </ul>
+      </div>
+    </div>
   </section>
 
   <!-- 9 RX flow diagram -->
   <section class="slide">
     <h2>3.3 &middot; Linux NIC RX flow</h2>
-    <div class="imgwrap"><img src="diagrams/rx-path.svg" alt="RX packet reception path"></div>
-    <p class="cap">pre-posted buffers -> device DMA-writes a frame + sets DD + MSI -> ISR masks + <b>napi_schedule</b> -> poll: <b>dma_rmb</b>, skb_put + eth_type_trans + napi_gro_receive -> refill + RDT.</p>
+    <div class="two" style="grid-template-columns:1.5fr 1fr">
+      <div class="imgwrap"><img src="diagrams/rx-path.svg" alt="RX packet reception path"></div>
+      <div>
+        <h3>RX in five steps (A-E)</h3>
+        <ul>
+          <li><b>A - init</b>: pre-post an empty buffer into every RX descriptor (Model A); program the ring base + <code>RDT</code>.</li>
+          <li><b>B - arrival + DMA</b>: the NIC DMA-writes an incoming frame into the next buffer, sets <code>len</code> + <b><code>DD</code></b>, advances <code>RDH</code>.</li>
+          <li><b>C - interrupt</b>: it raises an <b>MSI</b>; the ISR acks, masks the cause, and <code>napi_schedule()</code>.</li>
+          <li><b>D - NAPI + upstream</b>: the poll reads <code>DD</code> descriptors (<code>dma_rmb</code>), <code>skb_put</code> + <code>eth_type_trans</code>, then <code>napi_gro_receive()</code> up the stack.</li>
+          <li><b>E - cleanup + recycle</b>: refill the slot with a fresh buffer, advance <code>RDT</code>; re-arm the IRQ once drained.</li>
+        </ul>
+      </div>
+    </div>
   </section>
 
   <!-- 10 init + probe -->
