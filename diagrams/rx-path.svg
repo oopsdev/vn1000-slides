@@ -104,12 +104,12 @@
   <!-- PHASE A arrows (A1 -> A2 -> A3 top to bottom) -->
   <!-- A1 (label floats above the line, line stays clear) -->
   <line x1="1000" y1="138" x2="824" y2="138" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="854" y="118" width="166" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
-  <text x="937" y="129" text-anchor="middle" font-size="9.5" fill="#fcd34d">A1  alloc + map ring + buffers</text>
+  <rect x="826" y="118" width="160" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="906" y="129" text-anchor="middle" font-size="9" fill="#fcd34d">A1  alloc + map ring + buffers</text>
   <!-- A2 (label floats above the line, line stays clear) -->
   <line x1="1000" y1="170" x2="824" y2="170" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="839" y="150" width="196" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
-  <text x="937" y="161" text-anchor="middle" font-size="9.5" fill="#fcd34d">A2  write buf phys addr (= NIC Owned)</text>
+  <rect x="822" y="150" width="176" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="910" y="161" text-anchor="middle" font-size="9" fill="#fcd34d">A2  write buf phys addr (NIC Owned)</text>
   <!-- A3 route below ring to CSR (drops from directly under net_device) -->
   <polyline points="1075,178 1075,224 255,224 255,192" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
   <rect x="470" y="215" width="330" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
@@ -142,7 +142,7 @@
   <!-- PHASE B arrows -->
   <!-- B1 cloud -> buffer -->
   <line x1="236" y1="277" x2="244" y2="277" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="240" y="323" text-anchor="middle" font-size="10.5" fill="#fcd34d">B1</text>
+  <text x="240" y="290" text-anchor="middle" font-size="10.5" fill="#fcd34d">B1</text>
   <!-- buffer -> dma -->
   <line x1="330" y1="278" x2="340" y2="278" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
   <!-- B2 dma -> packet buffer (label floats above the line) -->
