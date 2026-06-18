@@ -214,7 +214,7 @@
   <text x="1125" y="700" text-anchor="middle" font-size="10" fill="#5eead4">cleanup / recycle</text>
 
   <!-- NAPI poll thread continues into its cleanup/recycle tail (routed around the stack box) -->
-  <polyline points="1200,560 1238,560 1238,687 1200,687" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <polyline points="1200,560 1207,560 1207,687 1200,687" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
 
   <rect x="560" y="662" width="246" height="32" rx="5" fill="#173049" stroke="#38bdf8"/>
   <text x="683" y="682" text-anchor="middle" font-size="10.5" fill="#7dd3fc">E1  Update Descriptor X (NIC Owned, empty)</text>
