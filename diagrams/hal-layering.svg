@@ -53,51 +53,51 @@
   <rect x="30" y="324" width="430" height="46" rx="8" fill="#2a2614" stroke="#fbbf24"/>
   <rect x="460" y="324" width="432" height="46" fill="#16271d" stroke="#34d399"/>
   <rect x="892" y="324" width="418" height="46" rx="8" fill="#221833" stroke="#c084fc"/>
-  <g text-anchor="middle" font-size="15.5" font-weight="700">
+  <g text-anchor="middle" font-size="17" font-weight="700">
     <text x="245" y="354" fill="#fbbf24">HAL interface  (vnic_hal.h)</text>
     <text x="676" y="354" fill="#6ee7b7">Level 1 backend  &#183;  in-kernel engine</text>
     <text x="1101" y="354" fill="#d8b4fe">Level 2 backend  &#183;  QEMU PCI device</text>
   </g>
 
   <!-- row 1: Register access (top 370) -->
-  <g font-size="13">
-    <text x="48" y="404" fill="#fff" font-weight="700" font-size="15">Register access</text>
-    <text x="48" y="430" fill="#fcd34d" font-family="monospace" font-size="14">rd32 / wr32</text>
+  <g font-size="14.5">
+    <text x="48" y="404" fill="#fff" font-weight="700" font-size="17">Register access</text>
+    <text x="48" y="430" fill="#fcd34d" font-family="monospace" font-size="15.5">rd32 / wr32</text>
     <text x="478" y="408" fill="#cbd5e1">fake register array;</text>
     <text x="478" y="430" fill="#cbd5e1">wr32(TDT/RDT) wakes the engine kthread</text>
     <text x="910" y="419" fill="#cbd5e1">readl / writel on BAR0</text>
   </g>
   <!-- row 2: Ring memory (top 458) -->
-  <g font-size="13">
-    <text x="48" y="492" fill="#fff" font-weight="700" font-size="15">Ring memory</text>
-    <text x="48" y="518" fill="#fcd34d" font-family="monospace" font-size="14">ring_alloc / ring_free</text>
+  <g font-size="14.5">
+    <text x="48" y="492" fill="#fff" font-weight="700" font-size="17">Ring memory</text>
+    <text x="48" y="518" fill="#fcd34d" font-family="monospace" font-size="15.5">ring_alloc / ring_free</text>
     <text x="478" y="496" fill="#cbd5e1">kcalloc</text>
     <text x="478" y="518" fill="#94a3b8">(desc_dma unused)</text>
     <text x="910" y="496" fill="#cbd5e1">dma_alloc_coherent</text>
     <text x="910" y="518" fill="#94a3b8">(sets desc_dma)</text>
   </g>
   <!-- row 3: Buffer mapping (top 546) -->
-  <g font-size="13">
-    <text x="48" y="580" fill="#fff" font-weight="700" font-size="15">Buffer mapping</text>
-    <text x="48" y="606" fill="#fcd34d" font-family="monospace" font-size="14">map / unmap / mapping_error</text>
+  <g font-size="14.5">
+    <text x="48" y="580" fill="#fff" font-weight="700" font-size="17">Buffer mapping</text>
+    <text x="48" y="606" fill="#fcd34d" font-family="monospace" font-size="15.5">map / unmap / mapping_error</text>
     <text x="478" y="584" fill="#cbd5e1">token = kernel pointer</text>
     <text x="478" y="606" fill="#94a3b8">(never fails)</text>
     <text x="910" y="584" fill="#cbd5e1">token = dma_map_single bus addr</text>
     <text x="910" y="606" fill="#94a3b8">(can fail &#8594; drop / recycle, D-22)</text>
   </g>
   <!-- row 4: Interrupt (top 634) -->
-  <g font-size="13">
-    <text x="48" y="668" fill="#fff" font-weight="700" font-size="15">Interrupt</text>
-    <text x="48" y="694" fill="#fcd34d" font-family="monospace" font-size="14">irq_request / irq_free</text>
+  <g font-size="14.5">
+    <text x="48" y="668" fill="#fff" font-weight="700" font-size="17">Interrupt</text>
+    <text x="48" y="694" fill="#fcd34d" font-family="monospace" font-size="15.5">irq_request / irq_free</text>
     <text x="478" y="672" fill="#cbd5e1">start / stop the</text>
     <text x="478" y="694" fill="#cbd5e1">simulated-MSI tasklet</text>
     <text x="910" y="672" fill="#cbd5e1">pci_alloc_irq_vectors</text>
     <text x="910" y="694" fill="#cbd5e1">+ request_irq</text>
   </g>
   <!-- row 5: Lifecycle (top 722) -->
-  <g font-size="13">
-    <text x="48" y="756" fill="#fff" font-weight="700" font-size="15">Lifecycle</text>
-    <text x="48" y="782" fill="#fcd34d" font-family="monospace" font-size="14">init / exit / quiesce</text>
+  <g font-size="14.5">
+    <text x="48" y="756" fill="#fff" font-weight="700" font-size="17">Lifecycle</text>
+    <text x="48" y="782" fill="#fcd34d" font-family="monospace" font-size="15.5">init / exit / quiesce</text>
     <text x="478" y="760" fill="#cbd5e1">alloc fake regs + start kthread;</text>
     <text x="478" y="782" fill="#94a3b8">quiesce = wait out the kthread</text>
     <text x="910" y="760" fill="#cbd5e1">enable PCI + ioremap BAR0 + DMA mask;</text>
