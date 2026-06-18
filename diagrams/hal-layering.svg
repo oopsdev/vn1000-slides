@@ -3,14 +3,14 @@
      HAL seam, and the Level 1 / Level 2 backends that implement each group of
      HAL functions. Hand-authored (matches the slide-deck SVG style); dark
      background baked in so it reads on a light markdown page. architecture.md 2.1. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1340 828" width="1340" height="828"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1340 892" width="1340" height="892"
      font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img"
      aria-label="Two module entries feed one shared driver core; the core reaches the device only through the HAL interface; a table lists the HAL function groups and how the Level 1 and Level 2 backends implement each.">
   <defs>
     <marker id="arr" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#94a3b8"/></marker>
   </defs>
 
-  <rect x="0" y="0" width="1340" height="828" fill="#0f172a"/>
+  <rect x="0" y="0" width="1340" height="892" fill="#0f172a"/>
   <text x="670" y="34" text-anchor="middle" fill="#e2e8f0" font-size="21" font-weight="700">VN1000 driver layering &#8211; one shared core, two backends behind the HAL seam</text>
 
   <!-- tier 1: module entries -->
@@ -40,68 +40,68 @@
   <line x1="670" y1="286" x2="670" y2="316" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#arr)"/>
 
   <!-- ===== HAL interface table (the seam + the two backends) ===== -->
-  <rect x="30" y="324" width="1280" height="486" rx="8" fill="#16202e" stroke="#334155"/>
-  <line x1="460" y1="324" x2="460" y2="810" stroke="#334155"/>
-  <line x1="892" y1="324" x2="892" y2="810" stroke="#334155"/>
-  <line x1="30" y1="370" x2="1310" y2="370" stroke="#334155"/>
-  <line x1="30" y1="458" x2="1310" y2="458" stroke="#475569" stroke-dasharray="2 3"/>
-  <line x1="30" y1="546" x2="1310" y2="546" stroke="#475569" stroke-dasharray="2 3"/>
-  <line x1="30" y1="634" x2="1310" y2="634" stroke="#475569" stroke-dasharray="2 3"/>
-  <line x1="30" y1="722" x2="1310" y2="722" stroke="#475569" stroke-dasharray="2 3"/>
+  <rect x="30" y="324" width="1280" height="550" rx="8" fill="#16202e" stroke="#334155"/>
+  <line x1="460" y1="324" x2="460" y2="874" stroke="#334155"/>
+  <line x1="892" y1="324" x2="892" y2="874" stroke="#334155"/>
+  <line x1="30" y1="374" x2="1310" y2="374" stroke="#334155"/>
+  <line x1="30" y1="474" x2="1310" y2="474" stroke="#475569" stroke-dasharray="2 3"/>
+  <line x1="30" y1="574" x2="1310" y2="574" stroke="#475569" stroke-dasharray="2 3"/>
+  <line x1="30" y1="674" x2="1310" y2="674" stroke="#475569" stroke-dasharray="2 3"/>
+  <line x1="30" y1="774" x2="1310" y2="774" stroke="#475569" stroke-dasharray="2 3"/>
 
   <!-- header cells -->
-  <rect x="30" y="324" width="430" height="46" rx="8" fill="#2a2614" stroke="#fbbf24"/>
-  <rect x="460" y="324" width="432" height="46" fill="#16271d" stroke="#34d399"/>
-  <rect x="892" y="324" width="418" height="46" rx="8" fill="#221833" stroke="#c084fc"/>
+  <rect x="30" y="324" width="430" height="50" rx="8" fill="#2a2614" stroke="#fbbf24"/>
+  <rect x="460" y="324" width="432" height="50" fill="#16271d" stroke="#34d399"/>
+  <rect x="892" y="324" width="418" height="50" rx="8" fill="#221833" stroke="#c084fc"/>
   <g text-anchor="middle" font-size="17" font-weight="700">
-    <text x="245" y="354" fill="#fbbf24">HAL interface  (vnic_hal.h)</text>
-    <text x="676" y="354" fill="#6ee7b7">Level 1 backend  &#183;  in-kernel engine</text>
-    <text x="1101" y="354" fill="#d8b4fe">Level 2 backend  &#183;  QEMU PCI device</text>
+    <text x="245" y="356" fill="#fbbf24">HAL interface  (vnic_hal.h)</text>
+    <text x="676" y="356" fill="#6ee7b7">Level 1 backend  &#183;  in-kernel engine</text>
+    <text x="1101" y="356" fill="#d8b4fe">Level 2 backend  &#183;  QEMU PCI device</text>
   </g>
 
-  <!-- row 1: Register access (top 370) -->
-  <g font-size="16">
-    <text x="48" y="404" fill="#fff" font-weight="700" font-size="18">Register access</text>
-    <text x="48" y="430" fill="#fcd34d" font-family="monospace" font-size="16.5">rd32 / wr32</text>
-    <text x="478" y="408" fill="#cbd5e1">fake register array;</text>
-    <text x="478" y="430" fill="#cbd5e1">wr32(TDT/RDT) wakes the engine kthread</text>
-    <text x="910" y="419" fill="#cbd5e1">readl / writel on BAR0</text>
+  <!-- row 1: Register access (top 374) -->
+  <g font-size="18">
+    <text x="48" y="414" fill="#fff" font-weight="700" font-size="20">Register access</text>
+    <text x="48" y="448" fill="#fcd34d" font-family="monospace" font-size="18">rd32 / wr32</text>
+    <text x="478" y="418" fill="#cbd5e1">fake register array;</text>
+    <text x="478" y="450" fill="#cbd5e1">wr32(TDT/RDT) wakes the engine kthread</text>
+    <text x="910" y="434" fill="#cbd5e1">readl / writel on BAR0</text>
   </g>
-  <!-- row 2: Ring memory (top 458) -->
-  <g font-size="16">
-    <text x="48" y="492" fill="#fff" font-weight="700" font-size="18">Ring memory</text>
-    <text x="48" y="518" fill="#fcd34d" font-family="monospace" font-size="16.5">ring_alloc / ring_free</text>
-    <text x="478" y="496" fill="#cbd5e1">kcalloc</text>
-    <text x="478" y="518" fill="#94a3b8">(desc_dma unused)</text>
-    <text x="910" y="496" fill="#cbd5e1">dma_alloc_coherent</text>
-    <text x="910" y="518" fill="#94a3b8">(sets desc_dma)</text>
+  <!-- row 2: Ring memory (top 474) -->
+  <g font-size="18">
+    <text x="48" y="514" fill="#fff" font-weight="700" font-size="20">Ring memory</text>
+    <text x="48" y="548" fill="#fcd34d" font-family="monospace" font-size="18">ring_alloc / ring_free</text>
+    <text x="478" y="518" fill="#cbd5e1">kcalloc</text>
+    <text x="478" y="550" fill="#94a3b8">(desc_dma unused)</text>
+    <text x="910" y="518" fill="#cbd5e1">dma_alloc_coherent</text>
+    <text x="910" y="550" fill="#94a3b8">(sets desc_dma)</text>
   </g>
-  <!-- row 3: Buffer mapping (top 546) -->
-  <g font-size="16">
-    <text x="48" y="580" fill="#fff" font-weight="700" font-size="18">Buffer mapping</text>
-    <text x="48" y="606" fill="#fcd34d" font-family="monospace" font-size="16.5">map / unmap / mapping_error</text>
-    <text x="478" y="584" fill="#cbd5e1">token = kernel pointer</text>
-    <text x="478" y="606" fill="#94a3b8">(never fails)</text>
-    <text x="910" y="584" fill="#cbd5e1">token = dma_map_single bus addr</text>
-    <text x="910" y="606" fill="#94a3b8">(can fail &#8594; drop / recycle, D-22)</text>
+  <!-- row 3: Buffer mapping (top 574) -->
+  <g font-size="18">
+    <text x="48" y="614" fill="#fff" font-weight="700" font-size="20">Buffer mapping</text>
+    <text x="48" y="648" fill="#fcd34d" font-family="monospace" font-size="18">map / unmap / mapping_error</text>
+    <text x="478" y="618" fill="#cbd5e1">token = kernel pointer</text>
+    <text x="478" y="650" fill="#94a3b8">(never fails)</text>
+    <text x="910" y="618" fill="#cbd5e1">token = dma_map_single bus addr</text>
+    <text x="910" y="650" fill="#94a3b8">(can fail &#8594; drop / recycle, D-22)</text>
   </g>
-  <!-- row 4: Interrupt (top 634) -->
-  <g font-size="16">
-    <text x="48" y="668" fill="#fff" font-weight="700" font-size="18">Interrupt</text>
-    <text x="48" y="694" fill="#fcd34d" font-family="monospace" font-size="16.5">irq_request / irq_free</text>
-    <text x="478" y="672" fill="#cbd5e1">start / stop the</text>
-    <text x="478" y="694" fill="#cbd5e1">simulated-MSI tasklet</text>
-    <text x="910" y="672" fill="#cbd5e1">pci_alloc_irq_vectors</text>
-    <text x="910" y="694" fill="#cbd5e1">+ request_irq</text>
+  <!-- row 4: Interrupt (top 674) -->
+  <g font-size="18">
+    <text x="48" y="714" fill="#fff" font-weight="700" font-size="20">Interrupt</text>
+    <text x="48" y="748" fill="#fcd34d" font-family="monospace" font-size="18">irq_request / irq_free</text>
+    <text x="478" y="718" fill="#cbd5e1">start / stop the</text>
+    <text x="478" y="750" fill="#cbd5e1">simulated-MSI tasklet</text>
+    <text x="910" y="718" fill="#cbd5e1">pci_alloc_irq_vectors</text>
+    <text x="910" y="750" fill="#cbd5e1">+ request_irq</text>
   </g>
-  <!-- row 5: Lifecycle (top 722) -->
-  <g font-size="16">
-    <text x="48" y="756" fill="#fff" font-weight="700" font-size="18">Lifecycle</text>
-    <text x="48" y="782" fill="#fcd34d" font-family="monospace" font-size="16.5">init / exit / quiesce</text>
-    <text x="478" y="760" fill="#cbd5e1">alloc fake regs + start kthread;</text>
-    <text x="478" y="782" fill="#94a3b8">quiesce = wait out the kthread</text>
-    <text x="910" y="760" fill="#cbd5e1">enable PCI + ioremap BAR0 + DMA mask;</text>
-    <text x="910" y="782" fill="#94a3b8">quiesce = synchronize_irq</text>
+  <!-- row 5: Lifecycle (top 774) -->
+  <g font-size="18">
+    <text x="48" y="814" fill="#fff" font-weight="700" font-size="20">Lifecycle</text>
+    <text x="48" y="848" fill="#fcd34d" font-family="monospace" font-size="18">init / exit / quiesce</text>
+    <text x="478" y="818" fill="#cbd5e1">alloc fake regs + start kthread;</text>
+    <text x="478" y="850" fill="#94a3b8">quiesce = wait out the kthread</text>
+    <text x="910" y="818" fill="#cbd5e1">enable PCI + ioremap BAR0 + DMA mask;</text>
+    <text x="910" y="850" fill="#94a3b8">quiesce = synchronize_irq</text>
   </g>
 
 </svg>
