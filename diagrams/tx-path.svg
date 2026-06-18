@@ -227,12 +227,12 @@
   <!-- PHASE E arrows -->
   <!-- E1 MEM completed desc -> driver clean (read + free) -->
   <line x1="806" y1="678" x2="1000" y2="678" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="838" y="700" width="206" height="16" rx="4" fill="#2a2614" stroke="#fbbf24"/>
-  <text x="1041" y="712" text-anchor="middle" font-size="9.5" fill="#fcd34d">E1  DMA-unmap + napi_consume_skb</text>
+  <rect x="807" y="670" width="192" height="16" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="903" y="682" text-anchor="middle" font-size="9" fill="#fcd34d">E1  DMA-unmap + napi_consume_skb</text>
   <!-- E2 wake the TX queue back to the stack (label rotated, sits on the line) -->
   <polyline points="1150,687 1157,687 1157,272 1150,272" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="1089" y="471" width="134" height="13" rx="4" fill="#2a2614" stroke="#fbbf24" transform="rotate(-90 1057 478)"/>
-  <text x="1157" y="478" text-anchor="middle" font-size="9" fill="#fcd34d" transform="rotate(-90 1057 478)">E2  netif_wake_queue</text>
+  <rect x="1090" y="471" width="134" height="13" rx="4" fill="#2a2614" stroke="#fbbf24" transform="rotate(-90 1157 478)"/>
+  <text x="1157" y="478" text-anchor="middle" font-size="9" fill="#fcd34d" transform="rotate(-90 1157 478)">E2  netif_wake_queue</text>
 
   <!-- legend: descriptor ownership vs buffer -->
   <rect x="452" y="752" width="368" height="40" rx="6" fill="#16202e" stroke="#334155"/>
