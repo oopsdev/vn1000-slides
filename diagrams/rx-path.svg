@@ -199,8 +199,8 @@
   <line x1="806" y1="512" x2="1000" y2="512" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
   <!-- D3 NAPI -> stack -->
   <line x1="1075" y1="525" x2="1075" y2="547" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="986" y="528" width="178" height="17" rx="4" fill="#2a2614" stroke="#fbbf24"/>
-  <text x="1075" y="540" text-anchor="middle" font-size="9.5" fill="#fcd34d">D3  netif_receive_skb (sk_buff up)</text>
+  <rect x="972" y="528" width="178" height="17" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="1061" y="540" text-anchor="middle" font-size="9.5" fill="#fcd34d">D3  netif_receive_skb (sk_buff up)</text>
 
   <!-- D4 NAPI re-arms the interrupt below D1/D2/D3 (top-to-bottom order), only once the poll drained the ring -->
   <polyline points="1000,521 960,521 960,555 260,555 260,426" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
@@ -213,8 +213,10 @@
   <text x="1075" y="639" text-anchor="middle" font-size="11" font-weight="700" fill="#5eead4">Driver poll tail</text>
   <text x="1075" y="655" text-anchor="middle" font-size="10" fill="#5eead4">cleanup / recycle</text>
 
-  <!-- NAPI poll thread continues into its cleanup/recycle tail (routed around the stack box) -->
+  <!-- NAPI poll thread continues into its cleanup/recycle tail (routed around the stack box, clear of D3) -->
   <polyline points="1150,515 1157,515 1157,642 1150,642" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="1115" y="571" width="84" height="13" rx="4" fill="#2a2614" stroke="#fbbf24" transform="rotate(-90 1157 578)"/>
+  <text x="1157" y="578" text-anchor="middle" font-size="8.5" fill="#fcd34d" transform="rotate(-90 1157 578)">still in napi_poll</text>
 
   <rect x="560" y="617" width="246" height="32" rx="5" fill="#173049" stroke="#38bdf8"/>
   <text x="683" y="637" text-anchor="middle" font-size="10.5" fill="#7dd3fc">E1  Update Descriptor X (NIC Owned, empty)</text>
