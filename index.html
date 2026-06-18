@@ -570,20 +570,56 @@
 
   <section class="slide">
     <h2>5.3 &middot; Dataflow: Level 1 &mdash; in-kernel engine (loopback)</h2>
-    <div class="imgwrap ring"><img src="diagrams/l1-loopback.svg" alt="Level 1 dataflow: app and stack hand a frame to the TX ring; the TDT doorbell wakes the engine kthread, which reads the descriptor by pointer, IP-swaps the frame into the RX ring, and raises a simulated MSI; NAPI delivers it up the stack"></div>
-    <p class="cap">One address space &mdash; <b>no PCI / MMIO / DMA</b>. The engine kthread is <b>device + wire</b>: the <code>TDT</code> doorbell wakes it, the token <i>is</i> a kernel pointer, an IP-swap loops the frame into the RX ring, and a <b>tasklet</b> stands in for the MSI.</p>
+    <div class="two" style="grid-template-columns:1.9fr 1fr; align-items:center">
+      <div class="imgwrap"><img src="diagrams/l1-loopback.svg" alt="Level 1 dataflow: app and stack hand a frame to the TX ring; the TDT doorbell wakes the engine kthread, which reads the descriptor by pointer, IP-swaps the frame into the RX ring, and raises a simulated MSI; NAPI delivers it up the stack"></div>
+      <div class="steps">
+        <h3>Level 1 &mdash; one address space</h3>
+        <ul>
+          <li><b>No PCI / MMIO / DMA</b> - a pure kernel module.</li>
+          <li>The engine <b>kthread</b> is <b>device + wire</b>.</li>
+          <li>The <code>TDT</code> doorbell (a <code>wr32</code>) wakes it.</li>
+          <li>The token <i>is</i> a kernel pointer - direct deref, no DMA.</li>
+          <li>An <b>IP-swap</b> loops the frame into the RX ring.</li>
+          <li>A <b>tasklet</b> stands in for the MSI.</li>
+        </ul>
+      </div>
+    </div>
   </section>
 
   <section class="slide">
     <h2>5.4 &middot; Dataflow: Level 2 &mdash; QEMU device, internal loopback</h2>
-    <div class="imgwrap ring"><img src="diagrams/l2-loopback.svg" alt="Level 2 internal-loopback dataflow: the driver fills the TX ring in guest RAM and rings TDT over MMIO; the QEMU device DMA-reads the descriptor and packet, IP-swaps it, DMA-writes it into the RX ring, and raises an MSI handled via NAPI"></div>
-    <p class="cap">Same core, now across the <b>PCIe boundary</b>: the rings live in <b>guest RAM</b>, the device reaches them by real <b>DMA</b>, is rung over <b>MMIO</b> (<code>writel(TDT)</code>), and completes with a real <b>MSI</b>. <code>loopback=on</code> means it loops internally, no backend.</p>
+    <div class="two" style="grid-template-columns:1.9fr 1fr; align-items:center">
+      <div class="imgwrap"><img src="diagrams/l2-loopback.svg" alt="Level 2 internal-loopback dataflow: the driver fills the TX ring in guest RAM and rings TDT over MMIO; the QEMU device DMA-reads the descriptor and packet, IP-swaps it, DMA-writes it into the RX ring, and raises an MSI handled via NAPI"></div>
+      <div class="steps">
+        <h3>Level 2 &mdash; across the PCIe boundary</h3>
+        <ul>
+          <li>The <b>same core</b>, now over real PCIe.</li>
+          <li>Rings live in <b>guest RAM</b> (<code>dma_alloc_coherent</code>).</li>
+          <li>The device reaches them by real <b>DMA</b> (<code>pci_dma_read/write</code>).</li>
+          <li>Rung over <b>MMIO</b>: <code>writel(TDT)</code>.</li>
+          <li>Completes with a real <b>MSI</b> &#8594; NAPI.</li>
+          <li><code>loopback=on</code>: loops internally, no backend.</li>
+        </ul>
+      </div>
+    </div>
   </section>
 
   <section class="slide">
     <h2>5.5 &middot; Dataflow: Level 2 &mdash; QEMU tap backend</h2>
-    <div class="imgwrap ring"><img src="diagrams/l2-tap.svg" alt="Level 2 tap-backend dataflow: a vertical chain - guest driver, QEMU vnic device, host tap, host network stack, peer/internet - with TX going down and RX coming up"></div>
-    <p class="cap"><code>loopback=off</code> bridges <b>real frames</b> guest&#8596;host&#8596;internet: TX via <code>qemu_send_packet</code> to the host <b>tap</b>, RX via the backend's <code>.receive()</code> (then DMA-write + MSI). The device is <b>backend-agnostic</b> (<b>D-30</b>) - the PCIe half is identical to 5.4.</p>
+    <div class="two" style="grid-template-columns:1.9fr 1fr; align-items:center">
+      <div class="imgwrap"><img src="diagrams/l2-tap.svg" alt="Level 2 tap-backend dataflow: a vertical chain - guest driver, QEMU vnic device, host tap, host network stack, peer/internet - with TX going down and RX coming up"></div>
+      <div class="steps">
+        <h3>Level 2 &mdash; tap backend (real frames)</h3>
+        <ul>
+          <li><code>loopback=off</code> bridges <b>real frames</b> guest&#8596;host&#8596;internet.</li>
+          <li>TX: <code>pci_dma_read</code> &#8594; <code>qemu_send_packet</code> &#8594; host <b>tap</b>.</li>
+          <li>RX: backend <code>.receive()</code> &#8594; DMA-write RX + MSI.</li>
+          <li>Flow control: <code>can_receive()</code> + flush (RDT / RXEN).</li>
+          <li>The device is <b>backend-agnostic</b> (<b>D-30</b>).</li>
+          <li>The PCIe half is identical to <b>5.4</b>.</li>
+        </ul>
+      </div>
+    </div>
   </section>
 
   <!-- 17 dev env -->
