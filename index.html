@@ -561,8 +561,9 @@
           <li>All of <code>core/</code> is written <b>once</b> and reused unchanged at every level.</li>
           <li>Only the <b>HAL backend</b> changes per level (<b>D-12</b>).</li>
           <li>The seam is the <b>smallest set</b> of operations the core needs to touch the device.</li>
-          <li>The <b>opaque device token</b> lets L1 use a kernel pointer and L2 a DMA address - the core never dereferences it.</li>
-          <li>Doorbell / mask are just <code>wr32</code>; compile-time <code>LEVEL=1|2</code> links exactly <b>one</b> backend.</li>
+          <li>The <b>opaque device token</b> lets L1 use a kernel pointer and L2 a DMA address - the core never dereferences it (real skb stays in <code>ring-&gt;bufs[]</code>).</li>
+          <li>Doorbell (<code>TDT/RDT</code>) and mask (<code>IMS/IMC</code>) are just <code>wr32</code> - no extra HAL verbs.</li>
+          <li>Compile-time <code>LEVEL=1|2</code> links exactly <b>one</b> backend.</li>
         </ul>
       </div>
     </div>

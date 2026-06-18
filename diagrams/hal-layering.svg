@@ -3,14 +3,14 @@
      HAL seam, and the Level 1 / Level 2 backends that implement each group of
      HAL functions. Hand-authored (matches the slide-deck SVG style); dark
      background baked in so it reads on a light markdown page. architecture.md 2.1. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1340 908" width="1340" height="908"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1340 828" width="1340" height="828"
      font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img"
      aria-label="Two module entries feed one shared driver core; the core reaches the device only through the HAL interface; a table lists the HAL function groups and how the Level 1 and Level 2 backends implement each.">
   <defs>
     <marker id="arr" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#94a3b8"/></marker>
   </defs>
 
-  <rect x="0" y="0" width="1340" height="908" fill="#0f172a"/>
+  <rect x="0" y="0" width="1340" height="828" fill="#0f172a"/>
   <text x="670" y="34" text-anchor="middle" fill="#e2e8f0" font-size="21" font-weight="700">VN1000 driver layering &#8211; one shared core, two backends behind the HAL seam</text>
 
   <!-- tier 1: module entries -->
@@ -104,10 +104,4 @@
     <text x="910" y="782" fill="#94a3b8">quiesce = synchronize_irq</text>
   </g>
 
-  <!-- footnotes -->
-  <g text-anchor="middle" font-size="12.5" fill="#9ca3af">
-    <text x="670" y="836">Doorbell (TDT/RDT) and interrupt mask (IMS/IMC) are just <tspan fill="#fcd34d" font-family="monospace">wr32</tspan> of those offsets &#8211; no extra HAL verbs.</text>
-    <text x="670" y="858">The token in <tspan fill="#cbd5e1" font-family="monospace">vn_desc.addr</tspan> is opaque: core stores it and never dereferences it &#8211; that is what lets L1 use a pointer and L2 a DMA address (real skb stays in <tspan fill="#cbd5e1" font-family="monospace">ring-&gt;bufs[]</tspan>).</text>
-    <text x="670" y="882" fill="#cbd5e1">Compile-time selection (<tspan font-family="monospace">Makefile LEVEL=1|2</tspan>) links exactly <tspan font-weight="700">one</tspan> backend &#8211; all of core/ is identical across levels (D-12).</text>
-  </g>
 </svg>
