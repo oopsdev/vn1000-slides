@@ -139,12 +139,12 @@
   <text x="1093" y="302" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fcd34d">B1</text>
   <!-- B2 ndo_start_xmit -> descriptor (label floats above the line) -->
   <line x1="1000" y1="328" x2="740" y2="328" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="788" y="309" width="210" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
-  <text x="893" y="320" text-anchor="middle" font-size="9.5" fill="#fcd34d">B2  DMA-map skb, write addr + len</text>
+  <rect x="788" y="320" width="210" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="893" y="331" text-anchor="middle" font-size="9.5" fill="#fcd34d">B2  DMA-map skb, write addr + len</text>
   <!-- B3 ndo_start_xmit -> doorbell (enters NIC CSR bottom centre) -->
   <polyline points="1075,348 1075,376 260,376 260,350" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="420" y="356" width="280" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
-  <text x="560" y="367" text-anchor="middle" font-size="9.5" fill="#fcd34d">B3  set NIC Owned + write TDT (doorbell)</text>
+  <rect x="420" y="369" width="280" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="560" y="379" text-anchor="middle" font-size="9.5" fill="#fcd34d">B3  set NIC Owned + write TDT (doorbell)</text>
 
   <!-- ============================================================ -->
   <!-- PHASE C components -->
@@ -199,8 +199,8 @@
   <text x="725" y="525" text-anchor="middle" font-size="10.5" fill="#fca5a5">D1  TX-done interrupt MSI-X (coalesced)</text>
   <!-- D2 ISR -> NIC ack/mask -->
   <line x1="1000" y1="544" x2="335" y2="544" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="560" y="546" width="230" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
-  <text x="675" y="559" text-anchor="middle" font-size="10.5" fill="#fcd34d">D2  ack + mask IRQ in CSR</text>
+  <rect x="560" y="535" width="230" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="675" y="548" text-anchor="middle" font-size="10.5" fill="#fcd34d">D2  ack + mask IRQ in CSR</text>
   <!-- D3 ISR -> NAPI -->
   <line x1="1075" y1="555" x2="1075" y2="604" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
   <rect x="1023" y="571" width="104" height="16" rx="4" fill="#2a2614" stroke="#fbbf24"/>
@@ -220,14 +220,14 @@
   <text x="1075" y="710" text-anchor="middle" font-size="11" font-weight="700" fill="#5eead4">Driver TX clean</text>
   <text x="1075" y="726" text-anchor="middle" font-size="10" fill="#5eead4">(in napi_poll)</text>
 
-  <rect x="560" y="688" width="246" height="32" rx="5" fill="#1b3a2a" stroke="#34d399"/>
-  <text x="683" y="708" text-anchor="middle" font-size="10.5" fill="#6ee7b7">E1  reap Descriptor X (DD done) -> free skb</text>
+  <rect x="470" y="688" width="246" height="32" rx="5" fill="#1b3a2a" stroke="#34d399"/>
+  <text x="593" y="708" text-anchor="middle" font-size="10.5" fill="#6ee7b7">E1  reap Descriptor X (DD done) -> free skb</text>
 
   <!-- PHASE E arrows -->
   <!-- E1 MEM completed desc -> driver clean (read + free) -->
-  <line x1="806" y1="704" x2="1000" y2="704" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="807" y="696" width="192" height="16" rx="4" fill="#2a2614" stroke="#fbbf24"/>
-  <text x="903" y="708" text-anchor="middle" font-size="9" fill="#fcd34d">E1  DMA-unmap + napi_consume_skb</text>
+  <line x1="716" y1="704" x2="1000" y2="704" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="762" y="696" width="192" height="16" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="858" y="708" text-anchor="middle" font-size="9" fill="#fcd34d">E1  DMA-unmap + napi_consume_skb</text>
   <!-- E2 wake the TX queue back to the stack (label rotated, sits on the line) -->
   <polyline points="1150,713 1180,713 1180,272 1150,272" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
   <rect x="1113" y="486" width="134" height="13" rx="4" fill="#2a2614" stroke="#fbbf24" transform="rotate(-90 1180 492)"/>
