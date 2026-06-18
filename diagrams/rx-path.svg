@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 34 1178 731" font-family="Segoe UI, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 34 1206 757" font-family="Segoe UI, Arial, sans-serif">
   <defs>
     <marker id="arrow" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="strokeWidth">
       <path d="M0,0 L8,3 L0,6 Z" fill="#94a3b8"/>
@@ -9,30 +9,30 @@
   </defs>
 
   <!-- page -->
-  <rect x="0" y="0" width="1178" height="775" fill="#0f172a"/>
+  <rect x="0" y="0" width="1206" height="801" fill="#0f172a"/>
 
   <!-- ===== lane backgrounds ===== -->
-  <rect x="10"  y="44" width="140" height="711" rx="8" fill="#16202e" stroke="#334155"/>
-  <rect x="158" y="44" width="272" height="711" rx="8" fill="#15241c" stroke="#1b3a2a"/>
-  <rect x="438" y="44" width="392" height="711" rx="8" fill="#241f10" stroke="#6b5a23"/>
-  <rect x="838" y="44" width="326" height="711" rx="8" fill="#1a1e30" stroke="#3a3f66"/>
+  <rect x="10"  y="44" width="140" height="737" rx="8" fill="#16202e" stroke="#334155"/>
+  <rect x="158" y="44" width="272" height="737" rx="8" fill="#15241c" stroke="#1b3a2a"/>
+  <rect x="438" y="44" width="392" height="737" rx="8" fill="#241f10" stroke="#6b5a23"/>
+  <rect x="838" y="44" width="354" height="737" rx="8" fill="#1a1e30" stroke="#3a3f66"/>
 
   <!-- lane headers -->
   <rect x="158" y="50" width="272" height="38" rx="6" fill="#43a047"/>
   <text x="294" y="74" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">NIC (Hardware)</text>
   <rect x="438" y="50" width="392" height="38" rx="6" fill="#f4b400"/>
   <text x="634" y="74" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">Host Memory (RAM)</text>
-  <rect x="838" y="50" width="326" height="38" rx="6" fill="#5c6bc0"/>
-  <text x="1001" y="74" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">CPU Driver (Kernel Space)</text>
+  <rect x="838" y="50" width="354" height="38" rx="6" fill="#5c6bc0"/>
+  <text x="1015" y="74" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">CPU Driver (Kernel Space)</text>
   <rect x="10" y="50" width="140" height="38" rx="6" fill="#243449"/>
   <text x="80" y="74" text-anchor="middle" font-size="13" font-weight="700" fill="#cbd5e1">Global Steps</text>
 
   <!-- phase separators -->
   <g stroke="#334155" stroke-dasharray="4 4" stroke-width="1">
-    <line x1="158" y1="240" x2="1164" y2="240"/>
-    <line x1="158" y1="353" x2="1164" y2="353"/>
-    <line x1="158" y1="445" x2="1164" y2="445"/>
-    <line x1="158" y1="599" x2="1164" y2="599"/>
+    <line x1="158" y1="240" x2="1192" y2="240"/>
+    <line x1="158" y1="353" x2="1192" y2="353"/>
+    <line x1="158" y1="445" x2="1192" y2="445"/>
+    <line x1="158" y1="625" x2="1192" y2="625"/>
   </g>
 
   <!-- ===== left rail phase labels ===== -->
@@ -53,9 +53,9 @@
     <text x="80" y="533" font-size="11">NAPI Polling</text>
     <text x="80" y="547" font-size="10" fill="#94a3b8">and Upstream</text>
 
-    <text x="80" y="665" font-size="14" font-weight="700" fill="#2dd4bf">STEP E</text>
-    <text x="80" y="685" font-size="11">Cleanup and</text>
-    <text x="80" y="699" font-size="10" fill="#94a3b8">Recycle</text>
+    <text x="80" y="691" font-size="14" font-weight="700" fill="#2dd4bf">STEP E</text>
+    <text x="80" y="711" font-size="11">Cleanup and</text>
+    <text x="80" y="725" font-size="10" fill="#94a3b8">Recycle</text>
   </g>
 
   <!-- ============================================================ -->
@@ -189,17 +189,17 @@
   <text x="683" y="516" text-anchor="middle" font-size="10.5" fill="#cbd5e1">D2  Fetch Packet Data from Buffer X</text>
 
   <!-- Linux network stack -->
-  <rect x="1000" y="547" width="150" height="62" rx="6" fill="#2e2412" stroke="#fb923c" filter="url(#sh)"/>
-  <text x="1075" y="571" text-anchor="middle" font-size="12" font-weight="700" fill="#fdba74">Linux Network Stack</text>
-  <text x="1075" y="591" text-anchor="middle" font-size="10.5" fill="#fdba74">IP / TCP / UDP</text>
+  <rect x="1000" y="573" width="150" height="62" rx="6" fill="#2e2412" stroke="#fb923c" filter="url(#sh)"/>
+  <text x="1075" y="597" text-anchor="middle" font-size="12" font-weight="700" fill="#fdba74">Linux Network Stack</text>
+  <text x="1075" y="617" text-anchor="middle" font-size="10.5" fill="#fdba74">IP / TCP / UDP</text>
 
   <!-- PHASE D arrows (Memory -> CPU: driver reads) -->
   <line x1="806" y1="474" x2="1000" y2="474" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
   <line x1="806" y1="512" x2="1000" y2="512" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
   <!-- D3 NAPI -> stack -->
-  <line x1="1075" y1="525" x2="1075" y2="547" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="972" y="528" width="178" height="17" rx="4" fill="#2a2614" stroke="#fbbf24"/>
-  <text x="1061" y="540" text-anchor="middle" font-size="9.5" fill="#fcd34d">D3  netif_receive_skb (sk_buff up)</text>
+  <line x1="1075" y1="525" x2="1075" y2="573" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="972" y="540" width="178" height="17" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="1061" y="552" text-anchor="middle" font-size="9.5" fill="#fcd34d">D3  netif_receive_skb (sk_buff up)</text>
 
   <!-- D4 NAPI re-arms the interrupt below D1/D2/D3 (top-to-bottom order), only once the poll drained the ring -->
   <polyline points="1000,521 960,521 960,555 260,555 260,426" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
@@ -208,35 +208,35 @@
 
   <!-- ============================================================ -->
   <!-- PHASE E components -->
-  <rect x="1000" y="619" width="150" height="46" rx="6" fill="#14302c" stroke="#2dd4bf" filter="url(#sh)"/>
-  <text x="1075" y="639" text-anchor="middle" font-size="11" font-weight="700" fill="#5eead4">Driver poll tail</text>
-  <text x="1075" y="655" text-anchor="middle" font-size="10" fill="#5eead4">cleanup / recycle</text>
+  <rect x="1000" y="645" width="150" height="46" rx="6" fill="#14302c" stroke="#2dd4bf" filter="url(#sh)"/>
+  <text x="1075" y="665" text-anchor="middle" font-size="11" font-weight="700" fill="#5eead4">Driver poll tail</text>
+  <text x="1075" y="681" text-anchor="middle" font-size="10" fill="#5eead4">cleanup / recycle</text>
 
   <!-- NAPI poll thread continues into its cleanup/recycle tail (routed around the stack box, clear of D3) -->
-  <polyline points="1150,515 1157,515 1157,642 1150,642" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="1115" y="571" width="84" height="13" rx="4" fill="#2a2614" stroke="#fbbf24" transform="rotate(-90 1157 578)"/>
-  <text x="1157" y="578" text-anchor="middle" font-size="8.5" fill="#fcd34d" transform="rotate(-90 1157 578)">still in napi_poll</text>
+  <polyline points="1150,515 1180,515 1180,668 1150,668" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="1138" y="585" width="84" height="13" rx="4" fill="#2a2614" stroke="#fbbf24" transform="rotate(-90 1180 592)"/>
+  <text x="1180" y="592" text-anchor="middle" font-size="8.5" fill="#fcd34d" transform="rotate(-90 1180 592)">still in napi_poll</text>
 
-  <rect x="560" y="617" width="246" height="32" rx="5" fill="#173049" stroke="#38bdf8"/>
-  <text x="683" y="637" text-anchor="middle" font-size="10.5" fill="#7dd3fc">E1  Update Descriptor X (NIC Owned, empty)</text>
+  <rect x="560" y="643" width="246" height="32" rx="5" fill="#173049" stroke="#38bdf8"/>
+  <text x="683" y="663" text-anchor="middle" font-size="10.5" fill="#7dd3fc">E1  Update Descriptor X (NIC Owned, empty)</text>
 
-  <rect x="185" y="657" width="150" height="46" rx="6" fill="#334155" stroke="#64748b" filter="url(#sh)"/>
-  <text x="260" y="677" text-anchor="middle" font-size="10.5" font-weight="700" fill="#94a3b8">NIC CSR</text>
-  <text x="260" y="693" text-anchor="middle" font-size="9.5" fill="#cbd5e1">Tail Reg</text>
+  <rect x="185" y="683" width="150" height="46" rx="6" fill="#334155" stroke="#64748b" filter="url(#sh)"/>
+  <text x="260" y="703" text-anchor="middle" font-size="10.5" font-weight="700" fill="#94a3b8">NIC CSR</text>
+  <text x="260" y="719" text-anchor="middle" font-size="9.5" fill="#cbd5e1">Tail Reg</text>
 
   <!-- PHASE E arrows -->
-  <line x1="1000" y1="637" x2="806" y2="637" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <polyline points="1000,657 900,657 900,680 335,680" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="420" y="671" width="230" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
-  <text x="535" y="684" text-anchor="middle" font-size="10.5" fill="#fcd34d">E2  write Tail to CSR (recycle)</text>
+  <line x1="1000" y1="663" x2="806" y2="663" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <polyline points="1000,683 900,683 900,706 335,706" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="420" y="697" width="230" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="535" y="710" text-anchor="middle" font-size="10.5" fill="#fcd34d">E2  write Tail to CSR (recycle)</text>
 
   <!-- legend: descriptor ownership vs buffer -->
-  <rect x="452" y="707" width="368" height="40" rx="6" fill="#16202e" stroke="#334155"/>
-  <rect x="460" y="715" width="14" height="14" rx="3" fill="#173049" stroke="#38bdf8"/>
-  <text x="478" y="726" font-size="9.5" fill="#94a3b8">NIC Owned</text>
-  <rect x="558" y="715" width="14" height="14" rx="3" fill="#1b3a2a" stroke="#34d399"/>
-  <text x="576" y="726" font-size="9.5" fill="#94a3b8">Driver Owned</text>
-  <rect x="664" y="715" width="14" height="14" rx="3" fill="#243449" stroke="#475569"/>
-  <text x="682" y="726" font-size="9.5" fill="#94a3b8">Rx Packet Buffer</text>
-  <text x="460" y="742" font-size="9" fill="#94a3b8">Descriptor fill = ownership; flips NIC Owned to Driver Owned (B3), back to NIC Owned (E1).</text>
+  <rect x="452" y="733" width="368" height="40" rx="6" fill="#16202e" stroke="#334155"/>
+  <rect x="460" y="741" width="14" height="14" rx="3" fill="#173049" stroke="#38bdf8"/>
+  <text x="478" y="752" font-size="9.5" fill="#94a3b8">NIC Owned</text>
+  <rect x="558" y="741" width="14" height="14" rx="3" fill="#1b3a2a" stroke="#34d399"/>
+  <text x="576" y="752" font-size="9.5" fill="#94a3b8">Driver Owned</text>
+  <rect x="664" y="741" width="14" height="14" rx="3" fill="#243449" stroke="#475569"/>
+  <text x="682" y="752" font-size="9.5" fill="#94a3b8">Rx Packet Buffer</text>
+  <text x="460" y="768" font-size="9" fill="#94a3b8">Descriptor fill = ownership; flips NIC Owned to Driver Owned (B3), back to NIC Owned (E1).</text>
 </svg>
