@@ -136,8 +136,7 @@
       <li>The PCIe NIC: anatomy &amp; a sample datasheet</li>
       <li>Linux PCIe NIC driver framework - TX/RX flow, init, MMIO &amp; barriers, probe, DMA, ISR, cleanup</li>
       <li>The QEMU PCIe NIC device model</li>
-      <li>The vNIC project goal - Level 1 &amp; Level 2</li>
-      <li>Design considerations - the HAL seam &amp; the three dataflow models</li>
+      <li>The vNIC project goal (Level 1 &amp; Level 2) - and design considerations: the HAL seam &amp; the three dataflow models</li>
       <li>Development environment setup</li>
       <li>Test environment setup</li>
       <li>Performance benchmark</li>
@@ -527,7 +526,7 @@
 
   <!-- 16 project goal -->
   <section class="slide">
-    <h2>5 &middot; The vNIC project goal</h2>
+    <h2>5.1 &middot; The vNIC project goal</h2>
     <p class="sub">Understand the Linux NIC driver working flow by building one - the same driver core, three progressively more real "devices" behind one HAL seam.</p>
     <div class="two">
       <div class="card">
@@ -553,32 +552,32 @@
 
   <!-- 6 Design Considerations -->
   <section class="slide">
-    <h2>6.1 &middot; Design: the HAL seam &mdash; one core, two backends</h2>
+    <h2>5.2 &middot; Design: the HAL seam &mdash; one core, two backends</h2>
     <div class="imgwrap ring"><img src="diagrams/hal-layering.svg" alt="Two module entries feed one shared driver core; the core reaches the device only through the HAL interface, with a table of the HAL function groups and how the Level 1 and Level 2 backends implement each"></div>
     <p class="cap">All of <code>core/</code> is written <b>once</b> and reused unchanged; only the HAL backend differs per level (<b>D-12</b>). The seam is the smallest set of device operations, and the <b>opaque device token</b> is what lets L1 use a pointer and L2 a DMA address.</p>
   </section>
 
   <section class="slide">
-    <h2>6.2 &middot; Dataflow: Level 1 &mdash; in-kernel engine (loopback)</h2>
+    <h2>5.3 &middot; Dataflow: Level 1 &mdash; in-kernel engine (loopback)</h2>
     <div class="imgwrap ring"><img src="diagrams/l1-loopback.svg" alt="Level 1 dataflow: app and stack hand a frame to the TX ring; the TDT doorbell wakes the engine kthread, which reads the descriptor by pointer, IP-swaps the frame into the RX ring, and raises a simulated MSI; NAPI delivers it up the stack"></div>
     <p class="cap">One address space &mdash; <b>no PCI / MMIO / DMA</b>. The engine kthread is <b>device + wire</b>: the <code>TDT</code> doorbell wakes it, the token <i>is</i> a kernel pointer, an IP-swap loops the frame into the RX ring, and a <b>tasklet</b> stands in for the MSI.</p>
   </section>
 
   <section class="slide">
-    <h2>6.3 &middot; Dataflow: Level 2 &mdash; QEMU device, internal loopback</h2>
+    <h2>5.4 &middot; Dataflow: Level 2 &mdash; QEMU device, internal loopback</h2>
     <div class="imgwrap ring"><img src="diagrams/l2-loopback.svg" alt="Level 2 internal-loopback dataflow: the driver fills the TX ring in guest RAM and rings TDT over MMIO; the QEMU device DMA-reads the descriptor and packet, IP-swaps it, DMA-writes it into the RX ring, and raises an MSI handled via NAPI"></div>
     <p class="cap">Same core, now across the <b>PCIe boundary</b>: the rings live in <b>guest RAM</b>, the device reaches them by real <b>DMA</b>, is rung over <b>MMIO</b> (<code>writel(TDT)</code>), and completes with a real <b>MSI</b>. <code>loopback=on</code> means it loops internally, no backend.</p>
   </section>
 
   <section class="slide">
-    <h2>6.4 &middot; Dataflow: Level 2 &mdash; QEMU tap backend</h2>
+    <h2>5.5 &middot; Dataflow: Level 2 &mdash; QEMU tap backend</h2>
     <div class="imgwrap ring"><img src="diagrams/l2-tap.svg" alt="Level 2 tap-backend dataflow: a vertical chain - guest driver, QEMU vnic device, host tap, host network stack, peer/internet - with TX going down and RX coming up"></div>
-    <p class="cap"><code>loopback=off</code> bridges <b>real frames</b> guest&#8596;host&#8596;internet: TX via <code>qemu_send_packet</code> to the host <b>tap</b>, RX via the backend's <code>.receive()</code> (then DMA-write + MSI). The device is <b>backend-agnostic</b> (<b>D-30</b>) - the PCIe half is identical to 6.3.</p>
+    <p class="cap"><code>loopback=off</code> bridges <b>real frames</b> guest&#8596;host&#8596;internet: TX via <code>qemu_send_packet</code> to the host <b>tap</b>, RX via the backend's <code>.receive()</code> (then DMA-write + MSI). The device is <b>backend-agnostic</b> (<b>D-30</b>) - the PCIe half is identical to 5.4.</p>
   </section>
 
   <!-- 17 dev env -->
   <section class="slide">
-    <h2>7 &middot; Development environment</h2>
+    <h2>6 &middot; Development environment</h2>
     <div class="two">
       <div>
         <h3>Host: WSL2 + a QEMU guest</h3>
@@ -601,7 +600,7 @@
 
   <!-- 18 test env -->
   <section class="slide">
-    <h2>8 &middot; Test environment</h2>
+    <h2>7 &middot; Test environment</h2>
     <div class="two">
       <div>
         <h3>Loopback suite (in the guest)</h3>
@@ -624,7 +623,7 @@
 
   <!-- 19 performance -->
   <section class="slide">
-    <h2>9 &middot; Performance benchmark (Level 2, tap, QEMU+KVM)</h2>
+    <h2>8 &middot; Performance benchmark (Level 2, tap, QEMU+KVM)</h2>
     <table>
       <tr><th>Lever</th><th>What it changes</th><th>Measured</th></tr>
       <tr><td><b>TX doorbell batching</b><br><span class="sub">batch the TDT write over an xmit_more burst</span></td>
