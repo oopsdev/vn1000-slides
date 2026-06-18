@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1260 820" font-family="Segoe UI, Arial, sans-serif">
   <defs>
     <marker id="arrow" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#37474f"/>
+      <path d="M0,0 L8,3 L0,6 Z" fill="#94a3b8"/>
     </marker>
     <filter id="sh" x="-5%" y="-5%" width="110%" height="115%">
       <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#000" flood-opacity="0.18"/>
@@ -9,14 +9,14 @@
   </defs>
 
   <!-- page -->
-  <rect x="0" y="0" width="1320" height="820" fill="#ffffff"/>
-  <text x="630" y="26" text-anchor="middle" font-size="20" font-weight="700" fill="#263238">Linux NIC Driver - RX Packet Reception Path</text>
+  <rect x="0" y="0" width="1320" height="820" fill="#0f172a"/>
+  <text x="630" y="26" text-anchor="middle" font-size="20" font-weight="700" fill="#e2e8f0">Linux NIC Driver - RX Packet Reception Path</text>
 
   <!-- ===== lane backgrounds ===== -->
-  <rect x="10"  y="44" width="140" height="756" rx="8" fill="#fafafa" stroke="#e0e0e0"/>
-  <rect x="158" y="44" width="272" height="756" rx="8" fill="#eaf6ec" stroke="#c8e6c9"/>
-  <rect x="438" y="44" width="392" height="756" rx="8" fill="#fdf8e7" stroke="#fbe6a2"/>
-  <rect x="838" y="44" width="406" height="756" rx="8" fill="#eef0f6" stroke="#d6dcee"/>
+  <rect x="10"  y="44" width="140" height="756" rx="8" fill="#16202e" stroke="#334155"/>
+  <rect x="158" y="44" width="272" height="756" rx="8" fill="#15241c" stroke="#1b3a2a"/>
+  <rect x="438" y="44" width="392" height="756" rx="8" fill="#241f10" stroke="#6b5a23"/>
+  <rect x="838" y="44" width="406" height="756" rx="8" fill="#1a1e30" stroke="#3a3f66"/>
 
   <!-- lane headers -->
   <rect x="158" y="50" width="272" height="38" rx="6" fill="#43a047"/>
@@ -25,11 +25,11 @@
   <text x="634" y="74" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">Host Memory (RAM)</text>
   <rect x="838" y="50" width="406" height="38" rx="6" fill="#5c6bc0"/>
   <text x="1041" y="74" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">CPU Driver (Kernel Space)</text>
-  <rect x="10" y="50" width="140" height="38" rx="6" fill="#eceff1"/>
-  <text x="80" y="74" text-anchor="middle" font-size="13" font-weight="700" fill="#455a64">Global Steps</text>
+  <rect x="10" y="50" width="140" height="38" rx="6" fill="#243449"/>
+  <text x="80" y="74" text-anchor="middle" font-size="13" font-weight="700" fill="#cbd5e1">Global Steps</text>
 
   <!-- phase separators -->
-  <g stroke="#cfd8dc" stroke-dasharray="4 4" stroke-width="1">
+  <g stroke="#334155" stroke-dasharray="4 4" stroke-width="1">
     <line x1="158" y1="240" x2="1244" y2="240"/>
     <line x1="158" y1="398" x2="1244" y2="398"/>
     <line x1="158" y1="490" x2="1244" y2="490"/>
@@ -37,205 +37,205 @@
   </g>
 
   <!-- ===== left rail phase labels ===== -->
-  <g text-anchor="middle" fill="#37474f">
+  <g text-anchor="middle" fill="#94a3b8">
     <text x="80" y="150" font-size="14" font-weight="700" fill="#43a047">STEP A</text>
     <text x="80" y="170" font-size="11">Initialization</text>
-    <text x="80" y="184" font-size="10" fill="#78909c">(Driver Init Ring)</text>
+    <text x="80" y="184" font-size="10" fill="#94a3b8">(Driver Init Ring)</text>
 
     <text x="80" y="312" font-size="14" font-weight="700" fill="#f4b400">STEP B</text>
     <text x="80" y="332" font-size="11">Packet Arrival</text>
-    <text x="80" y="346" font-size="10" fill="#78909c">and DMA</text>
+    <text x="80" y="346" font-size="10" fill="#94a3b8">and DMA</text>
 
     <text x="80" y="438" font-size="14" font-weight="700" fill="#e53935">STEP C</text>
     <text x="80" y="458" font-size="11">Interrupt</text>
-    <text x="80" y="472" font-size="10" fill="#78909c">Notification</text>
+    <text x="80" y="472" font-size="10" fill="#94a3b8">Notification</text>
 
-    <text x="80" y="558" font-size="14" font-weight="700" fill="#5e35b1">STEP D</text>
+    <text x="80" y="558" font-size="14" font-weight="700" fill="#a78bfa">STEP D</text>
     <text x="80" y="578" font-size="11">NAPI Polling</text>
-    <text x="80" y="592" font-size="10" fill="#78909c">and Upstream</text>
+    <text x="80" y="592" font-size="10" fill="#94a3b8">and Upstream</text>
 
-    <text x="80" y="710" font-size="14" font-weight="700" fill="#00897b">STEP E</text>
+    <text x="80" y="710" font-size="14" font-weight="700" fill="#2dd4bf">STEP E</text>
     <text x="80" y="730" font-size="11">Cleanup and</text>
-    <text x="80" y="744" font-size="10" fill="#78909c">Recycle</text>
+    <text x="80" y="744" font-size="10" fill="#94a3b8">Recycle</text>
   </g>
 
   <!-- ============================================================ -->
   <!-- PHASE A components -->
   <!-- NIC Registers (CSR) -->
-  <rect x="185" y="120" width="150" height="72" rx="6" fill="#cfd8dc" stroke="#607d8b" filter="url(#sh)"/>
-  <text x="260" y="136" text-anchor="middle" font-size="11" font-weight="700" fill="#37474f">NIC Registers (CSR)</text>
-  <rect x="195" y="142" width="130" height="22" rx="3" fill="#eceff1" stroke="#90a4ae"/>
-  <text x="260" y="157" text-anchor="middle" font-size="10.5" fill="#37474f">CSR: Tail Reg</text>
-  <rect x="195" y="167" width="130" height="22" rx="3" fill="#eceff1" stroke="#90a4ae"/>
-  <text x="260" y="182" text-anchor="middle" font-size="10.5" fill="#37474f">CSR: Head Reg</text>
+  <rect x="185" y="120" width="150" height="72" rx="6" fill="#334155" stroke="#64748b" filter="url(#sh)"/>
+  <text x="260" y="136" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8">NIC Registers (CSR)</text>
+  <rect x="195" y="142" width="130" height="22" rx="3" fill="#243449" stroke="#475569"/>
+  <text x="260" y="157" text-anchor="middle" font-size="10.5" fill="#94a3b8">CSR: Tail Reg</text>
+  <rect x="195" y="167" width="130" height="22" rx="3" fill="#243449" stroke="#475569"/>
+  <text x="260" y="182" text-anchor="middle" font-size="10.5" fill="#94a3b8">CSR: Head Reg</text>
 
   <!-- Rx Ring Descriptor Array -->
-  <rect x="452" y="104" width="368" height="102" rx="6" fill="#fffdf5" stroke="#bdbdbd" filter="url(#sh)"/>
-  <text x="636" y="118" text-anchor="middle" font-size="12" font-weight="700" fill="#5d4037">Rx Ring Descriptor Array</text>
+  <rect x="452" y="104" width="368" height="102" rx="6" fill="#1e293b" stroke="#475569" filter="url(#sh)"/>
+  <text x="636" y="118" text-anchor="middle" font-size="12" font-weight="700" fill="#fcd34d">Rx Ring Descriptor Array</text>
   <!-- rows -->
   <g font-size="10.5">
-    <rect x="466" y="124" width="152" height="18" rx="3" fill="#bbdefb" stroke="#1976d2"/>
-    <text x="542" y="137" text-anchor="middle" fill="#0d47a1">Descriptor 0</text>
-    <rect x="650" y="124" width="156" height="18" rx="3" fill="#eceff1" stroke="#b0bec5"/>
-    <text x="728" y="137" text-anchor="middle" fill="#455a64">Rx Packet Buffer</text>
-    <line x1="618" y1="133" x2="650" y2="133" stroke="#9e9e9e"/>
+    <rect x="466" y="124" width="152" height="18" rx="3" fill="#173049" stroke="#38bdf8"/>
+    <text x="542" y="137" text-anchor="middle" fill="#7dd3fc">Descriptor 0</text>
+    <rect x="650" y="124" width="156" height="18" rx="3" fill="#243449" stroke="#475569"/>
+    <text x="728" y="137" text-anchor="middle" fill="#cbd5e1">Rx Packet Buffer</text>
+    <line x1="618" y1="133" x2="650" y2="133" stroke="#64748b"/>
 
-    <rect x="466" y="146" width="152" height="18" rx="3" fill="#bbdefb" stroke="#1976d2"/>
-    <text x="542" y="159" text-anchor="middle" fill="#0d47a1">Descriptor 1</text>
-    <rect x="650" y="146" width="156" height="18" rx="3" fill="#eceff1" stroke="#b0bec5"/>
-    <text x="728" y="159" text-anchor="middle" fill="#455a64">Rx Packet Buffer</text>
-    <line x1="618" y1="155" x2="650" y2="155" stroke="#9e9e9e"/>
+    <rect x="466" y="146" width="152" height="18" rx="3" fill="#173049" stroke="#38bdf8"/>
+    <text x="542" y="159" text-anchor="middle" fill="#7dd3fc">Descriptor 1</text>
+    <rect x="650" y="146" width="156" height="18" rx="3" fill="#243449" stroke="#475569"/>
+    <text x="728" y="159" text-anchor="middle" fill="#cbd5e1">Rx Packet Buffer</text>
+    <line x1="618" y1="155" x2="650" y2="155" stroke="#64748b"/>
 
-    <text x="542" y="176" text-anchor="middle" fill="#9e9e9e">. . .</text>
-    <text x="728" y="176" text-anchor="middle" fill="#9e9e9e">. . .</text>
+    <text x="542" y="176" text-anchor="middle" fill="#64748b">. . .</text>
+    <text x="728" y="176" text-anchor="middle" fill="#64748b">. . .</text>
 
-    <rect x="466" y="182" width="152" height="18" rx="3" fill="#bbdefb" stroke="#1976d2"/>
-    <text x="542" y="195" text-anchor="middle" fill="#0d47a1">Descriptor N-1</text>
-    <rect x="650" y="182" width="156" height="18" rx="3" fill="#eceff1" stroke="#b0bec5"/>
-    <text x="728" y="195" text-anchor="middle" fill="#455a64">Rx Packet Buffer</text>
-    <line x1="618" y1="191" x2="650" y2="191" stroke="#9e9e9e"/>
+    <rect x="466" y="182" width="152" height="18" rx="3" fill="#173049" stroke="#38bdf8"/>
+    <text x="542" y="195" text-anchor="middle" fill="#7dd3fc">Descriptor N-1</text>
+    <rect x="650" y="182" width="156" height="18" rx="3" fill="#243449" stroke="#475569"/>
+    <text x="728" y="195" text-anchor="middle" fill="#cbd5e1">Rx Packet Buffer</text>
+    <line x1="618" y1="191" x2="650" y2="191" stroke="#64748b"/>
   </g>
 
   <!-- net_device (CPU) -->
-  <rect x="1050" y="120" width="180" height="58" rx="6" fill="#c5cae9" stroke="#3949ab" filter="url(#sh)"/>
-  <text x="1140" y="143" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1a237e">CPU Driver - Init</text>
-  <text x="1140" y="160" text-anchor="middle" font-size="10.5" fill="#283593">net_device structure</text>
+  <rect x="1050" y="120" width="180" height="58" rx="6" fill="#232a52" stroke="#818cf8" filter="url(#sh)"/>
+  <text x="1140" y="143" text-anchor="middle" font-size="11.5" font-weight="700" fill="#c7d2fe">CPU Driver - Init</text>
+  <text x="1140" y="160" text-anchor="middle" font-size="10.5" fill="#a5b4fc">net_device structure</text>
 
   <!-- PHASE A arrows (A1 -> A2 -> A3 top to bottom) -->
   <!-- A1 (label floats above the line, line stays clear) -->
-  <line x1="1050" y1="138" x2="824" y2="138" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="854" y="118" width="166" height="15" rx="4" fill="#fff8e1" stroke="#f6c343"/>
-  <text x="937" y="129" text-anchor="middle" font-size="9.5" fill="#5d4037">A1  alloc + map ring + buffers</text>
+  <line x1="1050" y1="138" x2="824" y2="138" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="854" y="118" width="166" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="937" y="129" text-anchor="middle" font-size="9.5" fill="#fcd34d">A1  alloc + map ring + buffers</text>
   <!-- A2 (label floats above the line, line stays clear) -->
-  <line x1="1050" y1="170" x2="824" y2="170" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="839" y="150" width="196" height="15" rx="4" fill="#fff8e1" stroke="#f6c343"/>
-  <text x="937" y="161" text-anchor="middle" font-size="9.5" fill="#5d4037">A2  write buf phys addr (= NIC Owned)</text>
+  <line x1="1050" y1="170" x2="824" y2="170" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="839" y="150" width="196" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="937" y="161" text-anchor="middle" font-size="9.5" fill="#fcd34d">A2  write buf phys addr (= NIC Owned)</text>
   <!-- A3 route below ring to CSR (drops from directly under net_device) -->
-  <polyline points="1140,178 1140,224 255,224 255,192" fill="none" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="470" y="215" width="330" height="18" rx="4" fill="#fff8e1" stroke="#f6c343"/>
-  <text x="635" y="228" text-anchor="middle" font-size="10.5" fill="#5d4037">A3  write ring base + Head/Tail pointers to CSR</text>
+  <polyline points="1140,178 1140,224 255,224 255,192" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="470" y="215" width="330" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="635" y="228" text-anchor="middle" font-size="10.5" fill="#fcd34d">A3  write ring base + Head/Tail pointers to CSR</text>
 
   <!-- ============================================================ -->
   <!-- PHASE B components -->
   <!-- network cloud -->
-  <ellipse cx="196" cy="322" rx="40" ry="27" fill="#eceff1" stroke="#90a4ae"/>
-  <text x="196" y="318" text-anchor="middle" font-size="10.5" font-weight="700" fill="#546e7a">Network</text>
-  <text x="196" y="332" text-anchor="middle" font-size="8" fill="#78909c">Ethernet Frame</text>
+  <ellipse cx="196" cy="322" rx="40" ry="27" fill="#243449" stroke="#475569"/>
+  <text x="196" y="318" text-anchor="middle" font-size="10.5" font-weight="700" fill="#94a3b8">Network</text>
+  <text x="196" y="332" text-anchor="middle" font-size="8" fill="#94a3b8">Ethernet Frame</text>
   <!-- NIC buffer -->
-  <rect x="244" y="300" width="86" height="44" rx="6" fill="#b2dfdb" stroke="#00897b" filter="url(#sh)"/>
-  <text x="287" y="318" text-anchor="middle" font-size="11" font-weight="700" fill="#004d40">NIC Buffer</text>
-  <text x="287" y="333" text-anchor="middle" font-size="9.5" fill="#00695c">(FIFO)</text>
+  <rect x="244" y="300" width="86" height="44" rx="6" fill="#14302c" stroke="#2dd4bf" filter="url(#sh)"/>
+  <text x="287" y="318" text-anchor="middle" font-size="11" font-weight="700" fill="#5eead4">NIC Buffer</text>
+  <text x="287" y="333" text-anchor="middle" font-size="9.5" fill="#5eead4">(FIFO)</text>
   <!-- DMA controller -->
-  <rect x="340" y="295" width="90" height="56" rx="6" fill="#80cbc4" stroke="#00695c" filter="url(#sh)"/>
-  <text x="385" y="318" text-anchor="middle" font-size="10.5" font-weight="700" fill="#004d40">NIC DMA</text>
-  <text x="385" y="333" text-anchor="middle" font-size="10.5" font-weight="700" fill="#004d40">Controller</text>
+  <rect x="340" y="295" width="90" height="56" rx="6" fill="#15403a" stroke="#5eead4" filter="url(#sh)"/>
+  <text x="385" y="318" text-anchor="middle" font-size="10.5" font-weight="700" fill="#5eead4">NIC DMA</text>
+  <text x="385" y="333" text-anchor="middle" font-size="10.5" font-weight="700" fill="#5eead4">Controller</text>
 
   <!-- MEM phase B: target packet buffer + descriptor status (stacked, leaves room for B2/B3 lines) -->
-  <rect x="575" y="298" width="165" height="34" rx="6" fill="#eceff1" stroke="#b0bec5" filter="url(#sh)"/>
-  <text x="657" y="313" text-anchor="middle" font-size="10.5" font-weight="700" fill="#455a64">Rx Packet Buffer</text>
-  <text x="657" y="327" text-anchor="middle" font-size="9.5" fill="#607d8b">(Descriptor X)</text>
-  <rect x="575" y="340" width="165" height="50" rx="6" fill="#c8e6c9" stroke="#388e3c" filter="url(#sh)"/>
-  <text x="657" y="356" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1b5e20">Ring Descriptor X</text>
-  <text x="657" y="371" text-anchor="middle" font-size="10" font-weight="700" fill="#1b5e20">Status = Driver Owned</text>
+  <rect x="575" y="298" width="165" height="34" rx="6" fill="#243449" stroke="#475569" filter="url(#sh)"/>
+  <text x="657" y="313" text-anchor="middle" font-size="10.5" font-weight="700" fill="#cbd5e1">Rx Packet Buffer</text>
+  <text x="657" y="327" text-anchor="middle" font-size="9.5" fill="#64748b">(Descriptor X)</text>
+  <rect x="575" y="340" width="165" height="50" rx="6" fill="#1b3a2a" stroke="#34d399" filter="url(#sh)"/>
+  <text x="657" y="356" text-anchor="middle" font-size="10.5" font-weight="700" fill="#6ee7b7">Ring Descriptor X</text>
+  <text x="657" y="371" text-anchor="middle" font-size="10" font-weight="700" fill="#6ee7b7">Status = Driver Owned</text>
   <text x="657" y="385" text-anchor="middle" font-size="9" fill="#2e7d32">Length = ...</text>
 
   <!-- PHASE B arrows -->
   <!-- B1 cloud -> buffer -->
-  <line x1="236" y1="322" x2="244" y2="322" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="240" y="368" text-anchor="middle" font-size="10.5" fill="#5d4037">B1</text>
+  <line x1="236" y1="322" x2="244" y2="322" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="240" y="368" text-anchor="middle" font-size="10.5" fill="#fcd34d">B1</text>
   <!-- buffer -> dma -->
-  <line x1="330" y1="323" x2="340" y2="323" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="330" y1="323" x2="340" y2="323" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
   <!-- B2 dma -> packet buffer (label floats above the line) -->
-  <line x1="430" y1="322" x2="575" y2="322" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="447" y="303" width="110" height="15" rx="4" fill="#fff8e1" stroke="#f6c343"/>
-  <text x="502" y="314" text-anchor="middle" font-size="9.5" fill="#5d4037">B2  DMA write packet</text>
+  <line x1="430" y1="322" x2="575" y2="322" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="447" y="303" width="110" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="502" y="314" text-anchor="middle" font-size="9.5" fill="#fcd34d">B2  DMA write packet</text>
   <!-- B3 dma -> descriptor status (label floats above the line) -->
-  <polyline points="400,351 400,365 575,365" fill="none" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="432" y="346" width="134" height="15" rx="4" fill="#fff8e1" stroke="#f6c343"/>
-  <text x="499" y="357" text-anchor="middle" font-size="9.5" fill="#5d4037">B3  set len + Driver Owned</text>
+  <polyline points="400,351 400,365 575,365" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="432" y="346" width="134" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="499" y="357" text-anchor="middle" font-size="9.5" fill="#fcd34d">B3  set len + Driver Owned</text>
 
   <!-- ============================================================ -->
   <!-- PHASE C components -->
-  <rect x="185" y="415" width="150" height="56" rx="6" fill="#cfd8dc" stroke="#607d8b" filter="url(#sh)"/>
-  <text x="260" y="438" text-anchor="middle" font-size="10.5" font-weight="700" fill="#37474f">NIC CSR</text>
-  <text x="260" y="454" text-anchor="middle" font-size="9.5" fill="#455a64">IRQ mask / Head</text>
+  <rect x="185" y="415" width="150" height="56" rx="6" fill="#334155" stroke="#64748b" filter="url(#sh)"/>
+  <text x="260" y="438" text-anchor="middle" font-size="10.5" font-weight="700" fill="#94a3b8">NIC CSR</text>
+  <text x="260" y="454" text-anchor="middle" font-size="9.5" fill="#cbd5e1">IRQ mask / Head</text>
 
-  <rect x="1050" y="410" width="180" height="56" rx="6" fill="#d1c4e9" stroke="#5e35b1" filter="url(#sh)"/>
-  <text x="1140" y="433" text-anchor="middle" font-size="11.5" font-weight="700" fill="#311b92">Interrupt Handler</text>
-  <text x="1140" y="450" text-anchor="middle" font-size="10.5" fill="#4527a0">(ISR / top half)</text>
+  <rect x="1050" y="410" width="180" height="56" rx="6" fill="#2a2142" stroke="#a78bfa" filter="url(#sh)"/>
+  <text x="1140" y="433" text-anchor="middle" font-size="11.5" font-weight="700" fill="#d8b4fe">Interrupt Handler</text>
+  <text x="1140" y="450" text-anchor="middle" font-size="10.5" fill="#c4b5fd">(ISR / top half)</text>
 
   <!-- PHASE C arrows -->
   <!-- C1 NIC -> ISR -->
   <line x1="335" y1="428" x2="1050" y2="428" stroke="#e53935" stroke-width="1.8" marker-end="url(#arrow)"/>
-  <rect x="600" y="416" width="270" height="18" rx="4" fill="#ffebee" stroke="#ef9a9a"/>
-  <text x="735" y="429" text-anchor="middle" font-size="10.5" fill="#b71c1c">C1  MSI-X hardware interrupt (PCIe)</text>
+  <rect x="600" y="416" width="270" height="18" rx="4" fill="#2e1416" stroke="#f87171"/>
+  <text x="735" y="429" text-anchor="middle" font-size="10.5" fill="#fca5a5">C1  MSI-X hardware interrupt (PCIe)</text>
   <!-- C2 ack/mask ISR -> NIC -->
-  <line x1="1050" y1="452" x2="335" y2="452" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="560" y="454" width="250" height="18" rx="4" fill="#fff8e1" stroke="#f6c343"/>
-  <text x="685" y="467" text-anchor="middle" font-size="10.5" fill="#5d4037">C2  ack + mask IRQ in CSR</text>
+  <line x1="1050" y1="452" x2="335" y2="452" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="560" y="454" width="250" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="685" y="467" text-anchor="middle" font-size="10.5" fill="#fcd34d">C2  ack + mask IRQ in CSR</text>
   <!-- C3 schedule NAPI ISR -> NAPI -->
-  <line x1="1140" y1="466" x2="1140" y2="500" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="1088" y="472" width="104" height="18" rx="4" fill="#fff8e1" stroke="#f6c343"/>
-  <text x="1140" y="485" text-anchor="middle" font-size="10" fill="#5d4037">C3 schedule NAPI</text>
+  <line x1="1140" y1="466" x2="1140" y2="500" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="1088" y="472" width="104" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="1140" y="485" text-anchor="middle" font-size="10" fill="#fcd34d">C3 schedule NAPI</text>
 
   <!-- ============================================================ -->
   <!-- PHASE D components -->
-  <rect x="1050" y="500" width="180" height="70" rx="6" fill="#b39ddb" stroke="#512da0" filter="url(#sh)"/>
-  <text x="1140" y="530" text-anchor="middle" font-size="11.5" font-weight="700" fill="#311b92">NAPI Polling Thread</text>
-  <text x="1140" y="547" text-anchor="middle" font-size="10" fill="#4527a0">(napi_poll / ksoftirqd)</text>
+  <rect x="1050" y="500" width="180" height="70" rx="6" fill="#2a2142" stroke="#a78bfa" filter="url(#sh)"/>
+  <text x="1140" y="530" text-anchor="middle" font-size="11.5" font-weight="700" fill="#d8b4fe">NAPI Polling Thread</text>
+  <text x="1140" y="547" text-anchor="middle" font-size="10" fill="#c4b5fd">(napi_poll / ksoftirqd)</text>
 
-  <rect x="560" y="506" width="246" height="26" rx="5" fill="#c8e6c9" stroke="#388e3c"/>
-  <text x="683" y="523" text-anchor="middle" font-size="10.5" fill="#1b5e20">D1  Read Descriptor X (Driver-Owned)</text>
-  <rect x="560" y="544" width="246" height="26" rx="5" fill="#eceff1" stroke="#b0bec5"/>
-  <text x="683" y="561" text-anchor="middle" font-size="10.5" fill="#455a64">D2  Fetch Packet Data from Buffer X</text>
+  <rect x="560" y="506" width="246" height="26" rx="5" fill="#1b3a2a" stroke="#34d399"/>
+  <text x="683" y="523" text-anchor="middle" font-size="10.5" fill="#6ee7b7">D1  Read Descriptor X (Driver-Owned)</text>
+  <rect x="560" y="544" width="246" height="26" rx="5" fill="#243449" stroke="#475569"/>
+  <text x="683" y="561" text-anchor="middle" font-size="10.5" fill="#cbd5e1">D2  Fetch Packet Data from Buffer X</text>
 
   <!-- Linux network stack -->
-  <rect x="1050" y="592" width="180" height="62" rx="6" fill="#ffe0b2" stroke="#fb8c00" filter="url(#sh)"/>
-  <text x="1140" y="616" text-anchor="middle" font-size="12" font-weight="700" fill="#e65100">Linux Network Stack</text>
-  <text x="1140" y="636" text-anchor="middle" font-size="10.5" fill="#ef6c00">IP / TCP / UDP</text>
+  <rect x="1050" y="592" width="180" height="62" rx="6" fill="#2e2412" stroke="#fb923c" filter="url(#sh)"/>
+  <text x="1140" y="616" text-anchor="middle" font-size="12" font-weight="700" fill="#fdba74">Linux Network Stack</text>
+  <text x="1140" y="636" text-anchor="middle" font-size="10.5" fill="#fdba74">IP / TCP / UDP</text>
 
   <!-- PHASE D arrows (Memory -> CPU: driver reads) -->
-  <line x1="806" y1="519" x2="1050" y2="519" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <line x1="806" y1="557" x2="1050" y2="557" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="806" y1="519" x2="1050" y2="519" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="806" y1="557" x2="1050" y2="557" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
   <!-- D3 NAPI -> stack -->
-  <line x1="1140" y1="570" x2="1140" y2="592" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="948" y="573" width="184" height="17" rx="4" fill="#fff8e1" stroke="#f6c343"/>
-  <text x="1040" y="585" text-anchor="middle" font-size="10" fill="#5d4037">D3  netif_receive_skb (sk_buff up)</text>
+  <line x1="1140" y1="570" x2="1140" y2="592" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="948" y="573" width="184" height="17" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="1040" y="585" text-anchor="middle" font-size="10" fill="#fcd34d">D3  netif_receive_skb (sk_buff up)</text>
 
   <!-- D4 NAPI re-arms the interrupt below D1/D2/D3 (top-to-bottom order), only once the poll drained the ring -->
-  <polyline points="1050,566 940,566 940,600 260,600 260,471" fill="none" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="523" y="592" width="330" height="15" rx="4" fill="#fff8e1" stroke="#f6c343"/>
-  <text x="688" y="603" text-anchor="middle" font-size="9.5" fill="#5d4037">D4  napi_complete_done -> driver unmasks IRQ (when ring drained)</text>
+  <polyline points="1050,566 940,566 940,600 260,600 260,471" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="523" y="592" width="330" height="15" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="688" y="603" text-anchor="middle" font-size="9.5" fill="#fcd34d">D4  napi_complete_done -> driver unmasks IRQ (when ring drained)</text>
 
   <!-- ============================================================ -->
   <!-- PHASE E components -->
-  <rect x="1050" y="664" width="180" height="46" rx="6" fill="#b2dfdb" stroke="#00897b" filter="url(#sh)"/>
-  <text x="1140" y="684" text-anchor="middle" font-size="11" font-weight="700" fill="#004d40">Driver poll tail</text>
-  <text x="1140" y="700" text-anchor="middle" font-size="10" fill="#00695c">cleanup / recycle</text>
+  <rect x="1050" y="664" width="180" height="46" rx="6" fill="#14302c" stroke="#2dd4bf" filter="url(#sh)"/>
+  <text x="1140" y="684" text-anchor="middle" font-size="11" font-weight="700" fill="#5eead4">Driver poll tail</text>
+  <text x="1140" y="700" text-anchor="middle" font-size="10" fill="#5eead4">cleanup / recycle</text>
 
   <!-- NAPI poll thread continues into its cleanup/recycle tail (routed around the stack box) -->
-  <polyline points="1230,560 1238,560 1238,687 1230,687" fill="none" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <polyline points="1230,560 1238,560 1238,687 1230,687" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
 
-  <rect x="560" y="662" width="246" height="32" rx="5" fill="#bbdefb" stroke="#1976d2"/>
-  <text x="683" y="682" text-anchor="middle" font-size="10.5" fill="#0d47a1">E1  Update Descriptor X (NIC Owned, empty)</text>
+  <rect x="560" y="662" width="246" height="32" rx="5" fill="#173049" stroke="#38bdf8"/>
+  <text x="683" y="682" text-anchor="middle" font-size="10.5" fill="#7dd3fc">E1  Update Descriptor X (NIC Owned, empty)</text>
 
-  <rect x="185" y="702" width="150" height="46" rx="6" fill="#cfd8dc" stroke="#607d8b" filter="url(#sh)"/>
-  <text x="260" y="722" text-anchor="middle" font-size="10.5" font-weight="700" fill="#37474f">NIC CSR</text>
-  <text x="260" y="738" text-anchor="middle" font-size="9.5" fill="#455a64">Tail Reg</text>
+  <rect x="185" y="702" width="150" height="46" rx="6" fill="#334155" stroke="#64748b" filter="url(#sh)"/>
+  <text x="260" y="722" text-anchor="middle" font-size="10.5" font-weight="700" fill="#94a3b8">NIC CSR</text>
+  <text x="260" y="738" text-anchor="middle" font-size="9.5" fill="#cbd5e1">Tail Reg</text>
 
   <!-- PHASE E arrows -->
-  <line x1="1050" y1="682" x2="806" y2="682" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <polyline points="1050,702 900,702 900,725 335,725" fill="none" stroke="#37474f" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="420" y="716" width="230" height="18" rx="4" fill="#fff8e1" stroke="#f6c343"/>
-  <text x="535" y="729" text-anchor="middle" font-size="10.5" fill="#5d4037">E2  write Tail to CSR (recycle)</text>
+  <line x1="1050" y1="682" x2="806" y2="682" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <polyline points="1050,702 900,702 900,725 335,725" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="420" y="716" width="230" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="535" y="729" text-anchor="middle" font-size="10.5" fill="#fcd34d">E2  write Tail to CSR (recycle)</text>
 
   <!-- legend: descriptor ownership vs buffer -->
-  <rect x="452" y="752" width="368" height="40" rx="6" fill="#ffffff" stroke="#e0e0e0"/>
-  <rect x="460" y="760" width="14" height="14" rx="3" fill="#bbdefb" stroke="#1976d2"/>
-  <text x="478" y="771" font-size="9.5" fill="#37474f">NIC Owned</text>
-  <rect x="558" y="760" width="14" height="14" rx="3" fill="#c8e6c9" stroke="#388e3c"/>
-  <text x="576" y="771" font-size="9.5" fill="#37474f">Driver Owned</text>
-  <rect x="664" y="760" width="14" height="14" rx="3" fill="#eceff1" stroke="#b0bec5"/>
-  <text x="682" y="771" font-size="9.5" fill="#37474f">Rx Packet Buffer</text>
-  <text x="460" y="787" font-size="9" fill="#78909c">Descriptor fill = ownership; flips NIC Owned to Driver Owned (B3), back to NIC Owned (E1).</text>
+  <rect x="452" y="752" width="368" height="40" rx="6" fill="#16202e" stroke="#334155"/>
+  <rect x="460" y="760" width="14" height="14" rx="3" fill="#173049" stroke="#38bdf8"/>
+  <text x="478" y="771" font-size="9.5" fill="#94a3b8">NIC Owned</text>
+  <rect x="558" y="760" width="14" height="14" rx="3" fill="#1b3a2a" stroke="#34d399"/>
+  <text x="576" y="771" font-size="9.5" fill="#94a3b8">Driver Owned</text>
+  <rect x="664" y="760" width="14" height="14" rx="3" fill="#243449" stroke="#475569"/>
+  <text x="682" y="771" font-size="9.5" fill="#94a3b8">Rx Packet Buffer</text>
+  <text x="460" y="787" font-size="9" fill="#94a3b8">Descriptor fill = ownership; flips NIC Owned to Driver Owned (B3), back to NIC Owned (E1).</text>
 </svg>
