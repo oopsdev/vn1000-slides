@@ -134,7 +134,7 @@
     <ol>
       <li>TCP stream TX / RX flow (an HTTP example) - socket, ports, segmentation, checksum, IP routing &amp; forwarding, ARP, Ethernet</li>
       <li>The PCIe NIC: anatomy &amp; a sample datasheet</li>
-      <li>Linux PCIe NIC driver framework - TX/RX flow, init, MMIO &amp; barriers, probe, DMA, ISR, cleanup</li>
+      <li>Linux PCIe NIC driver framework - TX/RX flow, init, MMIO &amp; barriers, probe, DMA, ISR, cleanup, offloads</li>
       <li>The QEMU PCIe NIC device model</li>
       <li>The vNIC project goal (Level 1 &amp; Level 2) - and design considerations: the HAL seam &amp; the three dataflow models</li>
       <li>Development environment setup</li>
@@ -492,6 +492,24 @@
           <li>Free the rings, unmap BAR0, release regions, disable the PCI device.</li>
         </ul>
         <div class="card"><span class="t">Ordering matters: never free memory the device might still be DMA-ing into - disable + quiesce first, then drain.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3.9 TX/RX offloads -->
+  <section class="slide">
+    <h2>3.9 &middot; TX/RX offloads &mdash; TSO/GSO (segment) &middot; GRO/LRO (coalesce)</h2>
+    <div class="two" style="grid-template-columns:1.9fr 1fr; align-items:center">
+      <div class="imgwrap"><img src="diagrams/tso-gro.svg" alt="TX segmentation (TSO/GSO) turns one large super-skb into many MSS-sized wire frames; RX coalescing (GRO/LRO) merges many MSS frames back into one large skb; GSO/GRO in software, TSO/LRO in the device; with per-layer headers, MSS and MTU"></div>
+      <div class="steps">
+        <h3>Off the per-packet hot path</h3>
+        <ul>
+          <li><b>TX (segment)</b>: one ~64 KB super-skb &rarr; N&times;MSS frames. <b>GSO</b> splits in <b>software</b> (just before the driver); <b>TSO</b> hands the device one skb (SG, few desc, <b>1 doorbell</b>) and the <b>device</b> splits.</li>
+          <li><b>RX (coalesce)</b>: N&times;MSS frames &rarr; one skb. <b>GRO</b> merges in the <b>NAPI poll</b> (software); <b>LRO</b> merges in the <b>device</b>.</li>
+          <li><b>MSS</b> = MTU &minus; IP &minus; TCP = 1460; frames stay &le; MTU &mdash; jumbo's win <i>without</i> jumbo on the wire.</li>
+          <li>Needs <b>checksum offload</b> (the device must (re)checksum each segment).</li>
+          <li><b>VN1000</b>: <b>GRO on</b> (<code>napi_gro_receive</code>); TSO / LRO / checksum = <b>backlog A6</b> (the TX engine would become a segmenter).</li>
+        </ul>
       </div>
     </div>
   </section>
