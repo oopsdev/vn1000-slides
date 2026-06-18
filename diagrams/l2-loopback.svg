@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Level 2 dataflow: QEMU PCI device, internal loopback (loopback=on). The rings
+     live in GUEST RAM; the device reaches them by DMA, is rung by MMIO, and
+     completes with a real MSI. Dark theme baked in. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" width="1000" height="640"
+     font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img"
+     aria-label="Level 2 internal-loopback dataflow: the driver fills the TX ring in guest RAM and rings the TDT doorbell over MMIO; the QEMU device DMA-reads the descriptor and packet, IP-swaps it, DMA-writes it into the RX ring, and raises an MSI that the guest handles via NAPI.">
+  <defs>
+    <marker id="tb" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#38bdf8"/></marker>
+    <marker id="tg" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#34d399"/></marker>
+    <marker id="ts" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#94a3b8"/></marker>
+  </defs>
+
+  <rect x="0" y="0" width="1000" height="640" fill="#0f172a"/>
+  <text x="500" y="30" text-anchor="middle" fill="#e2e8f0" font-size="19" font-weight="700">Level 2 &#8211; QEMU PCI device, internal loopback (loopback=on)</text>
+
+  <!-- userspace app -->
+  <rect x="360" y="44" width="280" height="42" rx="8" fill="#243449" stroke="#64748b" stroke-width="1.5"/>
+  <text x="500" y="71" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">User app (socket)</text>
+
+  <!-- GUEST band -->
+  <rect x="40" y="98" width="920" height="312" rx="10" fill="#1e293b" fill-opacity="0.4" stroke="#38bdf8" stroke-opacity="0.5" stroke-dasharray="7 5"/>
+  <text x="60" y="122" fill="#7dd3fc" font-size="13" font-weight="700">GUEST (kernel + RAM)</text>
+
+  <rect x="300" y="132" width="400" height="44" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
+  <text x="500" y="160" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Linux net stack + vnic driver</text>
+
+  <rect x="110" y="238" width="320" height="84" rx="8" fill="#243449" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="270" y="266" text-anchor="middle" fill="#fff" font-size="13.5" font-weight="700">TX ring &#183; guest RAM</text>
+  <text x="270" y="288" text-anchor="middle" fill="#cbd5e1" font-size="12">dma_alloc_coherent</text>
+  <text x="270" y="308" text-anchor="middle" fill="#94a3b8" font-size="11.5">buffers: dma_map_single</text>
+
+  <rect x="570" y="238" width="320" height="84" rx="8" fill="#243449" stroke="#34d399" stroke-width="1.5"/>
+  <text x="730" y="266" text-anchor="middle" fill="#fff" font-size="13.5" font-weight="700">RX ring &#183; guest RAM</text>
+  <text x="730" y="288" text-anchor="middle" fill="#cbd5e1" font-size="12">pre-posted buffers</text>
+  <text x="730" y="308" text-anchor="middle" fill="#94a3b8" font-size="11.5">device DMA-writes here</text>
+
+  <!-- PCIe boundary -->
+  <line x1="40" y1="416" x2="960" y2="416" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="8 5"/>
+  <text x="500" y="409" text-anchor="middle" fill="#fbbf24" font-size="12" font-weight="700">PCIe boundary &#8211; MMIO (readl/writel) &#183; DMA (bus master) &#183; MSI</text>
+
+  <!-- HOST / QEMU band -->
+  <rect x="40" y="430" width="920" height="180" rx="10" fill="#1e293b" fill-opacity="0.4" stroke="#fbbf24" stroke-opacity="0.5" stroke-dasharray="7 5"/>
+  <text x="60" y="454" fill="#fbbf24" font-size="13" font-weight="700">HOST &#8211; QEMU process (qemu-device/vnic.c)</text>
+
+  <rect x="200" y="462" width="600" height="132" rx="8" fill="#2a2614" stroke="#fbbf24" stroke-width="2"/>
+  <text x="500" y="488" text-anchor="middle" fill="#fbbf24" font-size="14.5" font-weight="700">QEMU vnic device &#8211; loops internally, no backend</text>
+  <text x="500" y="512" text-anchor="middle" fill="#e2e8f0" font-size="12.5">vnic_mmio_write(TDT) &#8594; vnic_engine_run()</text>
+  <text x="500" y="534" text-anchor="middle" fill="#e2e8f0" font-size="12.5">pci_dma_read the TX desc + packet from guest RAM</text>
+  <text x="500" y="556" text-anchor="middle" fill="#e2e8f0" font-size="12.5">IP-swap, then pci_dma_write the frame into the RX ring + DD</text>
+  <text x="500" y="578" text-anchor="middle" fill="#e2e8f0" font-size="12.5">msi_notify &#8594; guest ISR &#8594; NAPI</text>
+
+  <!-- arrows: app <-> stack -->
+  <line x1="478" y1="86" x2="478" y2="130" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#tb)"/>
+  <line x1="522" y1="130" x2="522" y2="88" stroke="#34d399" stroke-width="2.5" marker-end="url(#tg)"/>
+  <text x="456" y="116" text-anchor="end" fill="#38bdf8" font-size="11">TX</text>
+  <text x="544" y="116" fill="#34d399" font-size="11">RX</text>
+  <!-- stack <-> rings -->
+  <path d="M380,176 L300,236" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#tb)"/>
+  <path d="M700,236 L620,176" fill="none" stroke="#34d399" stroke-width="2.5" marker-end="url(#tg)"/>
+
+  <!-- boundary-crossing arrows -->
+  <!-- writel(TDT) doorbell: guest -> device (down) -->
+  <line x1="230" y1="322" x2="252" y2="460" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#tb)"/>
+  <text x="150" y="392" fill="#38bdf8" font-size="11">writel(TDT)</text>
+  <!-- pci_dma_read: device -> TX ring (up) -->
+  <line x1="340" y1="460" x2="320" y2="324" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ts)"/>
+  <text x="346" y="392" fill="#94a3b8" font-size="11">pci_dma_read</text>
+  <!-- pci_dma_write: device -> RX ring (up) -->
+  <line x1="660" y1="460" x2="680" y2="324" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ts)"/>
+  <text x="600" y="392" text-anchor="end" fill="#94a3b8" font-size="11">pci_dma_write +DD</text>
+  <!-- msi_notify: device -> guest (up) -->
+  <line x1="770" y1="460" x2="790" y2="324" stroke="#34d399" stroke-width="2.5" marker-end="url(#tg)"/>
+  <text x="800" y="392" fill="#34d399" font-size="11">MSI</text>
+</svg>

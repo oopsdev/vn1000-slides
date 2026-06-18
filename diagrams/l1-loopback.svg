@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Level 1 dataflow: in-kernel engine, internal IP-swap loopback. Everything is
+     in one kernel address space - no PCI/MMIO/DMA. Dark theme baked in. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600"
+     font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img"
+     aria-label="Level 1 dataflow: app and stack hand a frame to the vnic driver TX ring; the TDT doorbell wakes the in-kernel engine kthread, which reads the descriptor by pointer, IP-swaps the frame, writes it into the RX ring, and raises a simulated MSI; NAPI delivers it back up the stack.">
+  <defs>
+    <marker id="tb" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#38bdf8"/></marker>
+    <marker id="tg" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#34d399"/></marker>
+    <marker id="ta" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#fbbf24"/></marker>
+  </defs>
+
+  <rect x="0" y="0" width="1000" height="600" fill="#0f172a"/>
+  <text x="500" y="30" text-anchor="middle" fill="#e2e8f0" font-size="19" font-weight="700">Level 1 &#8211; in-kernel engine, internal loopback</text>
+
+  <!-- userspace app -->
+  <rect x="360" y="46" width="280" height="44" rx="8" fill="#243449" stroke="#64748b" stroke-width="1.5"/>
+  <text x="500" y="74" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">User app (socket)</text>
+
+  <!-- guest kernel band -->
+  <rect x="40" y="104" width="920" height="476" rx="10" fill="#1e293b" fill-opacity="0.4" stroke="#64748b" stroke-dasharray="7 5"/>
+  <text x="60" y="128" fill="#cbd5e1" font-size="13" font-weight="700">GUEST KERNEL &#8211; one address space (no PCI / MMIO / DMA)</text>
+
+  <!-- net stack -->
+  <rect x="300" y="142" width="400" height="48" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
+  <text x="500" y="172" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Linux net stack</text>
+
+  <!-- TX / RX rings -->
+  <rect x="120" y="244" width="300" height="78" rx="8" fill="#243449" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="270" y="272" text-anchor="middle" fill="#fff" font-size="13.5" font-weight="700">vnic driver &#183; TX ring</text>
+  <text x="270" y="294" text-anchor="middle" fill="#cbd5e1" font-size="12">descriptors &#8594; buffers (kernel mem)</text>
+  <text x="270" y="312" text-anchor="middle" fill="#94a3b8" font-size="11.5">next_to_use / next_to_clean</text>
+
+  <rect x="580" y="244" width="300" height="78" rx="8" fill="#243449" stroke="#34d399" stroke-width="1.5"/>
+  <text x="730" y="272" text-anchor="middle" fill="#fff" font-size="13.5" font-weight="700">vnic driver &#183; RX ring</text>
+  <text x="730" y="294" text-anchor="middle" fill="#cbd5e1" font-size="12">descriptors &#8594; buffers (kernel mem)</text>
+  <text x="730" y="312" text-anchor="middle" fill="#94a3b8" font-size="11.5">pre-posted (Model A)</text>
+
+  <!-- engine kthread (device + wire) -->
+  <rect x="120" y="398" width="760" height="152" rx="8" fill="#2a2614" stroke="#fbbf24" stroke-width="2"/>
+  <text x="500" y="426" text-anchor="middle" fill="#fbbf24" font-size="15" font-weight="700">Engine kthread = device + wire</text>
+  <text x="500" y="452" text-anchor="middle" fill="#e2e8f0" font-size="12.5">reads the TX descriptor &#8211; token <b>is</b> a kernel pointer (direct deref, no DMA)</text>
+  <text x="500" y="474" text-anchor="middle" fill="#e2e8f0" font-size="12.5">IP-swap: swap dst/src MAC + src/dst IPv4 &#8211; the frame returns as a receive</text>
+  <text x="500" y="496" text-anchor="middle" fill="#e2e8f0" font-size="12.5">writes the frame into the RX ring + sets DD</text>
+  <text x="500" y="520" text-anchor="middle" fill="#e2e8f0" font-size="12.5">wr32(ICS) &#8594; simulated-MSI <b>tasklet</b> &#8594; napi_schedule</text>
+
+  <!-- arrows -->
+  <!-- app <-> stack -->
+  <line x1="478" y1="90" x2="478" y2="140" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#tb)"/>
+  <line x1="522" y1="140" x2="522" y2="92" stroke="#34d399" stroke-width="2.5" marker-end="url(#tg)"/>
+  <text x="456" y="120" text-anchor="end" fill="#38bdf8" font-size="11">TX</text>
+  <text x="544" y="120" fill="#34d399" font-size="11">RX</text>
+  <!-- stack -> TX ring (down) -->
+  <path d="M360,190 L300,242" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#tb)"/>
+  <text x="300" y="222" text-anchor="middle" fill="#38bdf8" font-size="11">fill desc</text>
+  <!-- TX ring -> engine (down) -->
+  <line x1="270" y1="322" x2="270" y2="396" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#tb)"/>
+  <text x="262" y="362" text-anchor="end" fill="#38bdf8" font-size="11">wr32(TDT) wakes kthread</text>
+  <!-- engine -> RX ring (up, loopback) -->
+  <line x1="730" y1="396" x2="730" y2="324" stroke="#fbbf24" stroke-width="2.5" marker-end="url(#ta)"/>
+  <text x="738" y="362" fill="#fbbf24" font-size="11">loopback frame + DD</text>
+  <!-- RX ring -> stack (up) -->
+  <path d="M700,242 L640,190" fill="none" stroke="#34d399" stroke-width="2.5" marker-end="url(#tg)"/>
+  <text x="700" y="222" text-anchor="middle" fill="#34d399" font-size="11">NAPI poll</text>
+</svg>
