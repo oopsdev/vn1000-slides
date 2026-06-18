@@ -170,8 +170,8 @@
   <text x="735" y="384" text-anchor="middle" font-size="10.5" fill="#fca5a5">C1  MSI-X hardware interrupt (PCIe)</text>
   <!-- C2 ack/mask ISR -> NIC -->
   <line x1="1000" y1="407" x2="335" y2="407" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <rect x="560" y="409" width="250" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
-  <text x="685" y="422" text-anchor="middle" font-size="10.5" fill="#fcd34d">C2  ack + mask IRQ in CSR</text>
+  <rect x="560" y="398" width="250" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
+  <text x="685" y="411" text-anchor="middle" font-size="10.5" fill="#fcd34d">C2  ack + mask IRQ in CSR</text>
   <!-- C3 schedule NAPI ISR -> NAPI -->
   <line x1="1075" y1="421" x2="1075" y2="455" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>
   <rect x="1023" y="427" width="104" height="18" rx="4" fill="#2a2614" stroke="#fbbf24"/>
