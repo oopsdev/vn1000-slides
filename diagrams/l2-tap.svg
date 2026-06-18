@@ -19,7 +19,7 @@
 
   <!-- GUEST -->
   <rect x="170" y="54" width="660" height="104" rx="10" fill="#1e293b" fill-opacity="0.4" stroke="#38bdf8" stroke-opacity="0.5" stroke-dasharray="7 5"/>
-  <text x="190" y="78" fill="#7dd3fc" font-size="13" font-weight="700">GUEST (kernel)</text>
+  <text x="190" y="78" fill="#7dd3fc" font-size="13" font-weight="700">GUEST (VM &#8211; vCPU on host via KVM)</text>
   <text x="500" y="104" text-anchor="middle" fill="#fff" font-size="13.5" font-weight="700">User app + Linux net stack</text>
   <text x="500" y="132" text-anchor="middle" fill="#cbd5e1" font-size="12.5">vnic driver &#8211; TX ring / RX ring in guest RAM</text>
 

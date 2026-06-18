@@ -20,7 +20,7 @@
 
   <!-- GUEST band -->
   <rect x="40" y="98" width="920" height="312" rx="10" fill="#1e293b" fill-opacity="0.4" stroke="#38bdf8" stroke-opacity="0.5" stroke-dasharray="7 5"/>
-  <text x="60" y="122" fill="#7dd3fc" font-size="13" font-weight="700">GUEST (kernel + RAM)</text>
+  <text x="60" y="122" fill="#7dd3fc" font-size="13" font-weight="700">GUEST (VM &#8211; vCPU on host via KVM)</text>
 
   <rect x="300" y="132" width="400" height="44" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
   <text x="500" y="160" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Linux net stack + vnic driver</text>
@@ -41,7 +41,7 @@
 
   <!-- HOST / QEMU band -->
   <rect x="40" y="430" width="920" height="180" rx="10" fill="#1e293b" fill-opacity="0.4" stroke="#fbbf24" stroke-opacity="0.5" stroke-dasharray="7 5"/>
-  <text x="60" y="454" fill="#fbbf24" font-size="13" font-weight="700">HOST &#8211; QEMU process (qemu-device/vnic.c)</text>
+  <text x="60" y="454" fill="#fbbf24" font-size="13" font-weight="700">HOST userspace &#8211; QEMU process (qemu-device/vnic.c)</text>
 
   <rect x="200" y="462" width="600" height="132" rx="8" fill="#2a2614" stroke="#fbbf24" stroke-width="2"/>
   <text x="500" y="488" text-anchor="middle" fill="#fbbf24" font-size="14.5" font-weight="700">QEMU vnic device &#8211; loops internally, no backend</text>
