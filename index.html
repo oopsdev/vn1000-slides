@@ -129,7 +129,7 @@
        container (overflow-y:hidden stops the spec's overflow-x:auto -> overflow-y:auto
        promotion), and touch-action lets a vertical swipe fall through to the slide so
        every slide scrolls up/down consistently while wide diagrams still pan sideways. */
-    .imgwrap,.svgwrap{ display:block; overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y pinch-zoom; text-align:center; }
+    .imgwrap,.svgwrap{ display:block; flex:0 0 auto; overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y pinch-zoom; text-align:center; }
     .imgwrap img,.diagram{ max-height:none !important; width:auto; max-width:none; height:58vh; }
     .imgwrap.ring img{ height:46vh; }
     .imgwrap.big img{ height:66vh; }              /* wide swimlane flows: taller so labels stay readable while you pan */
