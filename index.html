@@ -498,7 +498,7 @@
 
   <!-- 3.9 TX/RX offloads -->
   <section class="slide">
-    <h2>3.9 &middot; TX/RX offloads &mdash; TSO/GSO (segment) &middot; GRO/LRO (coalesce)</h2>
+    <h2>3.9 &middot; TX/RX offloads &mdash; TSO/GSO (segment) &middot; LRO/GRO (coalesce)</h2>
     <div class="two" style="grid-template-columns:1.9fr 1fr; align-items:center">
       <div class="imgwrap"><img src="diagrams/tso-gro.svg" alt="TX segmentation (TSO/GSO) turns one large super-skb into many MSS-sized wire frames; RX coalescing (GRO/LRO) merges many MSS frames back into one large skb; GSO/GRO in software, TSO/LRO in the device; with per-layer headers, MSS and MTU"></div>
       <div class="steps">

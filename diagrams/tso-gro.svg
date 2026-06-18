@@ -11,7 +11,7 @@
   </defs>
 
   <rect x="0" y="0" width="1020" height="580" fill="#0f172a"/>
-  <text x="510" y="32" text-anchor="middle" fill="#e2e8f0" font-size="19" font-weight="700">TSO / GSO (TX segmentation) vs GRO / LRO (RX coalescing) &#8211; one skb &#8596; many MSS frames</text>
+  <text x="510" y="32" text-anchor="middle" fill="#e2e8f0" font-size="19" font-weight="700">TSO / GSO (TX segmentation) vs LRO / GRO (RX coalescing) &#8211; one skb &#8596; many MSS frames</text>
 
   <line x1="510" y1="56" x2="510" y2="396" stroke="#334155" stroke-dasharray="5 5"/>
 
