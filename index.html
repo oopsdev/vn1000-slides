@@ -56,6 +56,9 @@
   /* ring-state slides (3.2/3.3): the SVG carries its own legend, so cap it short
      to leave room for the caption below instead of letting it fill 72vh */
   .imgwrap.ring img{max-height:60vh}
+  /* full-width swimlane slides (3.2.1/3.3.1): the SVG carries its own A-E detail,
+     so give it the most height and a one-line recap below */
+  .imgwrap.big img{max-height:82vh}
   /* .steps: the A-E text block beside the TX/RX flow diagrams (3.2/3.3) */
   .steps h3{font-size:clamp(15px,1.65vw,20px); margin:.2em 0 .4em}
   .steps ul{margin:.25em 0 .35em 1.1em}
@@ -319,19 +322,8 @@
   <!-- 8 TX flow diagram -->
   <section class="slide">
     <h2>3.2.1 &middot; Linux NIC TX flow</h2>
-    <div class="two" style="grid-template-columns:1.75fr 1fr; align-items:center">
-      <div class="imgwrap"><img src="diagrams/tx-path.svg" alt="TX packet transmission path"></div>
-      <div class="steps">
-        <h3>TX in five steps (A-E)</h3>
-        <ul>
-          <li><b>A - init</b>: alloc + map the TX ring; program its base + head/tail (<code>TDH</code>/<code>TDT</code>) into the CSR.</li>
-          <li><b>B - submit</b> (<code>ndo_start_xmit</code>): DMA-map the skb, fill a descriptor (<b>clear <code>DD</code></b> = NIC-owned), <code>dma_wmb</code>, then ring the <b><code>TDT</code> doorbell</b>.</li>
-          <li><b>C - device + DMA</b>: the NIC DMA-reads the descriptor + packet, sends it on the wire, then <b>writes back <code>DD</code></b> (done = driver-owned).</li>
-          <li><b>D - completion IRQ</b>: it raises a (coalesced) <b>MSI</b>; the ISR acks <code>ICR</code>, masks the cause, and <code>napi_schedule()</code>.</li>
-          <li><b>E - cleanup</b>: the NAPI poll reaps <code>DD</code> descriptors, <code>dma_unmap</code> + frees the skb, wakes the queue, re-arms the IRQ.</li>
-        </ul>
-      </div>
-    </div>
+    <div class="imgwrap big"><img src="diagrams/tx-path.svg" alt="TX packet transmission path: init the TX ring, ndo_start_xmit fills a descriptor and rings the TDT doorbell, the NIC DMA-reads and sends then writes back DD, an MSI schedules NAPI, and the poll reaps DD and recycles"></div>
+    <p class="cap"><b>TX, A&ndash;E:</b> <b>A</b> init the ring (base + <code>TDH</code>/<code>TDT</code>) &middot; <b>B</b> <code>ndo_start_xmit</code> DMA-maps the skb, fills a desc (clear <code>DD</code>), <code>dma_wmb</code>, rings <code>TDT</code> &middot; <b>C</b> NIC DMA-reads desc+packet, sends, writes back <code>DD</code> &middot; <b>D</b> coalesced MSI &rarr; ISR ack/mask &rarr; <code>napi_schedule</code> &middot; <b>E</b> poll reaps <code>DD</code>, <code>dma_unmap</code> + free skb, wake queue, re-arm IRQ.</p>
   </section>
 
   <!-- 8b TX ring state: DD ownership + the NTU/NTC cursors -->
@@ -344,19 +336,8 @@
   <!-- 9 RX flow diagram -->
   <section class="slide">
     <h2>3.3.1 &middot; Linux NIC RX flow</h2>
-    <div class="two" style="grid-template-columns:1.75fr 1fr; align-items:center">
-      <div class="imgwrap"><img src="diagrams/rx-path.svg" alt="RX packet reception path"></div>
-      <div class="steps">
-        <h3>RX in five steps (A-E)</h3>
-        <ul>
-          <li><b>A - init</b>: pre-post an empty buffer into every RX descriptor (Model A); program the ring base + <code>RDT</code>.</li>
-          <li><b>B - arrival + DMA</b>: the NIC DMA-writes an incoming frame into the next buffer, sets <code>len</code> + <b><code>DD</code></b>, advances <code>RDH</code>.</li>
-          <li><b>C - interrupt</b>: it raises an <b>MSI</b>; the ISR acks, masks the cause, and <code>napi_schedule()</code>.</li>
-          <li><b>D - NAPI + upstream</b>: the poll reads <code>DD</code> descriptors (<code>dma_rmb</code>), <code>skb_put</code> + <code>eth_type_trans</code>, then <code>napi_gro_receive()</code> up the stack.</li>
-          <li><b>E - cleanup + recycle</b>: refill the slot with a fresh buffer, advance <code>RDT</code>; re-arm the IRQ once drained.</li>
-        </ul>
-      </div>
-    </div>
+    <div class="imgwrap big"><img src="diagrams/rx-path.svg" alt="RX packet reception path: pre-post empty buffers, the NIC DMA-writes an incoming frame and sets DD, an MSI schedules NAPI, the poll delivers up the stack via napi_gro_receive, then refills the slot"></div>
+    <p class="cap"><b>RX, A&ndash;E:</b> <b>A</b> pre-post an empty buffer per RX desc (Model A) + program <code>RDT</code> &middot; <b>B</b> NIC DMA-writes the frame, sets <code>len</code> + <code>DD</code>, advances <code>RDH</code> &middot; <b>C</b> MSI &rarr; ISR ack/mask &rarr; <code>napi_schedule</code> &middot; <b>D</b> poll reads <code>DD</code> (<code>dma_rmb</code>), <code>skb_put</code> + <code>eth_type_trans</code> &rarr; <code>napi_gro_receive</code> &middot; <b>E</b> refill the slot, advance <code>RDT</code>, re-arm IRQ once drained.</p>
   </section>
 
   <!-- 9b RX ring state: DD ownership + the single NTC cursor (NTU unused) -->
