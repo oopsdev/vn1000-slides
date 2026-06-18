@@ -116,6 +116,24 @@
     .big{ font-size:30pt } .cap{ font-size:10pt }
     .node b{ font-size:12pt } .node .t{ font-size:10pt }
   }
+
+  /* Mobile / narrow screens (<=820px): stack every multi-column block into one
+     column (overriding the inline 2fr/1.9fr grids), let wide diagrams scroll
+     horizontally at a legible size (pinch-zoom stays enabled via the viewport
+     meta), and shrink the nav so it never covers content. Each slide still
+     scrolls vertically via the base .slide{overflow:auto}. */
+  @media (max-width:820px){
+    .slide{ padding:2.4vh 4vw 14vh !important; }
+    .two,.three{ grid-template-columns:1fr !important; gap:1.1em !important; }
+    .imgwrap,.svgwrap{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; text-align:center; }
+    .imgwrap img,.diagram{ max-height:none !important; width:auto; max-width:none; height:58vh; }
+    .imgwrap.ring img{ height:46vh; }
+    .imgwrap.big img{ height:66vh; }              /* wide swimlane flows: taller so labels stay readable while you pan */
+    .nav{ right:1.5vw; bottom:1.3vh; gap:.4em; justify-content:flex-end; }
+    .nav #goto, .nav #count, .nav #full, .nav #pdf{ display:none !important; }  /* mobile: keep only Home / Prev / Next */
+    .nav button{ padding:.5em .8em; font-size:14px; }
+    .tag{ font-size:.7em; bottom:1.5vh; max-width:52vw; line-height:1.2; }
+  }
 </style>
 </head>
 <body>
