@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slides — deployment</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Slides — deployment</h1>
+<div class="meta"></div>
+</header>
+<h1 id="slides-deployment">Slides — deployment</h1>
+<p>The teaching deck lives here as <a href="index.html"><code>vnic-slides.html</code></a>. It renders <strong>only when opened
+locally</strong> in this repo, because the repo is <strong>private</strong>. The rendered version the world sees is a
+<strong>separate public repo</strong>, <a href="https://github.com/oopsdev/vn1000-slides"><code>oopsdev/vn1000-slides</code></a>, served
+by GitHub Pages at <a href="https://oopsdev.github.io/vn1000-slides/">https://oopsdev.github.io/vn1000-slides/</a>.</p>
+<h2 id="deployment-is-automatic">Deployment is automatic</h2>
+<p>You do <strong>not</strong> sync anything by hand. Just edit the source and push to <code>main</code>:</p>
+<ul>
+<li><a href="index.html"><code>vnic-slides.html</code></a> — the deck, and/or</li>
+<li><a href="diagrams/"><code>diagrams/*.svg</code></a> — any embedded diagram</li>
+</ul>
+<p><a href="../../.github/workflows/deploy-slides.yml"><code>.github/workflows/deploy-slides.yml</code></a> then rebuilds the
+public mirror and pushes it (only when something actually changed). GitHub Pages rebuilds ~1–2 min
+later; hard-refresh (<code>Ctrl+Shift+R</code>) to bust the browser's SVG cache.</p>
+<h2 id="how-it-works-maintainers">How it works (maintainers)</h2>
+<p>The mirror is a <strong>flattened</strong> copy of the deck — everything sits at the repo root so Pages can serve
+it. The workflow builds it on every push that touches <code>docs/slides/*.html</code> or <code>docs/diagrams/**</code>:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>source (this repo)</th>
+<th>mirror (<code>vn1000-slides</code>)</th>
+<th>transform</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>docs/slides/vnic-slides.html</code></td>
+<td><code>index.html</code></td>
+<td>rewrite <code>diagrams/</code> → <code>diagrams/</code></td>
+</tr>
+<tr>
+<td><code>docs/diagrams/*.svg</code></td>
+<td><code>diagrams/*.svg</code></td>
+<td>verbatim copy</td>
+</tr>
+<tr>
+<td><code>docs/slides/*.html</code> (the rest)</td>
+<td><code>&lt;name&gt;.html</code> (flat)</td>
+<td>rewrite <code>diagrams/</code> → <code>diagrams/</code> and the deck link → <code>index.html</code></td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>The non-deck <code>docs/slides/*.html</code> are the <strong>rendered documentation set</strong> - generated from the
+Markdown docs by <code>scripts/gen-docs-site.py</code> (which reuses <code>scripts/gen-docs-site.py</code>). It renders
+every interlinked doc (<code>docs/*.md</code>, <code>README</code>/<code>TODO</code>/<code>CHANGELOG</code>, <code>results/*.md</code>, <code>tests/README.md</code>)
+to a flat <code>&lt;name&gt;.html</code> with cross-doc <code>.md</code> links rewritten to the sibling <code>.html</code>
+(<code>docs/index.md</code> → <code>docs-index.html</code>; the three <code>README.md</code> → <code>&lt;dir&gt;-readme.html</code>).
+<strong>Regenerate after editing any doc</strong> (<code>python scripts/gen-docs-site.py</code>), then commit the <code>.html</code>.
+Links to source files (<code>driver/*.c</code>, <code>scripts/*.sh</code>) are left as-is and are dead on the public
+mirror (this repo is private).</p>
+</blockquote>
+<p>Cross-repo push uses a <strong>deploy key</strong>: the public half is a write-enabled deploy key on
+<code>vn1000-slides</code>; the private half is the <code>MIRROR_DEPLOY_KEY</code> Actions secret in this repo. To rotate it,
+regenerate an <code>ed25519</code> keypair, replace the deploy key on <code>vn1000-slides</code>, and re-set the secret. You
+can also trigger the workflow manually from the Actions tab (<strong>Run workflow</strong> → <code>workflow_dispatch</code>).</p>
+<p class="footnote">Generated from <code>README.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

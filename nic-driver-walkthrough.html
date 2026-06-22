@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NIC Driver Working Flow - a guided walkthrough of VN1000</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>NIC Driver Working Flow - a guided walkthrough of VN1000</h1>
+<div class="meta"><span>2026-06-16</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="nic-driver-working-flow-a-guided-walkthrough">NIC Driver Working Flow - a guided walkthrough</h1>
+<p>This is the <strong>start-here narrative</strong> for the project: how a Linux NIC driver actually works, end to
+end, told through VN1000. It links out to the detailed docs rather than repeating them - read it
+first, then follow the pointers. The goal of the whole repo is to <em>understand the NIC driver working
+flow</em>, and this walkthrough is that flow in prose.</p>
+<p>If you want the one-paragraph version: a NIC driver is a <code>net_device</code> whose datapath is a pair of
+<strong>descriptor rings</strong> in memory shared with the device; the driver and device hand buffers back and
+forth using a <strong>DD ownership bit + barriers</strong>, the driver kicks the device with an <strong>MMIO doorbell</strong>,
+the device signals completion with an <strong>MSI</strong>, and the driver does the actual work in a <strong>NAPI poll</strong>
+(softirq), not in the interrupt. Everything else is detail on top of that loop.</p>
+<h2 id="1-the-mental-model-read-the-diagrams-first">1. The mental model (read the diagrams first)</h2>
+<p>The two datapath figures below are the generic real-NIC model and <em>exactly</em> what Level 2 implements
+(architecture.md section 7.3) - the transmit path, then the receive path:</p>
+<p><img alt="Linux NIC driver - TX packet transmission path" src="diagrams/tx-path.svg"></p>
+<p><img alt="Linux NIC driver - RX packet reception path" src="diagrams/rx-path.svg"></p>
+<p>The pieces, and where each lives in this repo:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>What it is</th>
+<th>VN1000</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>net_device</code> + <code>net_device_ops</code></td>
+<td>the kernel's NIC object (open/stop/xmit/...)</td>
+<td><code>core/vnic_netdev.c</code>, registered in <code>level{1,2}/vnic_l*_main.c</code></td>
+</tr>
+<tr>
+<td>descriptor ring</td>
+<td>array of <code>{addr,len,flags,status}</code> in RAM</td>
+<td><code>struct vn_desc</code>, <code>include/vnic_regs.h</code></td>
+</tr>
+<tr>
+<td>registers (CSR)</td>
+<td>the device's control surface, in a BAR</td>
+<td><code>VN_REG_*</code> in <code>include/vnic_regs.h</code></td>
+</tr>
+<tr>
+<td>the HAL</td>
+<td>the <em>only</em> seam between the driver and "the device"</td>
+<td><code>hal/vnic_hal.h</code> (+ <code>_l1.c</code> / <code>_l2.c</code>)</td>
+</tr>
+<tr>
+<td>the device itself</td>
+<td>what plays the hardware</td>
+<td>L1: an engine kthread; L2: <code>qemu-device/vnic.c</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="2-the-driver-lifecycle-init-probe-open-close-remove">2. The driver lifecycle: init -&gt; probe -&gt; open -&gt; close -&gt; remove</h2>
+<p>Before any packet moves, the driver goes through a fixed lifecycle. The TX/RX datapath (sections 3
+and 4) is only what runs <strong>between open and close</strong>; the rest is bring-up and teardown.</p>
+<p><strong>module init (<code>module_init</code>, at <code>insmod</code>)</strong> - register the driver with its subsystem.
+- <strong>L2</strong>: <code>pci_register_driver(&amp;vnic_pci_driver)</code> with an ID table (<code>{0x1234, 0x11E9}</code>); the PCI core
+  then calls <code>vnic_probe</code> for each matching device.
+- <strong>L1</strong>: there is no bus, so the module builds the netdev directly in its init - there is no probe.</p>
+<blockquote>
+<p><strong>Why L2 has no hand-written <code>module_init</code>.</strong> Because init's <em>only</em> job is <code>pci_register_driver</code>, L2
+uses the one-line macro <strong><code>module_pci_driver(vnic_pci_driver)</code></strong>
+(<a href="../driver/level2/vnic_l2_main.c"><code>level2/vnic_l2_main.c</code></a>). It expands to the <code>__init</code>/<code>__exit</code>
+entries for you - load calls <code>pci_register_driver</code>, unload calls <code>pci_unregister_driver</code> - so there
+is no custom init function; <strong>all device bring-up lives in <code>vnic_probe</code></strong> (the PCI core calls it on a
+vendor/device-ID match). <strong>L1</strong> has no bus to drive a probe, so it keeps an <em>explicit</em> <code>__init</code>
+(<a href="../driver/level1/vnic_l1_main.c"><code>level1/vnic_l1_main.c</code></a>) that does the probe's work itself -
+builds the netdev and starts the in-kernel engine. Same lifecycle, different trigger.</p>
+</blockquote>
+<p><strong>probe (<code>vnic_probe</code>, <code>level2/vnic_l2_main.c</code>)</strong> - claim the device and make the interface <em>exist</em>
+(DOWN). <code>alloc_etherdev</code> + <code>SET_NETDEV_DEV</code> + <code>pci_set_drvdata</code>; pin the name <code>vnic0</code>
+(<code>NET_NAME_USER</code>, <strong>D-29</strong>); wire <code>netdev_ops</code> + <code>netif_napi_add</code>; set min/max MTU. Then
+<strong><code>vnic_hal_init</code></strong> - enable PCI, <code>pci_iomap</code> BAR0, <code>pci_set_master</code> + <code>dma_set_mask</code>, and
+<strong><code>dma_alloc_coherent</code> the rings</strong>. Verify <code>ID == 0x564E3130</code>, then <strong><code>register_netdev</code></strong> - now
+<code>ip link</code> shows <code>vnic0</code>, <strong>administratively DOWN</strong>. <em>No IRQ is requested here.</em></p>
+<p><strong>open (<code>ndo_open</code> -&gt; <code>vnic_open</code> -&gt; <code>vnic_up</code>)</strong> - triggered by <strong><code>ip link set up</code></strong>, this brings the
+datapath live: reset TX indices; <strong>pre-post RX buffers</strong> (<code>vnic_rx_post</code>, Model A, <strong>D-18</strong>);
+<strong><code>vnic_hal_irq_request</code></strong> (the MSI / simulated-MSI ISR); program <code>ITR</code>; enable the device
+(<code>CTRL = EN|TXEN|RXEN</code>); <strong>unmask</strong> interrupts (<code>IMS</code>); <code>netif_start_queue</code>. From here TX/RX run.</p>
+<p><strong>close (<code>ndo_stop</code> -&gt; <code>vnic_stop</code> -&gt; <code>vnic_down</code>)</strong> - triggered by <strong><code>ip link set down</code></strong>; the exact
+mirror of open, ordered for safety (datasheet 6.7): <code>netif_tx_disable</code> (stop the queue, wait out an
+in-flight xmit) -&gt; <code>CTRL = 0</code> (the device stops consuming) -&gt; <strong><code>vnic_hal_quiesce</code></strong> (wait out an
+in-flight engine run) -&gt; <code>napi_disable</code> (flush the poll) -&gt; <code>IMC</code> (mask all causes) -&gt;
+<code>vnic_hal_irq_free</code> -&gt; <strong>drain</strong> the rings (<code>vnic_tx_drain</code>/<code>vnic_rx_drain</code>: unmap + free every
+buffer the driver still owns). Order matters: <strong>disable + quiesce before freeing</strong>, so nothing is
+still DMA-ing into memory you are about to release.</p>
+<p><strong>remove / exit (<code>vnic_remove</code>, <code>module_exit</code>)</strong> - the device is gone or the module is unloaded:
+<code>unregister_netdev</code> (which <strong>closes</strong> the device first if it is still up), <code>vnic_hal_exit</code> (free
+rings, unmap BAR0, release regions, disable PCI), <code>netif_napi_del</code>, <code>free_netdev</code>; <code>module_exit</code> -&gt;
+<code>pci_unregister_driver</code>.</p>
+<blockquote>
+<p><strong>register != open.</strong> Loading the module only makes the interface <em>exist</em> (DOWN); <code>ip link set up</code>
+is what allocates buffers, hooks the IRQ and starts the queue (background-knowledge topic 9).
+<code>vnic_up</code>/<code>vnic_down</code> are also reused by <code>ndo_change_mtu</code> (down -&gt; resize RX pool -&gt; up).</p>
+</blockquote>
+<h2 id="3-tx-end-to-end-follow-tx-pathsvg">3. TX, end to end (follow tx-path.svg)</h2>
+<ol>
+<li>The stack calls <strong><code>ndo_start_xmit</code></strong> (<code>vnic_start_xmit</code>, <code>core/vnic_netdev.c</code>) with an <code>skb</code>.</li>
+<li>The driver makes the buffer reachable by the device - <strong><code>vnic_hal_map()</code></strong> (L2: <code>dma_map_single</code>;
+   L1: the pointer itself) - and writes a TX <strong>descriptor</strong> (<code>addr</code>/<code>len</code>, <code>status=0</code>), keeping the
+   <code>skb</code> in <code>ring-&gt;bufs[]</code> for later freeing (D-12 explains why the token is opaque).</li>
+<li>A <strong><code>dma_wmb()</code></strong> publishes the descriptor, then the driver rings the <strong>doorbell</strong> -
+   <code>vnic_hal_wr32(VN_REG_TDT, ...)</code> (L2: a real MMIO write = a VM-exit). To amortize that exit it
+   batches the doorbell over an <code>xmit_more</code> burst (<strong>D-32</strong>, the ~4.5x TX win in <strong>L-10</strong>).</li>
+<li>The <strong>device</strong> consumes <code>TDH..TDT</code>: it DMA-reads the descriptor and packet (L2: <code>pci_dma_read</code>;
+   L1: the engine reads memory directly), then either loops it back (loopback mode, <strong>D-25</strong>) or
+   sends it out via <code>qemu_send_packet</code> to the tap (<strong>D-30</strong>).</li>
+<li>The device marks the descriptor <strong>done</strong> (the <code>DD</code> bit) and raises a <strong>completion interrupt</strong>
+   (L2: <code>msi_notify</code>, <strong>D-24</strong>; L1: a simulated-MSI tasklet, <strong>D-20</strong>), optionally rate-limited by
+   <strong>ITR</strong> (<strong>D-33</strong>, <strong>L-11</strong>).</li>
+<li>The driver's <strong>ISR</strong> (top half) does the minimum - read <code>ICR</code>, mask via <code>IMC</code>, <strong><code>napi_schedule()</code></strong>.</li>
+<li><strong>NAPI</strong> (<code>vnic_poll</code> -&gt; <code>vnic_tx_clean</code>, softirq, bottom half) reaps every <code>DD</code> descriptor:
+   <code>dma_rmb()</code>, <code>vnic_hal_unmap()</code>, free the <code>skb</code>, wake the queue if it was stopped.</li>
+</ol>
+<h2 id="4-rx-end-to-end-follow-rx-pathsvg">4. RX, end to end (follow rx-path.svg)</h2>
+<ol>
+<li>At open, the driver <strong>pre-posts</strong> an <code>skb</code> into every RX descriptor (Model A, <strong>D-18</strong>;
+   <code>vnic_rx_post</code>) so the device always has somewhere to write.</li>
+<li>The <strong>device</strong> DMA-writes an arriving frame into the slot at <code>RDH</code> (L2: <code>pci_dma_write</code>, from the
+   <code>receive()</code> callback in tap mode), sets <code>len</code> + <code>DD</code>, advances <code>RDH</code>, raises <strong><code>RXAVAIL</code></strong>. If the
+   ring is full it applies <strong>backpressure</strong> (<strong>D-19</strong>).</li>
+<li><strong>ISR -&gt; mask -&gt; <code>napi_schedule()</code></strong>, then <strong><code>vnic_poll</code> -&gt; <code>vnic_rx_clean</code></strong> (softirq): on each
+   <code>DD</code> slot (after <code>dma_rmb()</code>) it <code>vnic_hal_unmap()</code>s the buffer, <code>skb_put</code> + <code>eth_type_trans</code>,
+   <strong><code>napi_gro_receive()</code></strong> up the stack (GRO is already in play - background topic 7.8), then
+   <strong>refills</strong> the slot with a fresh mapped <code>skb</code> and rings the <strong><code>RDT</code></strong> doorbell.</li>
+<li>When the poll drains below budget, <strong><code>napi_complete_done()</code></strong> re-enables the interrupt (<code>IMS</code>); a
+   cause that arrived while masked re-fires (the interrupt + polling hybrid, <strong>D-11</strong>).</li>
+</ol>
+<h2 id="5-the-three-levels-and-the-one-seam-d-12">5. The three levels, and the one seam (D-12)</h2>
+<p>The <strong>shared <code>core/</code></strong> (netdev ops, the TX/RX datapath, NAPI) is <em>identical</em> across all levels. The
+only thing that changes is the HAL backend behind <code>hal/vnic_hal.h</code>:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>Level 1 (<code>vnic-l1.ko</code> -&gt; <code>vnic_loop0</code>)</th>
+<th>Level 2 (<code>vnic-l2.ko</code> -&gt; <code>vnic0</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"the device"</td>
+<td>an in-kernel engine <strong>kthread</strong> (<code>hal/vnic_hal_l1.c</code>)</td>
+<td>a QEMU PCI device (<code>qemu-device/vnic.c</code>)</td>
+</tr>
+<tr>
+<td>registers</td>
+<td>a fake in-memory <code>regs[]</code> array</td>
+<td>real <strong>MMIO</strong> on <code>pci_iomap</code>'d BAR0 (<code>readl</code>/<code>writel</code>)</td>
+</tr>
+<tr>
+<td>buffers / ring</td>
+<td>the kernel pointer is the token</td>
+<td>streaming <code>dma_map_single</code> + coherent <code>dma_alloc_coherent</code></td>
+</tr>
+<tr>
+<td>completion IRQ</td>
+<td>a simulated-MSI <strong>tasklet</strong> (D-20)</td>
+<td>a real <strong>MSI</strong> + <code>request_irq</code> (D-24)</td>
+</tr>
+<tr>
+<td>network</td>
+<td>internal IP-swap loopback (D-05)</td>
+<td>loopback (default) <strong>or</strong> a real <strong>tap</strong> backend (D-30)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Both register a single netdev with distinct names so they can be loaded and tested <strong>at the same
+time</strong> (<strong>D-29</strong>). The core never changed when moving L1 -&gt; L2 except one portable RX unmap (<strong>D-26</strong>)
+- which is the whole point of the HAL design.</p>
+<h2 id="6-the-hard-parts-and-where-the-why-is-written">6. The hard parts (and where the "why" is written)</h2>
+<ul>
+<li><strong>Concurrency / locking</strong> - TX lock, RX lockless (NAPI-serialised): <strong>D-23</strong>, the note atop
+  <code>core/vnic_netdev.c</code>.</li>
+<li><strong>Memory barriers</strong> - the <code>DD</code> + <code>dma_wmb</code>/<code>dma_rmb</code> handshake, <code>dma_*</code> vs <code>smp_*</code>: <strong>D-21</strong>,
+  background-knowledge <strong>topic 4</strong>.</li>
+<li><strong>Interrupt protocol</strong> - <code>ICR</code>/<code>ICS</code>/<code>IMS</code>/<code>IMC</code>, the simulated MSI, the mask/re-arm dance:
+  <strong>D-11/D-20</strong>, background-knowledge <strong>topic 2</strong> (NAPI) and <strong>topic 3</strong> (deferred execution).</li>
+<li><strong>MMIO</strong> - why <code>readl</code>/<code>writel</code> not a raw pointer: background-knowledge <strong>topic 5</strong>.</li>
+<li><strong>The QEMU device</strong> - how to build an emulated PCIe NIC (QOM, BAR, DMA, MSI, NIC backend):
+  <strong>qemu-device-model.md</strong> (starts with a construction recipe), built per <strong>qemu-build.md</strong>, <strong>D-27</strong>.</li>
+<li><strong>TUN/TAP + backends</strong> - tap vs slirp vs bridge, host-side setup: background-knowledge <strong>topic 6</strong>,
+  <strong>D-25/D-30/D-31</strong>, dev-setup.md section 8, qemu-build.md section 8 (+ <code>scripts/tap-nat.sh</code>).</li>
+<li><strong>Performance</strong> - per-packet vs per-byte cost, ITR, doorbell batching, MTU, offloads, virtio:
+  background-knowledge <strong>topic 7</strong>, decisions <strong>D-32/D-33</strong>, results <strong>L-10/L-11/L-12</strong>.</li>
+</ul>
+<h2 id="7-the-build-journey-the-debugging-stories-worth-reading">7. The build journey (the debugging stories worth reading)</h2>
+<p>The phases (TODO.md) went: kernel-only netdev + engine + loopback datapath + hardening (L1, Phases
+1-5) -&gt; QEMU device keystone (Phase 8) -&gt; DMA datapath (Phase 9) -&gt; real tap (Phase 10) -&gt; coexistence
++ test variant (Phase 11) -&gt; performance + polish (Phase 12). The most instructive write-ups are the
+<strong>lessons</strong> (<code>docs/lessons-learned.md</code>), several of which are debugging detective stories:</p>
+<ul>
+<li><strong>L-05</strong> - "Destination Host Unreachable" is an L2/ARP failure, not a datapath bug.</li>
+<li><strong>L-06</strong> - Phase 8 keystone + three bring-up footguns (<code>sudo</code> dropping env, a stale <code>run-qemu.sh</code>, host DNS).</li>
+<li><strong>L-08</strong> - tap RX wedged: a NIC must flush its backend when RX is enabled (and host-tap <code>tcpdump</code> is a red herring).</li>
+<li><strong>L-10/L-11/L-12</strong> - the performance trio: doorbell batching (~4.5x TX), ITR (~60x fewer interrupts), MTU (~2.5x).</li>
+</ul>
+<h2 id="8-repo-map">8. Repo map</h2>
+<pre><code>include/vnic_regs.h     the device spec (registers + struct vn_desc), shared by driver AND device
+driver/core/            vnic_netdev.c - netdev ops + TX/RX datapath + NAPI (level-independent)
+driver/hal/             vnic_hal.h (the seam) + vnic_hal_l1.c (engine) / vnic_hal_l2.c (DMA/MMIO/MSI)
+driver/level1/          vnic_l1_main.c - module entry, vnic_loop0
+driver/level2/          vnic_l2_main.c - PCI driver, vnic0
+qemu-device/vnic.c      the emulated VN1000 PCIe device (compiled into a self-built QEMU)
+scripts/                run-qemu.sh, setup-vnic.sh, tap-nat.sh, itr-sweep.sh, perf-sweep.sh, ...
+tests/                  01-06 (loopback suite, run-all.sh) + 07-tap.sh (real host)
+docs/                   architecture / background-knowledge / design-decisions / lessons-learned /
+                        vn1000-datasheet / qemu-device-model / qemu-build / dev-setup / debug-kernel
+</code></pre>
+<h2 id="9-where-to-go-next">9. Where to go next</h2>
+<ul>
+<li>The <strong>spec</strong>: <a href="vn1000-datasheet.html">vn1000-datasheet.md</a> (+ <code>include/vnic_regs.h</code>).</li>
+<li>The <strong>design</strong>: <a href="architecture.html">architecture.md</a> (layering, flows, the 7.3 diagrams).</li>
+<li>The <strong>why</strong> of every choice: <a href="design-decisions.html">design-decisions.md</a> (D-01..D-33).</li>
+<li>The <strong>kernel mechanisms</strong>: <a href="background-knowledge.html">background-knowledge.md</a> (datapath, NAPI,
+  deferred execution, barriers, MMIO, interrupt registers, the netdev lifecycle, TUN/TAP, performance).</li>
+<li>The <strong>empirical findings</strong>: <a href="lessons-learned.html">lessons-learned.md</a> (L-01..L-12).</li>
+<li><strong>Running it</strong>: <a href="dev-setup.html">dev-setup.md</a>, <a href="qemu-build.html">qemu-build.md</a>, <a href="../tests/">tests/</a>.</li>
+</ul>
+<p class="footnote">Generated from <code>nic-driver-walkthrough.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

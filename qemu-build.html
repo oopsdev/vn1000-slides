@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Self-built QEMU with the VN1000 Device (Level 2)</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Self-built QEMU with the VN1000 Device (Level 2)</h1>
+<div class="meta"><span>2026-06-11</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="self-built-qemu-with-the-vn1000-device">Self-built QEMU with the VN1000 Device</h1>
+<p>Level 2 needs a QEMU that contains our emulated device (<code>qemu-device/vnic.c</code>). QEMU has no stable
+out-of-tree device-module ABI, so the device is <strong>compiled into a QEMU source tree</strong> and we run a
+self-built binary. This is a <strong>WSL2-host</strong> task (QEMU is the hypervisor that runs the guest) -
+distinct from the driver work, which stays inside the guest (D-14). See TODO Phase 8 and decision
+<strong>D-27</strong>.</p>
+<blockquote>
+<p>The device source lives in <code>qemu-device/vnic.c</code> in this repo (the source of truth); it is copied
+into a checked-out QEMU tree plus a two-line meson/Kconfig hook. Pin the QEMU version to the one
+already running the guest so behaviour matches.</p>
+</blockquote>
+<hr>
+<h2 id="1-pin-the-version-match-the-guests-current-qemu">1. Pin the version (match the guest's current QEMU)</h2>
+<p>On the WSL2 host:</p>
+<pre><code class="language-bash">qemu-system-x86_64 --version      # e.g. &quot;QEMU emulator version 8.2.2&quot;
+</code></pre>
+<p>Use that as the upstream tag (<code>8.2.2</code> -&gt; <code>v8.2.2</code>).</p>
+<h2 id="2-build-dependencies-wsl2-host-ubuntu">2. Build dependencies (WSL2 host, Ubuntu)</h2>
+<pre><code class="language-bash">sudo apt install -y git python3-venv ninja-build pkg-config \
+                    libglib2.0-dev libpixman-1-dev flex bison
+# or, if deb-src is enabled:  sudo apt build-dep qemu
+</code></pre>
+<h2 id="3-get-the-qemu-source-at-that-tag">3. Get the QEMU source at that tag</h2>
+<pre><code class="language-bash">git clone https://gitlab.com/qemu-project/qemu.git ~/qemu
+cd ~/qemu
+git checkout v8.2.2                       # &lt;- the version from step 1
+</code></pre>
+<h2 id="4-add-the-vn1000-device-to-the-tree">4. Add the VN1000 device to the tree</h2>
+<blockquote>
+<p><strong><code>REPO</code> is a checkout on the WSL2 <em>host</em>, not the one inside the guest.</strong> QEMU is built on the
+host, so step 4's <code>cp</code> can only pull from a repo that lives on the host. A clone sitting inside the
+guest VM is invisible to the host build. Keep <strong>git as the single channel</strong> (per D-14, driver work
+happens in the guest, device work on the host - both sync through the same remote):</p>
+<p>```bash</p>
+<h1 id="one-time-on-the-wsl2-host">one-time, on the WSL2 host:</h1>
+<p>git clone https://github.com/oopsdev/Linux_NIC_Simulation.git ~/vnic   # -&gt; REPO=~/vnic</p>
+<h1 id="after-editing-qemu-devicevnicc-inside-the-guest-publish-then-pull-on-the-host">after editing qemu-device/vnic.c inside the guest, publish then pull on the host:</h1>
+<h1 id="guest-git-commit-am-git-push">guest:  git commit -am "..." &amp;&amp; git push</h1>
+<h1 id="host-cd-vnic-git-pull">host:   cd ~/vnic &amp;&amp; git pull</h1>
+<p>```</p>
+<p>(Alternatives if you must move uncommitted edits: <code>scp -P 2222 &lt;guest-user&gt;@localhost:...</code> over the
+run-qemu.sh SSH forward, or point <code>REPO</code> at the Windows checkout via <code>/mnt/c/...</code>. Both are manual
+copies that drift out of sync - prefer the git path above.)</p>
+</blockquote>
+<p>Drop our device source in and register it with meson + Kconfig (idempotent - skip if already there):</p>
+<pre><code class="language-bash">REPO=~/vnic                                # this repo on the host
+cp &quot;$REPO/qemu-device/vnic.c&quot;     hw/net/vnic.c
+cp &quot;$REPO/include/vnic_regs.h&quot;    hw/net/vnic_regs.h   # shared spec; vnic.c #includes it
+
+# meson: compile vnic.c when CONFIG_VNIC is set
+grep -q &quot;CONFIG_VNIC&quot; hw/net/meson.build || \
+  echo &quot;system_ss.add(when: 'CONFIG_VNIC', if_true: files('vnic.c'))&quot; &gt;&gt; hw/net/meson.build
+
+# Kconfig: enable it for machines that have PCI (q35 does)
+grep -q &quot;config VNIC&quot; hw/net/Kconfig || cat &gt;&gt; hw/net/Kconfig &lt;&lt;'EOF'
+
+config VNIC
+    bool
+    default y if PCI_DEVICES
+    depends on PCI
+EOF
+</code></pre>
+<p>(<code>hw/net/</code> is the natural home for a NIC model. The device's QOM type name is <code>vnic</code>, so the guest
+sees it via <code>-device vnic</code>.)</p>
+<h2 id="5-configure-build">5. Configure + build</h2>
+<pre><code class="language-bash">./configure --target-list=x86_64-softmmu     # KVM is enabled by default on Linux
+make -j&quot;$(nproc)&quot;                            # binary: build/qemu-system-x86_64
+</code></pre>
+<p>A rebuild after editing <code>qemu-device/vnic.c</code> is: re-<code>cp</code> it to <code>hw/net/vnic.c</code> (step 4), then
+<code>make -j -C ~/qemu</code> (or <code>ninja -C ~/qemu/build</code>).</p>
+<h2 id="6-run-the-guest-under-the-self-built-qemu-attach-the-device">6. Run the guest under the self-built QEMU + attach the device</h2>
+<p><a href="../scripts/run-qemu.sh"><code>scripts/run-qemu.sh</code></a> honours two env vars:</p>
+<ul>
+<li><code>QEMU=</code> - path to the QEMU binary (default <code>qemu-system-x86_64</code>)</li>
+<li><code>VNIC_DEVICE=1</code> - append <code>-device vnic</code> to the command line</li>
+</ul>
+<pre><code class="language-bash">sudo env QEMU=&quot;$HOME/qemu/build/qemu-system-x86_64&quot; VNIC_DEVICE=1 VMDIR=&quot;$HOME/vnic-vm&quot; ./scripts/run-qemu.sh
+</code></pre>
+<blockquote>
+<p>Use <code>sudo env VAR=...</code> (not <code>sudo VAR=...</code>): under <code>sudo</code>'s default <code>env_reset</code>, plain
+<code>VAR=value</code> arguments are dropped, so <code>run-qemu.sh</code> would silently fall back to the <strong>system</strong>
+<code>qemu-system-x86_64</code> with <strong>no <code>-device vnic</code></strong> (the device then never appears in <code>lspci</code>). <code>env</code>
+sets the variables in the command's own environment instead. <code>VMDIR=</code> is passed explicitly because
+<code>sudo</code> may reset <code>$HOME</code> (to root's), which would otherwise point the default image dir at the
+wrong place. If your host user is in the <code>kvm</code> group you can drop <code>sudo</code> entirely - then the plain
+<code>QEMU=... VNIC_DEVICE=1 ./scripts/run-qemu.sh</code> prefix works as a normal shell assignment.</p>
+</blockquote>
+<p>By default <code>-device vnic</code> runs the <strong>internal loopback</strong> (Phase 9), which is what the L2 test suite
+uses. For a real <strong>tap</strong> backend (guest &lt;-&gt; host traffic), see section 8.</p>
+<h2 id="7-verify-loopback">7. Verify (loopback)</h2>
+<p>In the guest:</p>
+<pre><code class="language-bash">lspci -nn | grep 1234:11e9          # the device (not in pci.ids, so grep by ID, not by name)
+sudo insmod driver/vnic-l2.ko       # probe -&gt; vnic0 (name pinned, NET_NAME_USER)
+dmesg | tail                        # ID read back as 0x564E3130; &quot;MSI&quot; path exercised by the suite
+sudo env MODULE=&quot;$PWD/driver/vnic-l2.ko&quot; bash tests/run-all.sh   # full Level 1 suite over real DMA
+</code></pre>
+<h2 id="8-phase-10-run-with-a-real-tap-backend-guest-host">8. Phase 10 - run with a real <code>tap</code> backend (guest &lt;-&gt; host)</h2>
+<p><code>loopback=off</code> + a <code>-netdev tap</code> makes the device bridge frames to a host tap instead of looping
+internally (D-30). <code>run-qemu.sh</code> builds this when <code>VNIC_TAP=&lt;ifname&gt;</code> is set.</p>
+<p><strong>Host (WSL2) - create + address the tap once</strong> (root; the tap is a point-to-point link to the
+guest, so give the host side an IP and let the guest take another on the same /24):</p>
+<pre><code class="language-bash">sudo ip tuntap add dev vnic-tap0 mode tap user &quot;$USER&quot;   # create a persistent tap you own
+sudo ip addr replace 192.168.20.1/24 dev vnic-tap0
+sudo ip link set vnic-tap0 up
+</code></pre>
+<p><strong>Boot the guest on that tap</strong> (<code>loopback=off</code> is added by the script for the tap path):</p>
+<pre><code class="language-bash">sudo env QEMU=&quot;$HOME/qemu/build/qemu-system-x86_64&quot; VNIC_TAP=vnic-tap0 VMDIR=&quot;$HOME/vnic-vm&quot; \
+     ./scripts/run-qemu.sh
+</code></pre>
+<p><strong>Guest - bring vnic0 up on the tap subnet</strong> (no fictional peer / no IP-swap here - the peer is the
+real host):</p>
+<pre><code class="language-bash">sudo insmod driver/vnic-l2.ko
+sudo ip addr replace 192.168.20.2/24 dev vnic0
+sudo ip link set vnic0 up
+</code></pre>
+<p><strong>Verify both ways</strong>:</p>
+<pre><code class="language-bash"># in the guest:   ping the host
+ping -c3 192.168.20.1
+# on the host:    ping the guest, and watch frames on the tap
+ping -c3 192.168.20.2
+sudo tcpdump -ni vnic-tap0          # should show the ICMP echo/reply in both directions
+</code></pre>
+<blockquote>
+<p>Notes: <code>script=no,downscript=no</code> means QEMU does not run a helper to configure the tap, so the tap
+must exist first (the <code>ip tuntap</code> step). <code>user "$USER"</code> lets the persistent tap be opened without
+root for the QEMU side, but opening <code>/dev/net/tun</code> + KVM still typically needs <code>sudo</code> here. WSL2's
+own NAT is separate; this tap is a host&lt;-&gt;guest link inside WSL2. Tear down with
+<code>sudo ip tuntap del dev vnic-tap0 mode tap</code>.</p>
+</blockquote>
+<h3 id="81-reach-external-servers-from-the-guest-host-as-router-nat">8.1 Reach external servers from the guest (host as router + NAT)</h3>
+<p>By itself the tap is only a host&lt;-&gt;guest link - the guest reaches <code>192.168.20.1</code> and nothing more,
+because the host's <code>net.ipv4.ip_forward</code> defaults to <strong>0</strong> (it acts as an end host, not a router) and
+the guest's <code>192.168.20.x</code> is a private, non-routable source. To let the guest reach the <strong>outside</strong>
+through <code>vnic0</code>, the host must <strong>forward + NAT</strong>. <a href="../scripts/tap-nat.sh"><code>scripts/tap-nat.sh</code></a> does
+the host side, idempotently (re-run <code>up</code> after a <code>wsl --shutdown</code> - WSL2 does not persist this):</p>
+<pre><code class="language-bash"># host: ensure tap + ip_forward=1 + outbound MASQUERADE out the WAN iface
+sudo ./scripts/tap-nat.sh up
+# guest: send external traffic out vnic0, set a DNS
+sudo ip route add default via 192.168.20.1 dev vnic0 metric 50
+echo nameserver 1.1.1.1 | sudo tee /etc/resolv.conf
+ping -c3 1.1.1.1 ; curl -sI http://example.com
+# host: revert when done
+sudo ./scripts/tap-nat.sh down
+</code></pre>
+<p>Caveats: this is <strong>outbound only</strong> and <strong>double-NAT</strong> (vnic0 -&gt; tap -&gt; host MASQUERADE -&gt; WSL2's own
+NAT -&gt; Windows -&gt; internet) - good for driving the datapath with real, varied traffic, not for
+accurate throughput numbers.</p>
+<p><strong>Inbound is NOT automatic</strong> (MASQUERADE is one-way). For an external client to reach a <em>service on
+the guest</em> you need a per-service <strong>DNAT</strong> on the host - e.g. host <code>:8080</code> -&gt; guest <code>:8080</code>:</p>
+<pre><code class="language-bash">sudo iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 8080 -j DNAT --to-destination 192.168.20.2:8080
+sudo iptables -A FORWARD -i eth0 -o vnic-tap0 -p tcp -d 192.168.20.2 --dport 8080 -j ACCEPT
+</code></pre>
+<p>and, for a client <strong>beyond</strong> the WSL2 host (on Windows or the LAN), a Windows-side
+<code>netsh interface portproxy</code> as well, because WSL2 is itself NAT'd behind Windows. (This is the manual
+equivalent of what slirp's <code>hostfwd=</code> does for the user-mode NIC; see qemu-device-model.md section 6.)</p>
+<hr>
+<h2 id="keeping-it-reproducible">Keeping it reproducible</h2>
+<ul>
+<li><strong>Source of truth</strong> is <code>qemu-device/vnic.c</code> in this repo; the QEMU tree is a build area, not
+  edited directly. Re-run step 4's <code>cp</code> (+ the meson/Kconfig hooks, which are idempotent) after each
+  device change, then rebuild.</li>
+<li>A small <code>scripts/qemu-integrate.sh &lt;qemu-src&gt;</code> can wrap step 4 (copy + ensure the meson/Kconfig
+  lines) once the device file exists - a Phase 8 follow-up.</li>
+<li><strong>Version bumps</strong>: if you later move the guest to a different QEMU, re-pin (step 1), <code>git checkout</code>
+  the new tag, re-apply step 4, rebuild. The meson/Kconfig hook rarely changes across versions, but
+  the device API (QOM/PCI/DMA/MSI helpers) can - check against the
+  <a href="qemu-device-model.html">qemu-device-model.md</a> APIs after a bump.</li>
+<li>KVM still works with a self-built QEMU (it uses <code>/dev/kvm</code> the same way); <code>run-qemu.sh</code> already
+  picks <code>accel=kvm</code> when <code>/dev/kvm</code> is present, else falls back to TCG.</li>
+</ul>
+<p class="footnote">Generated from <code>qemu-build.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

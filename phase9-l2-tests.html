@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 9 - Level 2 datapath test run (raw evidence)</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Phase 9 - Level 2 datapath test run (raw evidence)</h1>
+<div class="meta"></div>
+</header>
+<h1 id="phase-9-level-2-datapath-test-run-raw-evidence">Phase 9 - Level 2 datapath test run (raw evidence)</h1>
+<p><code>tests/run-all.sh</code> on Level 2 (<code>vnic-l2.ko</code>) over real MMIO/DMA/MSI against the self-built QEMU
+device. See <a href="lessons-learned.html">lessons-learned L-07</a> and TODO Phase 9.</p>
+<ul>
+<li><strong>Date</strong>: 2026-06-12</li>
+<li><strong>Module</strong>: <code>vnic-l2.ko</code> (Phase 9 datapath, commit <code>f634651</code>)</li>
+<li><strong>Invocation</strong>: <code>sudo env MODULE="$PWD/vnic-l2.ko" IFACE=enp0s3 bash ../tests/run-all.sh</code>
+  (IFACE forced to the udev-renamed name for this run; the <code>36fcc54</code> fix pins it back to <code>vnic0</code>)</li>
+</ul>
+<h2 id="datapath-result-all-functional-checks-pass">Datapath result - all functional checks pass</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP throughput (iperf3)</td>
+<td><strong>~574 Mbps</strong>, <code>sum_sent.retransmits</code> Retr counted but <strong>0 drops</strong> (backpressure latency, cf. L-04)</td>
+</tr>
+<tr>
+<td>ICMP loopback</td>
+<td>0% loss (<code>-s 0/1/64/1400/1472</code>)</td>
+</tr>
+<tr>
+<td>Jumbo + fragmentation</td>
+<td><code>-s 8000</code> (MTU 9000) and <code>-s 65000</code> (IP-fragmented) both 0% loss</td>
+</tr>
+<tr>
+<td><code>ndo_change_mtu</code></td>
+<td>out-of-range rejected; 9000 resize carries jumbo; restore to 1500 - 0 <code>rx_dropped</code></td>
+</tr>
+<tr>
+<td>Device stats</td>
+<td>rx_pkts == tx_pkts (151374), 0 drop / 0 err both directions</td>
+</tr>
+<tr>
+<td><code>-P8</code> concurrency (C1)</td>
+<td>exit 0, 0 rx/tx drops (Retr=607 = spurious RTO, not loss)</td>
+</tr>
+<tr>
+<td>40x down/up storm under flood (C2)</td>
+<td>survived, post-storm ping 0% loss</td>
+</tr>
+<tr>
+<td>rmmod under live traffic (C3)</td>
+<td>clean unregister -&gt; stop -&gt; quiesce -&gt; drain, dmesg clean</td>
+</tr>
+<tr>
+<td>RX alloc-fail injection (F1)</td>
+<td><code>rx_dropped</code> rose, <code>rx_errors</code> 0, recovered</td>
+</tr>
+<tr>
+<td>open-time alloc fail (F2)</td>
+<td>open refused cleanly (<code>rx_post -ENOMEM</code>), no crash</td>
+</tr>
+<tr>
+<td>dmesg</td>
+<td>clean (no BUG/WARN/KASAN) throughout</td>
+</tr>
+</tbody>
+</table></div>
+<p>03-concurrency / 04-ringfull / 05-edge / 06-faultinject: <strong>all PASS</strong>.</p>
+<h2 id="the-9-failures-were-a-netdev-rename-race-not-the-datapath">The 9 failures were a netdev-rename race, not the datapath</h2>
+<p><code>01-smoke</code> "present" (1) and <code>02-lifecycle</code> "missing on load" (8) failed because systemd-udev renamed
+the PCI netdev out from under the test:</p>
+<pre><code>[   87.689267] vnic 0000:00:03.0 vnic0: VN1000 Level 2 loaded (ID=0x564e3130, version=0x00010000, cap=0x00000003)
+[   87.694002] vnic 0000:00:03.0 enp0s3: renamed from vnic0
+</code></pre>
+<p>The "interface present" checks ran in the ~5 ms window between <code>register_netdev</code> (<code>vnic0</code>) and udev
+finishing the rename to <code>enp0s3</code>; everything that ran after the rename settled passed. Root cause and
+fix (pin the name with <code>NET_NAME_USER</code>, commit <code>36fcc54</code>) are in L-07.</p>
+<h2 id="post-fix-re-run-all-green">Post-fix re-run - all-green</h2>
+<p>With the name pinned (<code>36fcc54</code>), re-run at the default <code>IFACE=vnic0</code> (no override):</p>
+<pre><code>  01-smoke         PASS        (16/16; iperf3 ~611 Mbps, Retr 0, rx==tx 847714, 0 drop/err)
+  02-lifecycle     PASS        (insmod/rmmod x8 + up/down x8, no &quot;missing&quot; - name is stable)
+  03-concurrency   PASS        (-P8 Retr 3 / 0 drops, 40x storm, rmmod-under-load)
+  04-ringfull      PASS
+  05-edge          PASS        (runt..jumbo, fragmented 65000, MTU resize, rmmod-while-up)
+  06-faultinject   PASS
+  overall: PASS
+</code></pre>
+<p>The rename race and all 9 earlier failures are gone; the datapath numbers are unchanged (it was
+never the datapath).</p>
+<p class="footnote">Generated from <code>phase9-l2-tests.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

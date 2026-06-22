@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vNIC VN1000 1GbE Virtual Ethernet Controller - Software Developer Datasheet</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>vNIC VN1000 1GbE Virtual Ethernet Controller - Software Developer Datasheet</h1>
+<div class="meta"><span>2026-06-09</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="vnic-vn1000-1gbe-virtual-ethernet-controller">vNIC VN1000 1GbE Virtual Ethernet Controller</h1>
+<h2 id="software-developer-datasheet">Software Developer Datasheet</h2>
+<p>This document is the authoritative hardware specification for the <strong>VN1000</strong> simulated NIC.
+It defines the register set, descriptor formats, and the control flow (programming sequences) for each operation.
+Both the device side (Level 1 engine / Level 2 QEMU model) and the driver side must conform to this spec; <code>include/vnic_regs.h</code> is derived from it.</p>
+<hr>
+<h2 id="0-conventions">0. Conventions</h2>
+<ul>
+<li><strong>Byte order</strong>: little-endian (matching the x86 host)</li>
+<li><strong>Access width</strong>: all registers are 32-bit and must be accessed on a 4-byte aligned boundary</li>
+<li><strong>Access types</strong>:</li>
+<li><code>RO</code> read-only</li>
+<li><code>RW</code> read/write</li>
+<li><code>WO</code> write-only</li>
+<li><code>RC</code> read-to-clear (reading clears the register)</li>
+<li><code>RW1S</code> write-1-to-set (bits written as 1 are set; writing 0 has no effect)</li>
+<li><code>RW1C</code> write-1-to-clear (bits written as 1 are cleared)</li>
+<li><strong>Reserved fields</strong>: read value is undefined; must be written as 0</li>
+<li>BAR0 is an MMIO region of 4 KiB (0x1000)</li>
+</ul>
+<hr>
+<h2 id="1-overview">1. Overview</h2>
+<p>VN1000 is a single-queue, single-function virtual 1GbE Ethernet controller providing:</p>
+<ul>
+<li>One TX descriptor ring and one RX descriptor ring (in host memory, accessed by the device via DMA)</li>
+<li>An MMIO register interface (BAR0) controlling ring base / head / tail and interrupts</li>
+<li>A single MSI interrupt vector with interrupt moderation (ITR)</li>
+<li>Basic statistics counters</li>
+</ul>
+<blockquote>
+<p>Completion is signalled by interrupts (throttled by ITR); the driver uses NAPI to achieve a hybrid of interrupt and polling.
+"Forced fixed-mode comparison" and "MSI-X / multi-queue" are advanced items, tracked in the TODO backlog (A2 / A3).</p>
+</blockquote>
+<h3 id="11-block-diagram">1.1 Block diagram</h3>
+<p><img alt="VN1000 host/device block diagram" src="diagrams/host-address-space.svg"></p>
+<blockquote>
+<p>How the host sees the device: the CPU reaches RAM directly (load/store) and the NIC's registers through the BAR0 MMIO window (readl/writel - e.g. the TDT doorbell). The NIC's DMA engine is a bus master that reads/writes the descriptor rings + buffers in RAM itself; completions raise an MSI, and the transceiver (PHY) drives the wire. The register file (CSR) is shown in full; the BAR0 column is the same registers seen as an address-offset map.</p>
+</blockquote>
+<hr>
+<h2 id="2-pci-configuration-space">2. PCI Configuration Space</h2>
+<p>The standard PCI/PCIe <strong>Type 0</strong> configuration-space header, used to enumerate and identify the function. This is a separate address space from the BAR0 MMIO registers (section 3); it is provided by the PCI core / QEMU device model, and the driver reads it via <code>pci_read_config_*()</code> during probe.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x00</td>
+<td>Vendor ID</td>
+<td>RO</td>
+<td><code>0x1234</code></td>
+</tr>
+<tr>
+<td>0x02</td>
+<td>Device ID</td>
+<td>RO</td>
+<td><code>0x11E9</code></td>
+</tr>
+<tr>
+<td>0x04</td>
+<td>Command</td>
+<td>RW</td>
+<td>Memory Space + Bus Master (DMA) enables; driver sets MEM + BME</td>
+</tr>
+<tr>
+<td>0x06</td>
+<td>Status</td>
+<td>RO/RW1C</td>
+<td>Device status; bit 4 = capabilities list present</td>
+</tr>
+<tr>
+<td>0x08</td>
+<td>Revision ID</td>
+<td>RO</td>
+<td><code>0x01</code></td>
+</tr>
+<tr>
+<td>0x09</td>
+<td>Class Code</td>
+<td>RO</td>
+<td><code>0x020000</code> — Base 0x02 (Network), Sub 0x00 (Ethernet), ProgIF 0x00</td>
+</tr>
+<tr>
+<td>0x0C</td>
+<td>Cache Line Size</td>
+<td>RW</td>
+<td>in DWORD units</td>
+</tr>
+<tr>
+<td>0x0D</td>
+<td>Latency Timer</td>
+<td>RO</td>
+<td><code>0x00</code> (no meaning on PCIe)</td>
+</tr>
+<tr>
+<td>0x0E</td>
+<td>Header Type</td>
+<td>RO</td>
+<td><code>0x00</code> — Type 0, single-function endpoint</td>
+</tr>
+<tr>
+<td>0x0F</td>
+<td>BIST</td>
+<td>RO</td>
+<td><code>0x00</code> — not supported</td>
+</tr>
+<tr>
+<td>0x10</td>
+<td>BAR0</td>
+<td>RW</td>
+<td>64-bit MMIO, non-prefetchable, 4 KiB — maps the registers in section 3</td>
+</tr>
+<tr>
+<td>0x14</td>
+<td>BAR1</td>
+<td>RW</td>
+<td>upper 32 bits of the 64-bit BAR0</td>
+</tr>
+<tr>
+<td>0x18</td>
+<td>BAR2</td>
+<td>RW</td>
+<td>unused (<code>0</code>)</td>
+</tr>
+<tr>
+<td>0x1C</td>
+<td>BAR3</td>
+<td>RW</td>
+<td>unused (<code>0</code>)</td>
+</tr>
+<tr>
+<td>0x20</td>
+<td>BAR4</td>
+<td>RW</td>
+<td>unused (<code>0</code>)</td>
+</tr>
+<tr>
+<td>0x24</td>
+<td>BAR5</td>
+<td>RW</td>
+<td>unused (<code>0</code>)</td>
+</tr>
+<tr>
+<td>0x28</td>
+<td>Cardbus CIS Pointer</td>
+<td>RO</td>
+<td><code>0</code> (unused)</td>
+</tr>
+<tr>
+<td>0x2C</td>
+<td>Subsystem Vendor ID</td>
+<td>RO</td>
+<td><code>0x1234</code></td>
+</tr>
+<tr>
+<td>0x2E</td>
+<td>Subsystem ID</td>
+<td>RO</td>
+<td><code>0x11E9</code></td>
+</tr>
+<tr>
+<td>0x30</td>
+<td>Expansion ROM Base</td>
+<td>RO</td>
+<td><code>0</code> (no option ROM)</td>
+</tr>
+<tr>
+<td>0x34</td>
+<td>Capabilities Pointer</td>
+<td>RO</td>
+<td>offset of the first capability (MSI); 0x35-0x37 reserved</td>
+</tr>
+<tr>
+<td>0x38</td>
+<td>Reserved</td>
+<td>RO</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td>0x3C</td>
+<td>Interrupt Line</td>
+<td>RW</td>
+<td>legacy IRQ routing, set by the OS</td>
+</tr>
+<tr>
+<td>0x3D</td>
+<td>Interrupt Pin</td>
+<td>RO</td>
+<td><code>0x00</code> — no INTx; the device uses MSI</td>
+</tr>
+<tr>
+<td>0x3E</td>
+<td>Min_Gnt</td>
+<td>RO</td>
+<td><code>0x00</code> (no meaning on PCIe)</td>
+</tr>
+<tr>
+<td>0x3F</td>
+<td>Max_Lat</td>
+<td>RO</td>
+<td><code>0x00</code> (no meaning on PCIe)</td>
+</tr>
+</tbody>
+</table></div>
+<p>The driver binds by matching (Vendor, Device) = (0x1234, 0x11E9).</p>
+<h3 id="21-capabilities">2.1 Capabilities</h3>
+<p>Capabilities form a linked list starting at the Capabilities Pointer (0x34). Standard (PCI) capabilities live in 0x40-0xFF; PCIe <strong>extended</strong> capabilities live in the 0x100-0xFFF extended configuration space (PCIe only).</p>
+<p><strong>Standard capabilities (0x40-0xFF):</strong></p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Cap ID</th>
+<th>Capability</th>
+<th>VN1000</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x01</td>
+<td>Power Management</td>
+<td>optional</td>
+<td>D0/D3 power states, PME</td>
+</tr>
+<tr>
+<td>0x05</td>
+<td>MSI</td>
+<td>yes (baseline)</td>
+<td>message-signalled interrupt, 1 vector</td>
+</tr>
+<tr>
+<td>0x10</td>
+<td>PCI Express</td>
+<td>PCIe endpoint</td>
+<td>identifies the device as PCIe; Device / Link / Slot capability, control, status</td>
+</tr>
+<tr>
+<td>0x11</td>
+<td>MSI-X</td>
+<td>backlog A3</td>
+<td>table-based interrupts, multiple vectors</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>PCIe extended capabilities (0x100+):</strong></p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Ext Cap ID</th>
+<th>Capability</th>
+<th>VN1000</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x0001</td>
+<td>AER</td>
+<td>advanced</td>
+<td>Advanced Error Reporting (correctable / uncorrectable error logging)</td>
+</tr>
+<tr>
+<td>0x0003</td>
+<td>Device Serial Number</td>
+<td>optional</td>
+<td>64-bit globally-unique ID</td>
+</tr>
+<tr>
+<td>0x0010</td>
+<td>SR-IOV</td>
+<td>advanced</td>
+<td>Single-Root I/O Virtualization (virtual functions)</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>Baseline VN1000 exposes only the <strong>MSI</strong> capability. The <strong>PCI Express Capability</strong> (cap ID 0x10) — and therefore the extended config space / AER — exists only when the device is modelled as a true PCIe endpoint on a q35 PCIe bus. MSI-X is tracked in TODO backlog A3; the PCIe-endpoint upgrade (PCI Express Capability + MSI-X + extended caps) is the natural Level 2+ enhancement.</p>
+</blockquote>
+<hr>
+<h2 id="3-register-map-bar0-mmio">3. Register Map (BAR0 MMIO)</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x0000</td>
+<td><code>ID</code></td>
+<td>RO</td>
+<td>Identity magic = <code>0x564E3130</code> ("VN10")</td>
+</tr>
+<tr>
+<td>0x0004</td>
+<td><code>VERSION</code></td>
+<td>RO</td>
+<td>Version, major.minor; 0x00010000 = 1.0</td>
+</tr>
+<tr>
+<td>0x0008</td>
+<td><code>CAP</code></td>
+<td>RO</td>
+<td>Capability bitmap</td>
+</tr>
+<tr>
+<td>0x0010</td>
+<td><code>CTRL</code></td>
+<td>RW</td>
+<td>Device control</td>
+</tr>
+<tr>
+<td>0x0014</td>
+<td><code>STATUS</code></td>
+<td>RO</td>
+<td>Device status</td>
+</tr>
+<tr>
+<td>0x0018</td>
+<td><code>MAC_LO</code></td>
+<td>RW</td>
+<td>MAC address bytes 0..3</td>
+</tr>
+<tr>
+<td>0x001C</td>
+<td><code>MAC_HI</code></td>
+<td>RW</td>
+<td>MAC address bytes 4..5 + valid</td>
+</tr>
+<tr>
+<td>0x0020</td>
+<td><code>MAXFRM</code></td>
+<td>RW</td>
+<td>Maximum frame size in bytes (default 1518)</td>
+</tr>
+<tr>
+<td>0x0100</td>
+<td><code>TDBAL</code></td>
+<td>RW</td>
+<td>TX ring base address, low 32 bits</td>
+</tr>
+<tr>
+<td>0x0104</td>
+<td><code>TDBAH</code></td>
+<td>RW</td>
+<td>TX ring base address, high 32 bits</td>
+</tr>
+<tr>
+<td>0x0108</td>
+<td><code>TDLEN</code></td>
+<td>RW</td>
+<td>TX ring total length (bytes), = N x 16</td>
+</tr>
+<tr>
+<td>0x010C</td>
+<td><code>TDH</code></td>
+<td>RW&sup1;</td>
+<td>TX head (device consumer index)</td>
+</tr>
+<tr>
+<td>0x0110</td>
+<td><code>TDT</code></td>
+<td>RW</td>
+<td>TX tail (driver producer index, doorbell)</td>
+</tr>
+<tr>
+<td>0x0200</td>
+<td><code>RDBAL</code></td>
+<td>RW</td>
+<td>RX ring base address, low 32 bits</td>
+</tr>
+<tr>
+<td>0x0204</td>
+<td><code>RDBAH</code></td>
+<td>RW</td>
+<td>RX ring base address, high 32 bits</td>
+</tr>
+<tr>
+<td>0x0208</td>
+<td><code>RDLEN</code></td>
+<td>RW</td>
+<td>RX ring total length (bytes), = N x 16</td>
+</tr>
+<tr>
+<td>0x020C</td>
+<td><code>RDH</code></td>
+<td>RW&sup1;</td>
+<td>RX head (device producer index)</td>
+</tr>
+<tr>
+<td>0x0210</td>
+<td><code>RDT</code></td>
+<td>RW</td>
+<td>RX tail (driver refill index, doorbell)</td>
+</tr>
+<tr>
+<td>0x0300</td>
+<td><code>ICR</code></td>
+<td>RC</td>
+<td>Interrupt cause (cleared on read)</td>
+</tr>
+<tr>
+<td>0x0304</td>
+<td><code>ICS</code></td>
+<td>WO</td>
+<td>Interrupt cause set - software raises a cause (self-test / forced IRQ)</td>
+</tr>
+<tr>
+<td>0x0308</td>
+<td><code>IMS</code></td>
+<td>RW1S</td>
+<td>Interrupt mask set (enable causes)</td>
+</tr>
+<tr>
+<td>0x030C</td>
+<td><code>IMC</code></td>
+<td>RW1C</td>
+<td>Interrupt mask clear (disable causes)</td>
+</tr>
+<tr>
+<td>0x0310</td>
+<td><code>ITR</code></td>
+<td>RW</td>
+<td>Interrupt moderation interval</td>
+</tr>
+<tr>
+<td>0x0400</td>
+<td><code>STAT_TXPKTS</code></td>
+<td>RO</td>
+<td>Packets transmitted</td>
+</tr>
+<tr>
+<td>0x0404</td>
+<td><code>STAT_TXBYTES</code></td>
+<td>RO</td>
+<td>Bytes transmitted</td>
+</tr>
+<tr>
+<td>0x0408</td>
+<td><code>STAT_RXPKTS</code></td>
+<td>RO</td>
+<td>Packets received</td>
+</tr>
+<tr>
+<td>0x040C</td>
+<td><code>STAT_RXBYTES</code></td>
+<td>RO</td>
+<td>Bytes received</td>
+</tr>
+<tr>
+<td>0x0410</td>
+<td><code>STAT_TXDROP</code></td>
+<td>RO</td>
+<td>TX drops</td>
+</tr>
+<tr>
+<td>0x0414</td>
+<td><code>STAT_RXDROP</code></td>
+<td>RO</td>
+<td>RX drops</td>
+</tr>
+</tbody>
+</table></div>
+<p>All offsets not listed are reserved.</p>
+<p>&sup1; <code>TDH</code>/<code>RDH</code> are <strong>device-owned while the device is enabled</strong> - the device advances them and the
+driver must treat them as read-only. They are writable <strong>only while the device is disabled</strong>
+(<code>CTRL.EN = 0</code>): the driver resets the head to <code>0</code> during ring setup, <em>before</em> it sets <code>CTRL.EN</code>.
+<strong>Writing a head while the device is enabled is undefined.</strong> (Same as Intel <code>TDH</code>/<code>RDH</code>: R/W, but
+software may write them only while the queue / DMA is disabled.) In this driver the head writes are
+<code>vnic_up</code> &rarr; <code>TDH = 0</code> and <code>vnic_rx_post</code> &rarr; <code>RDH = 0</code>, both ordered <strong>before</strong> the single
+<code>CTRL = EN | TXEN | RXEN</code> write that enables the device; teardown writes <code>CTRL = 0</code> first, so the
+next bring-up again sets the heads while disabled.</p>
+<hr>
+<h2 id="4-register-definitions">4. Register Definitions</h2>
+<h3 id="41-id-0x0000-ro">4.1 ID (0x0000, RO)</h3>
+<p>Always returns <code>0x564E3130</code>. The driver reads and validates this during probe; on mismatch it declines to bind.</p>
+<h3 id="42-version-0x0004-ro">4.2 VERSION (0x0004, RO)</h3>
+<p>bits[31:16] = major, bits[15:0] = minor. This revision = <code>0x0001_0000</code>.</p>
+<h3 id="43-cap-0x0008-ro">4.3 CAP (0x0008, RO)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Bit</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>CAP_MSI</code></td>
+<td>MSI supported</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>CAP_MODER</code></td>
+<td>Interrupt moderation (ITR) supported</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>CAP_POLL</code></td>
+<td>Forced polling mode (reserved, see advanced A2; this revision = 0)</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>CAP_CSUM</code></td>
+<td>Checksum offload (reserved; this revision = 0)</td>
+</tr>
+<tr>
+<td>31:4</td>
+<td>reserved</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="44-ctrl-0x0010-rw">4.4 CTRL (0x0010, RW)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Bit</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>EN</code></td>
+<td>Device enable</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>RST</code></td>
+<td>Software reset; cleared by the device when complete (self-clear = done)</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>TXEN</code></td>
+<td>Transmit enable</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>RXEN</code></td>
+<td>Receive enable</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>PROMISC</code></td>
+<td>Promiscuous mode</td>
+</tr>
+<tr>
+<td>31:5</td>
+<td>reserved</td>
+<td>write 0</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="45-status-0x0014-ro">4.5 STATUS (0x0014, RO)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Bit</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>RUNNING</code></td>
+<td>Device enabled and initialized</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>LINK_UP</code></td>
+<td>Link is up</td>
+</tr>
+<tr>
+<td>31:2</td>
+<td>reserved</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p><code>STATUS</code> is <strong>driven by the device in response to <code>CTRL</code></strong> - the driver never writes it (it is RO).
+Writing <code>CTRL.EN = 1</code> makes the device assert <code>RUNNING</code> <strong>and</strong> <code>LINK_UP</code>; clearing <code>EN</code> deasserts
+both. This is the control/status handshake: the driver writes <code>CTRL.EN</code>, then reads back
+<code>STATUS.RUNNING</code>/<code>LINK_UP</code> to confirm the device (and "link") came up (bring-up step 9). <code>CTRL.RST</code>
+additionally restores the power-on register state.</p>
+<p>Reset completion has no separate status bit; the self-clearing <code>CTRL.RST</code> is the sole completion signal.</p>
+</blockquote>
+<h3 id="46-mac_lo-mac_hi-0x0018-0x001c-rw">4.6 MAC_LO / MAC_HI (0x0018 / 0x001C, RW)</h3>
+<ul>
+<li><code>MAC_LO</code> bits[31:0] = MAC[0..3]</li>
+<li><code>MAC_HI</code> bits[15:0] = MAC[4..5], bit31 = <code>AV</code> (address valid)</li>
+<li>Recommended write order: <code>MAC_LO</code> first, then <code>MAC_HI</code>, set <code>AV</code> last</li>
+</ul>
+<h3 id="47-maxfrm-0x0020-rw">4.7 MAXFRM (0x0020, RW)</h3>
+<p>Maximum Ethernet frame size in bytes the device will transmit and receive, including the 14-byte header and 4-byte FCS. Default <code>1518</code> (MTU 1500); the driver sets <code>MAXFRM = MTU + 18</code>. Posted RX buffers must be at least <code>MAXFRM</code> bytes. The device drops received frames larger than <code>MAXFRM</code> (increments <code>STAT_RXDROP</code>, may set <code>ICR.ERR</code>). See section 6.7 for the change-MTU sequence.</p>
+<blockquote>
+<p>In this single-buffer-per-packet model <code>MAXFRM</code> also serves as the RX buffer size (cf. Intel <code>RCTL.BSIZE</code>). Splitting it into a separate RX buffer size, max-frame length, and long-packet enable (cf. Intel <code>RLPML</code> / <code>LPE</code>) together with multi-descriptor (scatter) receive is tracked as advanced item A4 in TODO.</p>
+</blockquote>
+<h3 id="48-txrx-ring-registers">4.8 TX/RX Ring registers</h3>
+<ul>
+<li><code>TDBAL/TDBAH</code>, <code>RDBAL/RDBAH</code>: ring base physical address, must be <strong>256-byte aligned</strong></li>
+<li><code>TDLEN/RDLEN</code>: ring <strong>total length in bytes</strong>, <strong>not</strong> the length of a single descriptor. A single descriptor is fixed at 16 bytes (<code>struct vn_desc</code>), so the number of descriptors in the ring is <strong><code>N = TDLEN / 16</code></strong> — both the device and the driver derive the ring size this way; there is no separate "count" register (same convention as Intel TDLEN/RDLEN). <code>N</code> must be a power of two, range 8..4096</li>
+<li><code>TDH/RDH</code>: the device's head indices - <strong>device-owned while enabled</strong> (the device advances them; the driver then treats them as read-only). Writable by the driver <strong>only while the device is disabled</strong> (<code>CTRL.EN = 0</code>): it resets the head to 0 during ring setup, before <code>CTRL.EN</code> (<code>vnic_up</code>/<code>vnic_rx_post</code>). Writing a head while enabled is undefined; see the &sup1; note under the register map</li>
+<li><code>TDT/RDT</code>: maintained by the driver; <strong>a write acts as a doorbell</strong>, notifying the device of new work or newly available buffers</li>
+<li>empty: <code>HEAD == TAIL</code>; full: <code>(TAIL + 1) % N == HEAD</code></li>
+</ul>
+<h3 id="49-interrupt-cause-bits-shared-by-icr-ics-ims-imc">4.9 Interrupt cause bits (shared by ICR / ICS / IMS / IMC)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Bit</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>TXDONE</code></td>
+<td>One or more TX descriptors completed</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>RXAVAIL</code></td>
+<td>One or more RX packets available</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>RXEMPTY</code></td>
+<td>No free RX buffers (overrun / drop)</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>ERR</code></td>
+<td>Error condition</td>
+</tr>
+<tr>
+<td>31:4</td>
+<td>reserved</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><code>ICR</code> (RC): reading returns the currently pending causes and clears them</li>
+<li><code>ICS</code> (WO): bits written as 1 <strong>raise</strong> the corresponding cause - the software counterpart of <code>ICR</code> (its set/write path). A 1 here has the same effect as the hardware event and asserts MSI if that cause is also enabled in <code>IMS</code></li>
+<li><code>IMS</code> (RW1S): bits written as 1 enable the corresponding interrupt cause</li>
+<li><code>IMC</code> (RW1C): bits written as 1 disable the corresponding interrupt cause</li>
+<li>MSI is asserted only for causes that are both enabled (set in IMS) and pending</li>
+<li>The interrupt mask is internally a single logical register; <code>IMS</code>/<code>IMC</code> are its set/clear write paths, giving atomic updates and avoiding read-modify-write races</li>
+</ul>
+<p><strong>More on <code>ICS</code>.</strong> It lets <em>software</em> trigger an interrupt without a real event. On physical
+(Intel-style) NICs <code>ICS</code> is used to <strong>self-test</strong> the MSI/ISR wiring at probe, to <strong>force</strong> a cause
+(e.g. a link-status interrupt), and for <strong><code>netpoll</code> / <code>ndo_poll_controller</code></strong> (netconsole, kgdb-over-
+net); the MSI-X form is <code>EICS</code>. It is <strong>not</strong> part of the steady TX/RX datapath - there, the device
+raises completions by setting <code>ICR</code> itself. VN1000 splits this by level:</p>
+<ul>
+<li><strong>Level 2</strong> (QEMU device): the device sets <code>ICR</code> directly on TX/RX completion, exactly like real
+  hardware; the <code>ICS</code> register is implemented but its write path is not used by the datapath.</li>
+<li><strong>Level 1</strong> (in-kernel engine): the engine talks to its fake device through the same MMIO
+  accessors, so it deliberately <strong>raises completions by writing <code>ICS</code></strong> - this keeps the L1 interrupt
+  path faithful (raise cause -&gt; MSI -&gt; ISR reads <code>ICR</code>) instead of shortcutting to <code>napi_schedule</code>.</li>
+</ul>
+<p><strong>ISR acknowledge sequence (read-to-clear).</strong> When the MSI fires, the driver's ISR (top half)
+<strong>acknowledges the interrupt by <em>reading</em> <code>ICR</code></strong>: because <code>ICR</code> is read-to-clear (<code>RC</code>), that single
+read returns the currently pending cause bits <em>and</em> atomically clears them to 0. The read itself
+is the ack - no write is needed, and nothing is ever written to <code>ICR</code> to clear it (<code>ICS</code> is the
+set/raise path, not a clear path). The ISR then <strong>masks</strong> the just-taken cause(s) with a write to
+<code>IMC</code> so a busy device cannot re-interrupt while the poll runs, and calls <code>napi_schedule()</code>. The
+NAPI poll drains the ring and, on <code>napi_complete_done()</code>, <strong>re-arms</strong> the cause(s) with a write to
+<code>IMS</code>. The steady-state sequence:</p>
+<ol>
+<li>MSI asserted - a cause is both pending in <code>ICR</code> and enabled in <code>IMS</code></li>
+<li>ISR: <code>cause = read(ICR)</code> - read-to-clear, <strong>this read is the ack</strong> (clears the latched cause)</li>
+<li>ISR: <code>write(IMC, cause)</code> - mask that cause while polling, then <code>napi_schedule()</code></li>
+<li>poll: drain descriptors; on <code>napi_complete_done()</code> -&gt; <code>write(IMS, cause)</code> to unmask / re-arm</li>
+</ol>
+<blockquote>
+<p>The ack (<code>ICR</code> read) and the mask (<code>IMC</code> write) are <strong>two distinct register actions</strong>: the <code>ICR</code>
+read clears only the pending cause, never <code>IMS</code>; masking is the separate explicit <code>IMC</code> write.
+The TX/RX flow diagrams collapse the pair into one label, "ack + mask IRQ in CSR" (steps D2 / C2).
+Both levels follow this: the Level 1 simulated MSI handler <code>vnic_l1_msi()</code> in
+<code>driver/hal/vnic_hal_l1.c</code> reads <code>ICR</code>, writes <code>IMC</code>, then schedules NAPI; the Level 2 real MSI
+ISR does the same against the QEMU device, whose <code>ICR</code> read path is implemented as read-to-clear.</p>
+</blockquote>
+<h3 id="410-itr-0x0310-rw">4.10 ITR (0x0310, RW)</h3>
+<p>bits[15:0] = minimum interval between interrupts, in microseconds. <code>0</code> = no moderation. Has no effect when <code>CAP_MODER</code> is 0.</p>
+<h3 id="411-statistics-registers-0x04000x0414-ro">4.11 Statistics registers (0x0400..0x0414, RO)</h3>
+<p>32-bit counters, cleared on software reset (CTRL.RST).</p>
+<hr>
+<h2 id="5-descriptor-format">5. Descriptor Format</h2>
+<p>TX and RX share a 16-byte structure; the field semantics differ by direction.</p>
+<pre><code class="language-c">struct vn_desc {
+    u64 addr;    /* 0x00  buffer address (Level 2 DMA / Level 1 token) */
+    u32 len;     /* 0x08  TX: packet length; RX (on completion): bytes received */
+    u16 flags;   /* 0x0C  TX: command; RX (on completion): result */
+    u16 status;  /* 0x0E  DD ownership bit: driver clears -&gt; 0, device sets -&gt; 1 */
+};               /* sizeof = 16 */
+</code></pre>
+<h3 id="51-tx-flags-driver-written-vn_txf_">5.1 TX flags (driver-written, VN_TXF_*)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Bit</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>EOP</code></td>
+<td>End of packet (always set for a single-buffer packet)</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>RS</code></td>
+<td>Report status; device sets DD on completion and may raise an interrupt</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>IC</code></td>
+<td>Insert checksum (reserved; ignored in this revision)</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="52-rx-flags-device-written-vn_rxf_">5.2 RX flags (device-written, VN_RXF_*)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Bit</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>EOP</code></td>
+<td>End of packet</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>ERR</code></td>
+<td>Receive error</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="53-status-the-dd-ownership-done-bit-vn_desc_">5.3 status - the DD ownership / done bit (VN_DESC_*)</h3>
+<p>Bit 0 is <code>DD</code> (Descriptor Done); bits 31:1 are reserved.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th><code>DD</code></th>
+<th>Owner</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>0</strong></td>
+<td><strong>device</strong></td>
+<td>submitted (TX) / posted (RX) - the device may process the descriptor; the driver must not touch it or its buffer</td>
+</tr>
+<tr>
+<td><strong>1</strong></td>
+<td><strong>driver</strong></td>
+<td>done - the device has finished (TX sent, or RX frame written with <code>len</code> valid); the driver may reclaim / receive it</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>DD</code> is <strong>written by both sides</strong> (not device-only): the <strong>driver clears it to 0</strong> when handing a
+descriptor to the device (TX submit; RX post / refill), and the <strong>device sets it to 1</strong> when handing
+it back (TX completion; RX delivery). That two-way write <em>is</em> the ownership handshake - see 5.4 and
+the paired memory barriers in background-knowledge topic 4.</p>
+<h3 id="54-ownership-model">5.4 Ownership model</h3>
+<ul>
+<li>Descriptor ownership is expressed by <code>status.DD</code></li>
+<li>The driver clears <code>DD</code> before submitting; the device sets <code>DD</code> on completion</li>
+<li>The driver scans from its own <code>next_to_clean</code>, reclaiming descriptors with <code>DD = 1</code></li>
+</ul>
+<h3 id="55-ring-buffers-and-control-flow-tx-and-rx">5.5 Ring buffers and control flow (TX and RX)</h3>
+<p>Both rings are contiguous, circular arrays of <code>N = *DLEN / 16</code> descriptors based at <code>*DBAL/*DBAH</code>,
+with a head (<code>*DH</code>) and tail (<code>*DT</code>). Each descriptor's <code>status.DD</code> carries <strong>ownership</strong>:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th><code>DD</code></th>
+<th>owner</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><strong>device</strong></td>
+<td>submitted (TX) or posted-empty (RX); in progress - the driver must not touch it</td>
+</tr>
+<tr>
+<td>1</td>
+<td><strong>driver</strong></td>
+<td>completed - a sent TX descriptor, or an RX descriptor now holding a received frame</td>
+</tr>
+</tbody>
+</table></div>
+<p>The only asymmetry between the rings is <strong>who produces</strong>: on TX the <em>driver</em> fills buffers for the
+device to send; on RX the <em>device</em> fills buffers (that the driver pre-posted) with received frames.
+Each descriptor points to a DMA buffer in host memory:</p>
+<pre><code class="language-text">  desc[i] = [ addr(u64) | len | flags | status(DD) ]  --&gt;  [ buffer in host RAM ]
+</code></pre>
+<p><strong>Hardware pointers vs the driver's cursors.</strong> <code>*DH</code> / <code>*DT</code> are the <em>device's</em> ring pointers (MMIO
+registers). The driver also keeps two <strong>software</strong> cursors per ring in <code>struct vnic_ring</code> (in RAM -
+the device never sees them):</p>
+<ul>
+<li><code>next_to_use</code> - the driver's <strong>producer</strong> cursor: the next descriptor it will fill (TX) or post (RX).</li>
+<li><code>next_to_clean</code> - the driver's <strong>consumer / reclaim</strong> cursor: the next descriptor it will <em>clean</em>.
+  "Clean" means - on <strong>TX</strong>, the device has finished sending, so free the completed <code>skb</code>; on <strong>RX</strong>,
+  a frame has arrived, so take it up the stack and refill the slot. The driver advances
+  <code>next_to_clean</code> only across descriptors whose <strong><code>DD == 1</code></strong>, scanning the in-memory <code>DD</code> bits rather
+  than reading <code>*DH</code> over MMIO on every completion (a cheap RAM read vs an expensive register read).
+  It is the index the cleanup loops below start from.</li>
+</ul>
+<p><strong>Why a separate cursor, not just <code>*DH</code>/<code>*DT</code>?</strong> <code>*DH</code>/<code>*DT</code> describe the <em>device's</em> current physical
+occupancy of the ring (how far it has consumed/produced) - they are the hardware's view. But when the
+driver takes a completion interrupt it does <strong>not necessarily drain all pending descriptors in one
+pass</strong>: NAPI runs under a <strong>budget</strong> (it may stop part-way and reschedule), and TX cleanup likewise
+processes only what is done so far. So the driver needs its own variables to remember <strong>how far it has
+got</strong> - <code>next_to_clean</code> (where to resume reclaiming/receiving) and <code>next_to_use</code> (where it is filling,
+which may run ahead of the last <code>*DT</code> it published so it can batch the doorbell). There is no hardware
+register for "how far the <em>driver</em> has processed", and reading <code>*DH</code> each time would cost an MMIO
+read; tracking it in software (advanced by the in-memory <code>DD</code> bit) is both necessary and cheaper.</p>
+<h4 id="tx-ring-driver-produces-device-consumes">TX ring - driver produces, device consumes</h4>
+<p><code>TDH</code> (device consumer) and <code>TDT</code> (driver producer) split the ring. <strong>At open the ring is empty:</strong>
+<code>next_to_use = next_to_clean = 0</code> and <code>TDH = TDT = 0</code> - nothing is in flight; the driver fills
+forward from <code>next_to_use</code> (NTU) and the device follows at <code>TDH</code>. Example: the driver has filled
+0..4 (<code>next_to_use = TDT = 5</code>); the device has sent 0..1 (it set their <code>DD = 1</code> and advanced
+<code>TDH = 2</code>) and is now sending 2..4; the driver has not reclaimed yet (<code>next_to_clean = 0</code>):</p>
+<pre><code class="language-text">    0    1    2    3    4    5    6    7      (index; N = TDLEN / 16, wraps 7-&gt;0)
+  +----+----+----+----+----+----+----+----+
+  | 1  | 1  | 0  | 0  | 0  | -  | -  | -  |   &lt;- DD bit per slot
+  +----+----+----+----+----+----+----+----+
+    ^         ^              ^
+   NTC       TDH          TDT/NTU
+  [NTC, TDH) DD=1 &quot;SENT&quot;:    completed - driver to reclaim (free the skb)
+  [TDH, TDT) DD=0 &quot;SENDING&quot;: submitted - device-owned, being sent on the wire
+  rest             &quot;free&quot;:   DD don't-care - driver fills here, clearing DD as it goes
+  NTU (next_to_use): driver producer cursor = next slot to fill; here = TDT, but
+    may run ahead of the published TDT when the doorbell is batched (xmit_more / D-32)
+  NTC (next_to_clean): driver reclaim cursor = next DD = 1 slot to free
+</code></pre>
+<p><img alt="TX ring snapshot - driver produces, device consumes" src="diagrams/tx-ring.svg"></p>
+<p>TX control flow (note where <code>DD</code> is cleared / set / checked):
+1. <strong>Driver submit</strong> (per packet): fill <strong><code>desc[next_to_use]</code></strong> (not <code>desc[TDT]</code>) - <strong>clear its <code>DD</code></strong>,
+   write <code>addr</code>/<code>len</code>/<code>flags</code> (<code>EOP</code>, <code>RS</code>) - then <code>dma_wmb()</code> and <strong>advance
+   <code>next_to_use = (next_to_use + 1) % N</code></strong>. The <strong>doorbell</strong> writes the <code>TDT</code> register <code>= next_to_use</code>;
+   with <code>tx_coalesce</code> (D-32) it is <strong>batched</strong> - rung once at the end of an <code>xmit_more</code> burst (or when
+   the ring fills), not per packet - so <code>next_to_use</code> may run ahead of the last published <code>TDT</code>.
+2. <strong>Device</strong>: while <code>TDH != TDT</code> - read <code>desc[TDH]</code>, DMA-read the buffer and transmit, write status
+   and <strong>set <code>DD = 1</code> last</strong>, <code>TDH++</code>, raise <code>TXDONE</code> (if <code>RS</code>).
+3. <strong>Driver reclaim</strong> (NAPI <code>tx_clean</code>): from <code>next_to_clean</code>, <strong>read <code>desc[ntc].DD</code></strong> - if <code>0</code>, stop
+   (not done yet); if <code>1</code>, <strong><code>dma_rmb()</code></strong> (this barrier pairs with that DD-flag read - it orders
+   "saw <code>DD == 1</code>" <em>before</em> the following reads, so they cannot be hoisted ahead of the flag), then
+   unmap/free <code>bufs[ntc]</code>, <code>next_to_clean++</code>, wake the queue if it was stopped.
+- empty: <code>TDH == TDT</code>    full: <code>(TDT + 1) % N == TDH</code> (one slot kept unused)</p>
+<h4 id="rx-ring-device-produces-driver-consumes">RX ring - device produces, driver consumes</h4>
+<p>At open the driver <strong>pre-posts an empty buffer into every usable slot</strong> (Model A) with <code>DD = 0</code> and
+writes <code>RDT</code> to publish them. <strong>Concretely at open:</strong> <code>next_to_clean = 0</code>, <code>RDH = 0</code>, <code>RDT =
+count - 1</code> (every usable slot posted, <code>DD = 0</code>, one slot kept unused); <code>next_to_use</code> is <strong>unused</strong> on
+RX, because the <em>device</em> is the producer (it advances <code>RDH</code>, the driver does not fill these slots).
+<code>RDH</code> is the device's producer index (device-owned at runtime; the driver writes it only to reset it
+to 0 here at open). Example: the device wrote 3 frames
+(so <code>RDH = 3</code>) and the driver has not polled yet (<code>next_to_clean = 0</code>):</p>
+<pre><code class="language-text">    0    1    2    3    4    5    6    7      (index; N = RDLEN / 16, wraps 7-&gt;0)
+  +----+----+----+----+----+----+----+----+
+  | 1  | 1  | 1  | 0  | 0  | 0  | 0  | -  |   &lt;- DD bit per slot
+  +----+----+----+----+----+----+----+----+
+    ^              ^                   ^
+   NTC            RDH                 RDT
+  [NTC, RDH) DD=1 &quot;FULL&quot;:  a received frame - driver to process (up the stack)
+  [RDH, RDT) DD=0 &quot;EMPTY&quot;: a posted buffer - device-owned, awaiting a frame
+  last slot       &quot;unused&quot;: kept unused to tell empty from full
+</code></pre>
+<p><img alt="RX ring snapshot - device produces, driver consumes" src="diagrams/rx-ring.svg"></p>
+<p>RX control flow. Note that <strong><code>next_to_use</code> is unused on RX</strong> - <code>next_to_clean</code> is the only driver
+cursor, and since each consumed slot is refilled immediately it also doubles as the <strong>refill point</strong>
+written to <code>RDT</code>:
+1. <strong>Driver post / refill</strong> (at open via <code>vnic_rx_post</code>; and in <code>rx_clean</code> right after consuming a
+   slot): write <code>desc[i].addr</code> = a fresh empty buffer and <code>len = 0</code>, <strong><code>dma_wmb()</code></strong>, <strong>then clear
+   <code>DD</code></strong> (<code>status = 0</code>) to hand the slot back to the device - publish the buffer <em>before</em> the flag.
+   The <strong><code>RDT</code> doorbell</strong> is written <strong>once at the end of the poll</strong>, <code>= next_to_clean</code> (the refill
+   point) - not per slot; it tells the device how far buffers are available and resumes it if it had
+   stalled.
+2. <strong>Device on receive</strong>: DMA-write the frame into <code>desc[RDH].addr</code>, write <code>len</code> (+ RX <code>flags</code>),
+   <strong>set <code>DD = 1</code> last</strong>, <code>RDH++</code>, raise <code>RXAVAIL</code>. With no posted buffer (<code>RDH</code> would reach <code>RDT</code>) it
+   raises <code>RXEMPTY</code> and drops (backpressure).
+3. <strong>Driver consume</strong> (NAPI <code>rx_clean</code>): from <code>next_to_clean</code>, <strong>read <code>desc[ntc].DD</code></strong> - if <code>0</code>, stop;
+   if <code>1</code>, <strong><code>dma_rmb()</code></strong> (pairs with that DD read, so the next reads see the freshly DMA-written
+   data, not stale bytes), then read <code>len</code>, hand <code>bufs[ntc]</code> up the stack (<code>napi_gro_receive</code>),
+   <strong>refill the slot</strong> (step 1), and <code>next_to_clean++</code> (up to the NAPI budget).
+- nothing to process: <code>next_to_clean == RDH</code></p>
+<h4 id="the-dd-handshake-both-directions-d-21">The <code>DD</code> handshake (both directions; D-21)</h4>
+<p><code>DD</code> is the ownership flag and the buffer/<code>len</code> is the payload; the two must not be observed out of
+order. The side that <strong>hands ownership over by setting <code>DD</code></strong> writes the payload first, then a write
+barrier, then <code>DD</code>; the side that <strong>takes ownership</strong> waits for <code>DD == 1</code>, then a read barrier, then
+reads the payload:</p>
+<pre><code class="language-text">  producer:  write addr/len/data  -&gt;  dma_wmb()  -&gt;  set DD = 1
+  consumer:  read DD == 1          -&gt;  dma_rmb()  -&gt;  read len/data
+</code></pre>
+<p>On TX the device is the producer of the <em>completion</em>; on RX the device is the producer of the
+<em>frame</em>. (On Level 1 the in-kernel engine and the driver share one address space, so these are
+<code>smp_wmb</code> / <code>smp_rmb</code> rather than the DMA barriers - see background-knowledge topic 4.)</p>
+<hr>
+<h2 id="6-theory-of-operation-control-method-per-operation">6. Theory of Operation (control method per operation)</h2>
+<h3 id="61-initialization">6.1 Initialization</h3>
+<ol>
+<li>Read <code>ID</code>, verify = <code>0x564E3130</code>; read <code>VERSION</code> / <code>CAP</code></li>
+<li>Software reset: write <code>CTRL.RST = 1</code>, poll until <code>CTRL.RST</code> self-clears (indicating reset complete)</li>
+<li>Set MAC: write <code>MAC_LO</code>, <code>MAC_HI</code>, then set <code>MAC_HI.AV</code></li>
+<li>Allocate TX/RX rings (contiguous DMA memory, 256-byte aligned, zeroed)</li>
+<li>TX: write <code>TDBAL/TDBAH/TDLEN</code>, set <code>TDH = TDT = 0</code></li>
+<li>RX: fill each descriptor with an available buffer, write <code>RDBAL/RDBAH/RDLEN</code>, <code>RDH = 0</code>, <code>RDT = N-1</code></li>
+<li>Configure interrupts: <code>IMS = TXDONE | RXAVAIL | ERR</code>; set <code>ITR</code> if desired</li>
+<li>Enable: <code>CTRL = EN | TXEN | RXEN</code></li>
+<li>Confirm <code>STATUS.RUNNING = 1</code> and <code>LINK_UP = 1</code></li>
+</ol>
+<h3 id="62-transmit">6.2 Transmit</h3>
+<ol>
+<li>The driver places the packet in a buffer and fills <code>desc[TDT]</code>: <code>addr</code>, <code>len</code>, <code>flags = EOP | RS</code>, clears <code>status.DD</code></li>
+<li>Write barrier (wmb) so descriptor contents are visible before the doorbell</li>
+<li>Advance <code>TDT</code> and write <code>TDT</code> (doorbell)</li>
+<li>Device: consumes from <code>TDH</code> to <code>TDT</code>, DMA-reads the buffer and transmits, sets <code>status.DD</code>, advances <code>TDH</code>; if <code>RS</code> is set, sets <code>ICR.TXDONE</code> and raises MSI (subject to IMS / ITR)</li>
+<li>The driver cleans TX in NAPI / ISR: scans <code>DD = 1</code> from <code>next_to_clean</code>, frees the buffer / skb, advances <code>next_to_clean</code></li>
+<li>When the ring is full the driver stops the queue (<code>netif_stop_queue</code>) and resumes after completions</li>
+</ol>
+<h3 id="63-receive">6.3 Receive</h3>
+<ol>
+<li>The driver posts available buffers: fill <code>desc[i].addr</code>, clear <code>DD</code>; set <code>RDT</code> to the last available index</li>
+<li>On packet arrival the device writes into the buffer at <code>RDH</code>, sets <code>len</code>, <code>flags = EOP</code>, <code>status.DD</code>, advances <code>RDH</code>; sets <code>ICR.RXAVAIL</code> and raises MSI (subject to IMS / ITR)</li>
+<li>The driver processes (by polling / after interrupt): scans <code>DD = 1</code> from <code>next_to_clean</code>, builds an skb and hands it to the network stack, allocates a new buffer, clears DD, advances <code>RDT</code> (doorbell to repost)</li>
+<li>With no free buffers the device sets <code>ICR.RXEMPTY</code>, drops the packet, and increments <code>STAT_RXDROP</code></li>
+</ol>
+<h3 id="64-interrupt-handling">6.4 Interrupt handling</h3>
+<ol>
+<li>After MSI fires, the ISR reads <code>ICR</code> (clear-on-read) to obtain the pending causes</li>
+<li>For <code>RXAVAIL</code> or <code>TXDONE</code>: mask those causes with <code>IMC</code> and call <code>napi_schedule()</code></li>
+<li>NAPI poll cleans TX / receives RX; when work done is below budget it calls <code>napi_complete_done()</code> and re-enables interrupts via <code>IMS</code>; after re-enabling, re-check the ring and reschedule if work remains (to avoid the NAPI-completion lost-interrupt race)</li>
+<li><code>ITR</code> bounds the minimum inter-interrupt interval to reduce overhead at high packet rates</li>
+</ol>
+<h3 id="65-completion-notification">6.5 Completion notification</h3>
+<ul>
+<li>Baseline: the device signals completion by interrupt (throttled by <code>ITR</code>); the driver uses NAPI to switch between interrupt and polling (interrupt arrives -&gt; <code>IMC</code> mask and poll -&gt; <code>IMS</code> re-enable when drained), which is itself a hybrid of interrupt and polling.</li>
+<li>"Forced fixed mode (pure interrupt / pure polling / adaptive) + three-mode benchmark comparison" is an advanced item (TODO backlog A2, which introduces the <code>MODE</code> register).</li>
+</ul>
+<h3 id="66-teardown-reset">6.6 Teardown / Reset</h3>
+<ul>
+<li>Pause: <code>CTRL.EN = 0</code> (stops TX/RX)</li>
+<li>Full reset: <code>CTRL.RST = 1</code>, resets ring pointers and statistics</li>
+</ul>
+<h3 id="67-change-mtu">6.7 Change MTU</h3>
+<p>Changing the MTU changes the maximum frame size and therefore the required RX buffer size, so the RX path must be reconfigured. Recommended driver sequence (<code>ndo_change_mtu</code>):
+1. Validate the requested MTU is within <code>[VN_MTU_MIN, VN_MTU_MAX]</code> (68 .. 9000)
+2. If the interface is down, record the new MTU and return; it takes effect on the next open
+3. If up, quiesce <strong>both</strong> sides (they are complementary, not alternatives):
+   - <strong>Engine side (stops DMA)</strong>: clear <code>CTRL.RXEN</code> and <code>CTRL.TXEN</code>. This halts the NIC's RX/TX DMA engines and makes the buffers safe to free
+   - <strong>Driver/stack side (stops concurrency)</strong>: stop the TX queue with <code>netif_tx_disable()</code> (the stack then issues no new <code>ndo_start_xmit</code>), call <code>napi_disable()</code> to stop the poll, mask interrupts via <code>IMC</code>, and <code>synchronize_irq()</code> to let any in-flight ISR finish
+   - Note: stopping the queue and <code>napi_disable()</code> alone do <strong>not</strong> stop RX DMA — the RX engine keeps writing posted buffers until <code>RXEN</code> is cleared
+4. Reclaim and free the existing RX buffers and reset the RX descriptors
+5. Compute <code>MAXFRM = MTU + 18</code> and write <code>MAXFRM</code>
+6. Reallocate RX buffers of at least <code>MAXFRM</code> bytes, repost them, and reset <code>RDH = 0</code>, <code>RDT = N-1</code>
+7. Re-enable: set <code>CTRL.RXEN</code> / <code>CTRL.TXEN</code>, <code>napi_enable</code>, re-enable interrupts via <code>IMS</code>, and wake the queue
+8. Update the interface MTU</p>
+<p>Notes:
+- TX must also be able to send frames up to the new <code>MAXFRM</code>. Whether TX <em>buffers</em> are reallocated depends on the TX model:
+  - Zero-copy / skb model (Level 2 netdev): TX descriptors point directly at each skb's own data (DMA-mapped per packet), so there is no pre-allocated TX buffer pool to resize; the stack simply produces larger skbs. No TX buffer reallocation is required.
+  - Copy model (Level 1 char device): if the driver copies payloads into pre-allocated fixed-size TX buffers, those are sized to the MTU and must be reallocated together with the RX buffers (steps 4 and 6).
+- RX always requires reallocation, because buffers are posted <em>before</em> packets arrive and must be pre-sized for the new maximum frame
+- Jumbo frames (MTU up to 9000) require buffers up to ~9 KiB; ensure the buffer allocator can satisfy this
+- A new MTU only takes effect after this reconfiguration; in-flight RX descriptors sized for the old MTU must be drained or discarded first</p>
+<hr>
+<h2 id="7-programming-flow-pseudocode">7. Programming Flow Pseudocode</h2>
+<pre><code class="language-text">init():
+    assert read32(ID) == 0x564E3130
+    write32(CTRL, RST); wait until (read32(CTRL) &amp; RST) == 0
+    write32(MAC_LO, mac_lo); write32(MAC_HI, mac_hi | AV)
+    alloc tx_ring/rx_ring (256-byte aligned, N power-of-two)
+    write32(TDBAL/TDBAH/TDLEN); write32(TDT, 0)
+    for i in 0..N-1: rx_desc[i].addr = buf[i]; rx_desc[i].status = 0
+    write32(RDBAL/RDBAH/RDLEN); write32(RDT, N-1)
+    write32(IMS, TXDONE|RXAVAIL|ERR); write32(ITR, itr_us)
+    write32(CTRL, EN|TXEN|RXEN)
+
+xmit(pkt):
+    if ring_full(): stop_queue(); return BUSY
+    d = tx_desc[tdt]
+    d.addr = dma(pkt); d.len = pkt.len; d.flags = EOP|RS; d.status = 0
+    wmb()
+    tdt = (tdt + 1) % N; write32(TDT, tdt)
+
+isr():
+    cause = read32(ICR)            # read-to-clear
+    if cause &amp; (RXAVAIL|TXDONE):
+        write32(IMC, RXAVAIL|TXDONE)   # mask while polling
+        napi_schedule()
+
+poll(budget):
+    clean_tx()                     # free desc with DD set
+    n = clean_rx(budget)           # build skb for desc with DD set, refill, bump RDT
+    if n &lt; budget:
+        napi_complete()
+        write32(IMS, RXAVAIL|TXDONE)   # re-enable, then re-check ring
+    return n
+</code></pre>
+<hr>
+<h2 id="8-level-1-vs-level-2-implementation-mapping">8. Level 1 vs Level 2 Implementation Mapping</h2>
+<p>Level 1 and Level 2 expose the <strong>same netdev driver</strong> — a single <code>vnic0</code> interface with the full real-NIC structure (<code>net_device</code> ops + NAPI + TX/RX descriptor rings + interrupt). Only the "device" behind the rings differs: an in-kernel engine (Level 1) vs the QEMU model (Level 2). Moving from Level 1 to Level 2 is therefore mostly swapping the engine for QEMU, not rewriting the driver.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Spec element</th>
+<th>Level 1 (kernel-only engine)</th>
+<th>Level 2 (QEMU PCI device)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Upper interface</td>
+<td>netdev <code>vnic0</code> (real-NIC structure)</td>
+<td>netdev <code>vnic0</code> (same driver)</td>
+</tr>
+<tr>
+<td>Register access</td>
+<td>module struct fields (fake registers)</td>
+<td>real MMIO, <code>readl/writel</code> &lt;-&gt; QEMU read/write callback</td>
+</tr>
+<tr>
+<td><code>addr</code></td>
+<td>kernel buffer pointer / token</td>
+<td>guest physical address (DMA)</td>
+</tr>
+<tr>
+<td>Doorbell (TDT/RDT write)</td>
+<td>wakes the engine kthread</td>
+<td>MMIO write triggers QEMU handling</td>
+</tr>
+<tr>
+<td>Descriptor DMA</td>
+<td>direct memory access</td>
+<td><code>pci_dma_read</code> / <code>pci_dma_write</code></td>
+</tr>
+<tr>
+<td>Interrupt</td>
+<td>workqueue simulation</td>
+<td>MSI (<code>msi_notify</code>)</td>
+</tr>
+<tr>
+<td>TX path</td>
+<td><code>ndo_start_xmit</code> -&gt; TX ring -&gt; engine</td>
+<td><code>ndo_start_xmit</code> -&gt; TX ring -&gt; QEMU</td>
+</tr>
+<tr>
+<td>RX source</td>
+<td>engine loops the frame back into the RX ring</td>
+<td>QEMU <code>receive()</code> from backend / host</td>
+</tr>
+<tr>
+<td>Reachability</td>
+<td>ICMP + TCP/UDP via internal loopback</td>
+<td>real ping + TCP/UDP to the host</td>
+</tr>
+</tbody>
+</table></div>
+<p>The single VN1000 engine acts as an <strong>internal loopback</strong> (a mode real NICs provide for self-test): a transmitted frame is looped back into the RX ring with its <strong>source/destination IP swapped (L4 ports kept)</strong> — snull-inspired — and completed via the simulated interrupt + NAPI, so <code>vnic0</code> is reachable without external hardware or a second interface.</p>
+<ul>
+<li>Swapping only the IP addresses (not the ports) re-orders the same 16-bit words, so the <strong>IP and TCP/UDP checksums stay valid</strong> — no recomputation needed.</li>
+<li><strong>Setup</strong>: give <code>vnic0</code> a local IP <code>A</code>; the fictional peer <code>B</code> is another address on the same subnet, not assigned to any interface. Traffic to <code>B</code> is non-local so it routes out <code>vnic0</code>; the engine swaps it to arrive at <code>A</code>.</li>
+<li><strong>ICMP</strong>: <code>ping B</code> works (the kernel answers).</li>
+<li><strong>TCP/UDP</strong>: run the server bound to <code>0.0.0.0</code> (or <code>A</code>) and point the client at <code>B</code> (e.g. <code>iperf -s</code> then <code>iperf -c B</code>). The IP-swap delivers the client's <code>B</code>-targeted packets to the server on <code>A</code>, and replies back. The client must target <code>B</code>, not <code>A</code> / localhost (those route via <code>lo</code> and bypass <code>vnic0</code>).</li>
+<li><strong>L2 / ARP</strong>: the kernel must resolve <code>B</code>'s MAC before sending. Since <code>B</code> does not exist, either (a) add a static neighbor entry (<code>ip neigh replace B lladdr &lt;fake-mac&gt; dev vnic0 nud permanent</code>) so no ARP is sent, or (b) have the engine answer ARP requests for <code>B</code> (fabricate the reply). When looping a frame back, the engine sets the RX frame's <strong>destination MAC to <code>vnic0</code>'s own MAC</strong> (so <code>eth_type_trans</code> marks it <code>PACKET_HOST</code> and delivers it) and the source MAC to <code>B</code>'s (fake) MAC.</li>
+<li><strong>rp_filter</strong>: keep <code>B</code> on <code>vnic0</code>'s subnet so strict reverse-path filtering passes (otherwise set <code>vnic0</code>'s <code>rp_filter</code> to loose / 0). The IP swap also keeps the looped-back source non-local, avoiding a martian-source drop.</li>
+</ul>
+<p>Both the device and the driver share <code>include/vnic_regs.h</code>, ensuring offset / bit definitions stay consistent.</p>
+<hr>
+<h2 id="9-constants-summary-source-for-includevnic_regsh">9. Constants Summary (source for include/vnic_regs.h)</h2>
+<pre><code class="language-c">/* PCI */
+#define VN_PCI_VENDOR_ID   0x1234
+#define VN_PCI_DEVICE_ID   0x11E9
+
+/* identity */
+#define VN_ID_MAGIC        0x564E3130  /* &quot;VN10&quot; */
+
+/* registers (BAR0 offset) */
+#define VN_REG_ID          0x0000
+#define VN_REG_VERSION     0x0004
+#define VN_REG_CAP         0x0008
+#define VN_REG_CTRL        0x0010
+#define VN_REG_STATUS      0x0014
+#define VN_REG_MAC_LO      0x0018
+#define VN_REG_MAC_HI      0x001C
+#define VN_REG_MAXFRM      0x0020
+#define VN_REG_TDBAL       0x0100
+#define VN_REG_TDBAH       0x0104
+#define VN_REG_TDLEN       0x0108
+#define VN_REG_TDH         0x010C
+#define VN_REG_TDT         0x0110
+#define VN_REG_RDBAL       0x0200
+#define VN_REG_RDBAH       0x0204
+#define VN_REG_RDLEN       0x0208
+#define VN_REG_RDH         0x020C
+#define VN_REG_RDT         0x0210
+#define VN_REG_ICR         0x0300
+#define VN_REG_ICS         0x0304
+#define VN_REG_IMS         0x0308
+#define VN_REG_IMC         0x030C
+#define VN_REG_ITR         0x0310
+
+/* CTRL bits */
+#define VN_CTRL_EN         (1u &lt;&lt; 0)
+#define VN_CTRL_RST        (1u &lt;&lt; 1)
+#define VN_CTRL_TXEN       (1u &lt;&lt; 2)
+#define VN_CTRL_RXEN       (1u &lt;&lt; 3)
+#define VN_CTRL_PROMISC    (1u &lt;&lt; 4)
+
+/* STATUS bits */
+#define VN_STATUS_RUNNING  (1u &lt;&lt; 0)
+#define VN_STATUS_LINK_UP  (1u &lt;&lt; 1)
+
+/* interrupt cause / mask bits */
+#define VN_INT_TXDONE      (1u &lt;&lt; 0)
+#define VN_INT_RXAVAIL     (1u &lt;&lt; 1)
+#define VN_INT_RXEMPTY     (1u &lt;&lt; 2)
+#define VN_INT_ERR         (1u &lt;&lt; 3)
+
+/* MAC_HI */
+#define VN_MAC_HI_AV       (1u &lt;&lt; 31)
+
+/* descriptor TX flags */
+#define VN_TXF_EOP         (1u &lt;&lt; 0)
+#define VN_TXF_RS          (1u &lt;&lt; 1)
+#define VN_TXF_IC          (1u &lt;&lt; 2)
+
+/* descriptor RX flags */
+#define VN_RXF_EOP         (1u &lt;&lt; 0)
+#define VN_RXF_ERR         (1u &lt;&lt; 1)
+
+/* descriptor status */
+#define VN_DESC_DD         (1u &lt;&lt; 0)
+
+/* frame / MTU */
+#define VN_FRAME_OVERHEAD  18         /* 14-byte header + 4-byte FCS */
+#define VN_MAXFRM_DEFAULT  1518       /* MTU 1500 + overhead */
+#define VN_MTU_MIN         68
+#define VN_MTU_MAX         9000
+</code></pre>
+<p class="footnote">Generated from <code>vn1000-datasheet.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

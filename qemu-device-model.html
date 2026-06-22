@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QEMU Device Model - background for Level 2</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>QEMU Device Model - background for Level 2</h1>
+<div class="meta"><span>2026-06-12</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="qemu-device-model-background-for-level-2">QEMU Device Model (background for Level 2)</h1>
+<p>Level 2 replaces the in-kernel fake engine with a <strong>real emulated PCIe device</strong> inside QEMU
+(<code>qemu-device/vnic.c</code>) talking to the same netdev driver over <strong>real MMIO / DMA / MSI</strong>. This note
+answers: how QEMU emulates the device, and for each guest action (config access, MMIO, DMA,
+interrupt) <em>which QEMU callback runs</em> and <em>how the guest side is wired</em>. Every QEMU hook here has a
+Level 1 analogue we already built, so the mental model carries over.</p>
+<blockquote>
+<p>API names match QEMU's device API (the version pinned to the guest's current QEMU - currently
+<strong>6.2</strong>; see qemu-build.md step 1). Guest side is the in-tree Linux PCI/DMA/IRQ API.</p>
+</blockquote>
+<h2 id="how-to-construct-a-qemu-pcie-nic-device">How to construct a QEMU PCIe NIC device</h2>
+<p>The anatomy of a QEMU emulated PCIe NIC, in the order you build it. Each step points to the deep-dive
+section below and to the real implementation in <a href="../qemu-device/vnic.c"><code>qemu-device/vnic.c</code></a>
+(built up across Phases 8-10). The minimum for "appears in <code>lspci</code>" is steps 1-2; a working datapath
+adds 3-5; a real backend adds 6.</p>
+<ol>
+<li><strong>Define the QOM type</strong> (section 1). An instance struct whose <strong>first member is <code>PCIDevice</code></strong>, a
+   <code>TypeInfo</code> with <code>.parent = TYPE_PCI_DEVICE</code>, and a <code>class_init</code> that sets the PCI identity
+   (<code>vendor_id</code>/<code>device_id</code>/<code>class_id = PCI_CLASS_NETWORK_ETHERNET</code>) and the <code>realize</code>/<code>exit</code> hooks.
+   Register with <code>type_init()</code>. From the IDs QEMU synthesises the PCI config space, so the guest can
+   enumerate it.
+   <code>c
+   struct VNICState { PCIDevice pdev; MemoryRegion mmio; uint32_t regs[...]; /* + backend */ };
+   static void vnic_class_init(ObjectClass *klass, void *data) {
+       PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+       k-&gt;realize = vnic_realize; k-&gt;exit = vnic_exit;
+       k-&gt;vendor_id = ...; k-&gt;device_id = ...; k-&gt;class_id = PCI_CLASS_NETWORK_ETHERNET;
+   }</code></li>
+<li><strong><code>realize()</code> is the constructor</strong> (sections 1, 3, 5). It runs when the device is plugged in:
+   create the register <strong>BAR</strong> as a <code>MemoryRegion</code> and <code>pci_register_bar()</code> it; <code>msi_init()</code> the
+   interrupt; (real NIC) create the backend; then reset the register file. <code>exit()</code> undoes it.</li>
+<li><strong>BAR MMIO registers</strong> (section 3). Give the BAR <code>MemoryRegionOps { .read, .write }</code> with a fixed
+   access size; the callbacks are <em>the device's register logic</em> - read-only IDs, RW config, the
+   <code>TDT</code>/<code>RDT</code> <strong>doorbells</strong>, read-to-clear <code>ICR</code>, RW1S/RW1C <code>IMS</code>/<code>IMC</code>. A guest <code>readl/writel</code>
+   traps here at the physical BAR address.</li>
+<li><strong>DMA to/from guest memory</strong> (section 4). The device autonomously reaches the buffers the driver
+   prepared with <code>pci_dma_read()</code> / <code>pci_dma_write()</code> at the <strong>bus addresses the driver programmed</strong>
+   (descriptor ring bases, <code>vn_desc.addr</code>); needs the guest to have set <strong>bus-master</strong>. No guest
+   callback fires for DMA - the handshake is the descriptor <code>DD</code> bit (+ barriers).</li>
+<li><strong>Interrupt</strong> (section 5). <code>msi_init()</code> in <code>realize</code>; raise a completion with <code>msi_notify()</code>
+   (gated by the device's own <code>ICR &amp; IMS</code> mask). Physically an MSI is just a memory write to the
+   LAPIC address, which the APIC turns into a vCPU vector.</li>
+<li><strong>NIC backend - only for a <em>real</em> NIC</strong> (section 6 + D-30). To move frames off the box, add
+   <code>NICConf conf</code> + <code>NICState *nic</code>, a <code>NetClientInfo { .can_receive, .receive }</code>, and create it with
+   <code>qemu_new_nic()</code> in <code>realize</code>. <strong>TX</strong>: send a frame out with <code>qemu_send_packet()</code>. <strong>RX</strong>: the
+   backend calls your <code>.receive()</code> - DMA the frame into the RX ring and raise the interrupt;
+   <code>.can_receive()</code> + <code>qemu_flush_queued_packets()</code> are the RX-flow-control. <code>DEFINE_NIC_PROPERTIES</code>
+   exposes <code>mac=</code>/<code>netdev=</code>. (The VN1000 keeps an internal-loopback mode too - <code>loopback=on</code>, the
+   default - so it needs no backend to run the test suite.)</li>
+<li><strong>Properties + reset</strong>. <code>DEFINE_PROP_*</code> + <code>device_class_set_props()</code> for <code>-device vnic,&lt;opt&gt;=...</code>;
+   a reset hook (<code>dc-&gt;reset</code>) to restore the power-on register state on machine reset / <code>CTRL.RST</code>.</li>
+<li><strong>Build it into QEMU</strong>. Drop the file in <code>hw/net/</code>, add a one-line meson + Kconfig hook, and build
+   a self-built QEMU (no out-of-tree device ABI) - see <a href="qemu-build.html">qemu-build.md</a>.</li>
+</ol>
+<p>The rest of this note is the per-action reference: which callback each guest operation hits, and its
+Level 1 analogue.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+  participant D as Guest driver
+  participant Q as QEMU vnic device
+  participant M as Guest memory
+  participant V as vCPU / APIC
+
+  D-&gt;&gt;M: dma_alloc_coherent ring + dma_map_single buffers (get dma_addr)
+  D-&gt;&gt;Q: writel(TDT) on the BAR (an MMIO store)
+  Note over Q: BAR MemoryRegionOps.write callback runs
+  Q-&gt;&gt;M: pci_dma_read descriptor + packet at dma_addr
+  Q-&gt;&gt;M: pci_dma_write status DD = 1
+  Q-&gt;&gt;V: msi_notify(vector) - a memory write to the LAPIC MSI address
+  V-&gt;&gt;D: the request_irq handler runs -&gt; napi_schedule
+  D-&gt;&gt;M: NAPI poll reads DD + packet (dma_rmb / dma_sync)
+</code></pre>
+<hr>
+<h2 id="1-how-qemu-emulates-a-pcie-device-and-how-the-guest-probes-it">1. How QEMU emulates a PCIe device, and how the guest probes it</h2>
+<p><strong>QEMU side.</strong> A device is a <strong>QOM</strong> (QEMU Object Model) type whose parent is <code>TYPE_PCI_DEVICE</code> and
+whose instance struct embeds a <code>PCIDevice</code>:</p>
+<pre><code class="language-c">struct VNICState { PCIDevice pdev; MemoryRegion mmio; ... };
+
+static void vnic_class_init(ObjectClass *klass, void *data)
+{
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+    k-&gt;realize   = vnic_realize;          /* called when the device is plugged in */
+    k-&gt;vendor_id = PCI_VENDOR_ID_...;     /* shows up at config offset 0x00 */
+    k-&gt;device_id = 0x....;
+    k-&gt;class_id  = PCI_CLASS_NETWORK_ETHERNET;
+}
+static const TypeInfo vnic_info = {
+    .name = &quot;vnic&quot;, .parent = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(VNICState), .class_init = vnic_class_init,
+    .interfaces = (InterfaceInfo[]){ { INTERFACE_PCIE_DEVICE }, { } },  /* PCIe endpoint */
+};
+</code></pre>
+<p><code>vnic_realize()</code> sets up the BARs (section 3), MSI (section 5) and the NIC backend. From the
+ID/BAR/capability registrations QEMU synthesises the device's <strong>PCI config space</strong> (256 B legacy,
+4 KiB extended for PCIe). Plugging it onto a <code>q35</code> machine's PCIe bus makes it a PCIe endpoint.</p>
+<p><strong>Guest side / probe.</strong> On boot the guest's PCI subsystem <strong>enumerates</strong> the bus by reading config
+space: vendor/device ID at offset 0, then it <strong>sizes each BAR</strong> (write all-ones, read back the
+size mask), assigns it a guest-physical address, and sets the <strong>Command</strong> register bits (memory
+decode, bus-master). A driver registers an ID table; when it matches, <code>.probe</code> runs:</p>
+<pre><code class="language-c">static const struct pci_device_id vnic_ids[] = { { PCI_DEVICE(VENDOR, DEVICE) }, { 0 } };
+static struct pci_driver vnic_pci = { .name=&quot;vnic&quot;, .id_table=vnic_ids, .probe=vnic_probe, ... };
+/* probe: pci_enable_device -&gt; pci_request_regions -&gt; pci_iomap(BAR0) -&gt; dma_set_mask
+ *        -&gt; pci_alloc_irq_vectors(MSI) + request_irq -&gt; alloc_etherdev/register_netdev */
+</code></pre>
+<p><em>L1 analogue:</em> <code>vnic_hal_init()</code> allocated the fake register block and "appeared"; here QEMU + the
+PCI bus make the device appear and the kernel calls <code>probe()</code>.</p>
+<h3 id="11-what-this-looks-like-on-the-host-one-process-vcpu-threads">1.1 What this looks like on the host (one process, vCPU threads)</h3>
+<p>A useful mental check: on the host you see <strong>one</strong> QEMU process (a PID), but there is <strong>no separate
+"guest PID"</strong> - the guest is <strong>not</strong> another host process, it <strong>is</strong> the QEMU process. Each guest
+<strong>vCPU is a thread</strong> inside that process, not a process of its own.</p>
+<pre><code class="language-bash">ps aux | grep qemu-system-x86_64     # one PID, e.g. 12345
+ps -T -p 12345                       # its threads (or: top -H -p 12345, htop thread view)
+ls /proc/12345/task/                 # one sub-dir per thread (TID)
+</code></pre>
+<p><code>ps -T</code> shows roughly:</p>
+<pre><code class="language-text">  PID  SPID  CMD
+12345 12345  qemu-system-x86_64      &lt;- QEMU main loop (event loop / BQL)
+12345 12346  CPU 0/KVM               &lt;- vCPU 0 thread
+12345 12347  CPU 1/KVM               &lt;- vCPU 1 thread   (we boot -smp 2)
+12345 12350  ...                     &lt;- worker threads (AIO / virtio / etc.)
+</code></pre>
+<p>Why it is shaped this way:</p>
+<ul>
+<li><strong>One process, vCPUs as threads.</strong> Each vCPU thread runs <code>ioctl(KVM_RUN)</code> on its vCPU fd and enters
+  guest code on a host CPU (VMX non-root). To the host scheduler it is just a thread burning CPU - so
+  QEMU's CPU% rises with the guest's load.</li>
+<li><strong>Guest RAM is host memory.</strong> The guest's <code>-m 2048</code> is an anonymous mmap in QEMU's address space -
+  visible as one large mapping in <code>/proc/&lt;pid&gt;/maps</code> (<code>smaps</code>).</li>
+<li><strong>Our device runs in that process.</strong> A guest <code>writel(TDT)</code> traps (VM-exit) -&gt; the host <code>KVM</code> module
+  -&gt; back out to <strong>QEMU userspace</strong> on a vCPU thread, which runs <code>vnic_mmio_write</code> (under the BQL).
+  <code>pci_dma_*</code> then reads/writes the guest-RAM mapping directly, and <code>msi_notify</code> injects the vector
+  back via KVM.</li>
+</ul>
+<p>So the slide/architecture bands map onto real OS objects: <strong>"HOST userspace - QEMU process"</strong> is that
+one PID; <strong>"GUEST (VM)"</strong> is not another PID but the <strong>vCPU threads + the guest-RAM mapping</strong> of the
+same process.</p>
+<blockquote>
+<p>WSL2 note: WSL2 is itself a lightweight Hyper-V VM, so "host" here means the Linux inside WSL2; QEMU
+runs there and uses <strong>nested</strong> KVM to run the guest. The process/thread picture above is unchanged.</p>
+</blockquote>
+<hr>
+<h2 id="2-config-space-access-which-qemu-callback">2. Config-space access -&gt; which QEMU callback</h2>
+<p><strong>Guest side.</strong> The kernel reads/writes config space with <code>pci_read_config_dword()</code> etc. On x86
+those go through the host-bridge mechanism - legacy <strong>CF8/CFC</strong> I/O ports, or <strong>MMCONFIG/ECAM</strong> for
+PCIe extended config. Most config writes are done <em>by the PCI core</em>, not our driver: BAR sizing,
+the Command register, and enabling MSI.</p>
+<p><strong>QEMU callback.</strong> The host bridge routes the trapped access to the device's config accessors in
+<code>PCIDeviceClass</code>:</p>
+<pre><code class="language-c">uint32_t (*config_read)(PCIDevice *d, uint32_t addr, int len);
+void     (*config_write)(PCIDevice *d, uint32_t addr, uint32_t val, int len);
+</code></pre>
+<p>The defaults are <code>pci_default_read_config</code> / <code>pci_default_write_config</code>, which operate on
+<code>d-&gt;config[]</code> honouring the <code>wmask</code>/<code>w1cmask</code> tables. <code>pci_default_write_config</code> already implements
+the important side effects: <strong>BAR programming</strong> and Command-register changes call
+<code>pci_update_mappings()</code> to map/unmap the BAR <code>MemoryRegion</code>s into guest address space, and
+<strong>MSI/MSI-X capability</strong> writes are handled by <code>msi_write_config()</code> (this is where the guest's
+"enable MSI + here is my address/data" lands). A device overrides <code>config_write</code> only to react to
+its own config side effects (then usually calls <code>pci_default_write_config</code> first).</p>
+<p><em>Takeaway:</em> for VN1000 we likely <strong>do not</strong> override config access - the defaults handle BAR
+mapping and MSI-enable. Our registers live in the BAR (MMIO), not config space.</p>
+<hr>
+<h2 id="3-mmio-bar-access-which-qemu-callback">3. MMIO (BAR) access -&gt; which QEMU callback</h2>
+<p><strong>QEMU side.</strong> In <code>realize</code> the device creates a <code>MemoryRegion</code> with I/O ops and registers it as a
+BAR:</p>
+<pre><code class="language-c">static const MemoryRegionOps vnic_mmio_ops = {
+    .read  = vnic_mmio_read,            /* &lt;- guest load from the BAR lands here */
+    .write = vnic_mmio_write,           /* &lt;- guest store to the BAR lands here  */
+    .endianness = DEVICE_LITTLE_ENDIAN,
+    .valid.min_access_size = 4, .valid.max_access_size = 4,
+};
+memory_region_init_io(&amp;s-&gt;mmio, OBJECT(s), &amp;vnic_mmio_ops, s, &quot;vnic-mmio&quot;, VN_BAR0_SIZE);
+pci_register_bar(&amp;s-&gt;pdev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY, &amp;s-&gt;mmio);
+</code></pre>
+<p>After the guest assigns the BAR and enables memory decoding, that BAR is mapped into guest-physical
+space but is <strong>not backed by RAM</strong>, so every load/store traps and the memory subsystem dispatches
+to <code>vnic_mmio_read(opaque, addr, size)</code> / <code>vnic_mmio_write(opaque, addr, value, size)</code>, where
+<code>addr</code> is the <strong>offset within the BAR</strong> (i.e. our <code>VN_REG_*</code>).</p>
+<p><strong>Guest side.</strong> The driver does <code>regs = pci_iomap(pdev, 0, 0)</code> then <code>readl(regs + off)</code> /
+<code>writel(val, regs + off)</code>. So <code>vnic_hal_rd32/wr32</code> (which on L1 were a switch over the fake array)
+become <code>readl</code>/<code>writel</code>, and the matching switch now lives in <code>vnic_mmio_read/write</code> on the QEMU
+side.</p>
+<p><em>L1 analogue:</em> <code>vnic_mmio_write</code> <strong>is</strong> the Level-1 <code>vn_wr32()</code> switch - the <code>TDT</code>/<code>RDT</code> doorbell
+cases, <code>ICS</code>/<code>IMS</code>/<code>IMC</code> semantics, etc. - only now triggered by a real guest MMIO store instead of
+a direct function call.</p>
+<p><strong>FAQ - does the callback fire if the driver dereferences the <code>pci_iomap</code> pointer directly instead
+of using <code>readl</code>/<code>writel</code>?</strong> Yes - the trap is at the <strong>physical MMIO address</strong>, not at the
+accessor. KVM maps the BAR region to fault out to QEMU (TCG routes it via softmmu), so <em>any</em> CPU
+load/store that actually reaches that address dispatches to <code>vnic_mmio_read/write</code>, however the C
+was written; <code>readl</code>/<code>writel</code> do not "notify" QEMU, they just emit a CPU load/store. <strong>But the
+driver must still use <code>readl</code>/<code>writel</code></strong>: a raw dereference may be elided / merged / reordered by the
+compiler (then no access is emitted, so the callback never runs - a <em>silent</em> failure), may use the
+wrong access width (the device rejects sizes outside <code>valid.min/max_access_size</code>), and lacks the
+ordering / endianness guarantees the datapath relies on. See background-knowledge.md topic 5.</p>
+<h3 id="31-what-the-device-actually-does-on-a-special-behaviour-write">3.1 What the device <em>actually does</em> on a special-behaviour write</h3>
+<p><code>vnic_mmio_write</code> <strong>is</strong> the device's register logic. Most registers are plain RW (stored verbatim -
+<code>vnic_reg_is_rw</code>) or RO (writes ignored); a few have side effects. Here is what those writes make the
+VN1000 model do (<a href="../qemu-device/vnic.c"><code>qemu-device/vnic.c</code></a>):</p>
+<p><strong><code>CTRL</code> (0x10) write - and how the device answers through <code>STATUS</code>.</strong> Writing <code>CTRL</code> is the driver's
+<em>only</em> lever at init / teardown; the device reflects the outcome back through the <strong>read-only
+<code>STATUS</code></strong> register (the driver never writes <code>STATUS</code>), which is the control/status split of a real
+datasheet (section 4.4 / 4.5):
+- <code>CTRL.RST</code> -&gt; a <strong>self-clearing software reset</strong> (<code>vnic_reset</code>): the register file returns to its
+  power-on defaults and the bit reads back 0 (mirrors a real NIC's "write RST, poll until it clears").
+- <code>CTRL.EN</code> set -&gt; the device comes up and asserts <strong><code>STATUS.RUNNING | STATUS.LINK_UP</code></strong>; clearing EN
+  tears them down. So the init handshake is literally <em>driver writes <code>CTRL.EN</code>, then the device drives
+  <code>STATUS.RUNNING/LINK_UP</code></em> - the driver can poll <code>STATUS</code> to confirm the device (and "link") is up.
+- <code>CTRL.RXEN</code> newly set (tap mode) -&gt; the device re-arms the backend's RX delivery
+  (<code>qemu_flush_queued_packets</code>); while RXEN was clear <code>can_receive()</code> returned false (lessons-learned
+  L-08).</p>
+<p>So <strong>yes - <code>STATUS</code> is the device's response channel</strong>: it is RO to the driver and entirely
+device-driven (<code>RUNNING</code>/<code>LINK_UP</code> follow <code>CTRL.EN</code>). There is no ack written back into <code>CTRL</code> itself
+beyond <code>RST</code> self-clearing.</p>
+<p><strong><code>TDT</code> write = the TX doorbell -&gt; it kicks the engine.</strong> Storing <code>TDT</code> then calls
+<code>vnic_engine_run()</code>, which walks every pending descriptor in <code>TDH..TDT</code>:
+1. <code>pci_dma_read</code> the descriptor, then the packet at <code>vn_desc.addr</code>;
+2. <em>loopback mode:</em> IP-swap it and <code>pci_dma_write</code> it into the RX slot at <code>RDH</code> (<strong>data before
+   <code>DD</code></strong>, D-21), set that RX descriptor's <code>DD</code>, advance <code>RDH</code>; <em>tap mode:</em> <code>qemu_send_packet</code> it to
+   the backend;
+3. set the TX descriptor's <strong><code>DD</code></strong> and <code>pci_dma_write</code> it back, advance <code>TDH</code>;
+4. after the loop, raise <code>TXDONE</code> (plus <code>RXAVAIL</code> in loopback) in <code>ICR</code> and <code>msi_notify()</code> if unmasked.</p>
+<p>So one <code>writel(TDT)</code> is what makes the device do all the DMA <em>and</em> the completion interrupt - there is
+no per-descriptor cost, the single doorbell amortises the whole burst (which is why the driver batches
+the <code>TDT</code> write, D-32).</p>
+<p><strong><code>RDT</code> write = the RX refill doorbell.</strong> The driver writes <code>RDT</code> after posting / refilling RX buffers
+to publish how far buffers are available:
+- <em>loopback mode:</em> if a prior run <strong>stalled on a full RX ring</strong> (<code>tx_stalled</code>, backpressure D-19), the
+  fresh buffers let it continue, so <code>RDT</code> re-runs <code>vnic_engine_run()</code>;
+- <em>tap mode:</em> the freed RX slots let the net core re-deliver frames <code>can_receive()</code> had paused -
+  <code>qemu_flush_queued_packets</code>.</p>
+<p>(<code>ICR</code>/<code>IMS</code>/<code>IMC</code> have their own side effects - read-to-clear <code>ICR</code>, RW1S <code>IMS</code>, RW1C <code>IMC</code> - see
+background-knowledge topic 10.)</p>
+<hr>
+<h2 id="4-device-dma-guest-memory-and-the-guest-side-setup">4. Device DMA -&gt; guest memory (and the guest-side setup)</h2>
+<p><strong>QEMU side.</strong> The device reaches guest RAM with the PCI DMA helpers - it autonomously reads/writes
+memory the driver prepared:</p>
+<pre><code class="language-c">pci_dma_read (PCIDevice *d, dma_addr_t addr, void *buf, dma_addr_t len);  /* read guest mem  */
+pci_dma_write(PCIDevice *d, dma_addr_t addr, const void *buf, dma_addr_t len); /* write guest mem */
+</code></pre>
+<p><code>addr</code> is the <strong>bus/DMA address the driver programmed into the descriptor</strong> (<code>vn_desc.addr</code>). These
+go through the device's PCI address space (<code>pci_get_address_space(d)</code>), respect the IOMMU if any,
+and only work once the guest set the <strong>bus-master</strong> bit (so the descriptor ring base TDBAL/RDBAL and
+buffer addresses must be DMA addresses, not CPU pointers - unlike L1).</p>
+<p>There is <strong>no guest callback for DMA itself</strong> - DMA is the device touching memory directly. The
+guest learns "the device finished" through the <strong>descriptor ownership handshake</strong> (the <code>DD</code> bit +
+barriers, D-21) and/or the completion <strong>MSI</strong> (section 5).</p>
+<p><strong>Guest side (the setup that makes those <code>dma_addr</code>s valid).</strong>
+- Ring (coherent): <code>dma_alloc_coherent(dev, size, &amp;ring-&gt;desc_dma, GFP_KERNEL)</code> returns a CPU
+  pointer + a <code>dma_addr_t</code> (<code>desc_dma</code>) the driver writes to <code>TDBAL/TDBAH</code> (RDBAL/RDBAH). Coherent =
+  no explicit sync needed.
+- Packet buffers (streaming): <code>dma_map_single(dev, data, len, dir)</code> returns a <code>dma_addr_t</code>; check
+  <code>dma_mapping_error()</code> (D-22). Before the device reads TX, and after it writes RX, the driver uses
+  <code>dma_sync_single_for_device</code> / <code>dma_sync_single_for_cpu</code> to hand the buffer over / take it back.
+  On x86 with no IOMMU these are no-ops (the <code>dma_addr</code> is ~the physical address), but the calls
+  are required for portability / IOMMU / bounce buffers.
+- <code>pci_set_master(pdev)</code> enables bus-master so the device may DMA at all.</p>
+<p><em>L1 analogue:</em> <code>vnic_hal_map()</code> returned the kernel pointer and the engine <code>memcpy</code>'d it; on L2 it
+returns a <code>dma_addr_t</code> and the device <code>pci_dma_read/write</code>s it. The core driver treats the token as
+opaque (D-12), so this swap needs no core change.</p>
+<hr>
+<h2 id="5-msi-the-guest-interrupt">5. MSI -&gt; the guest interrupt</h2>
+<p><strong>QEMU side.</strong> The device declares MSI in <code>realize</code> and fires it on completion:</p>
+<pre><code class="language-c">msi_init(&amp;s-&gt;pdev, /*cap offset*/ 0, /*nr_vectors*/ 1, /*msi64bit*/ true,
+         /*per_vector_mask*/ false, errp);     /* once */
+...
+if (msi_enabled(&amp;s-&gt;pdev))                      /* guest turned MSI on */
+    msi_notify(&amp;s-&gt;pdev, /*vector*/ 0);         /* raise the interrupt */
+</code></pre>
+<p>An MSI is, physically, just a <strong>memory write to a special address</strong>: <code>msi_notify()</code> writes the
+guest-programmed MSI <strong>data</strong> to the guest-programmed MSI <strong>address</strong> (the vCPU's LAPIC region,
+<code>0xFEEx_xxxx</code>); QEMU's APIC decodes that write and <strong>injects the vector into the vCPU</strong>. The
+address/data were set by the guest when it enabled MSI - those config writes were handled by
+<code>msi_write_config()</code> (section 2), so <code>msi_notify</code> already knows where to send.</p>
+<p><strong>Guest side.</strong> The driver asked for vectors and registered a handler:</p>
+<pre><code class="language-c">pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI);
+request_irq(pci_irq_vector(pdev, 0), vnic_isr, 0, &quot;vnic&quot;, priv);
+</code></pre>
+<p>When QEMU delivers the MSI, the guest's IRQ subsystem runs <code>vnic_isr</code> (the <strong>top half</strong>), which - as
+on L1 - reads <code>ICR</code>, masks via <code>IMC</code>, and <code>napi_schedule()</code>s the poll.</p>
+<p><em>L1 analogue:</em> the <strong>tasklet</strong> that was our simulated MSI (D-20) becomes a <strong>real <code>request_irq</code>
+handler</strong>; <code>vn_wr32(ICS)</code> raising the cause becomes the device calling <code>msi_notify()</code>. The
+<code>vnic_poll</code> re-arm of <code>IMS</code> (which re-fires a pending cause) maps to <code>msi_notify</code> checking
+enable/mask state.</p>
+<h3 id="51-when-the-device-raises-the-msi-the-timing-points">5.1 When the device raises the MSI (the timing points)</h3>
+<p>Every interrupt goes through one gate - <code>vnic_update_irq()</code> -&gt; <code>vnic_deliver_irq()</code> -&gt;
+<code>msi_notify()</code> - which fires <strong>only if</strong> (a) a cause is <strong>pending and unmasked</strong> (<code>ICR &amp; IMS</code>), and
+(b) the guest has <strong>enabled MSI</strong> (<code>msi_enabled</code>). Otherwise nothing fires and the cause stays
+<strong>latched in <code>ICR</code></strong>, to be delivered later when it is unmasked (mirrors the L1 ICS/IMS logic, D-20).
+On top of that, <strong>ITR moderation</strong> (D-33) paces delivery: <code>ITR = 0</code> fires immediately; <code>ITR &gt; 0</code>
+enforces a minimum gap and lets further causes coalesce into one interrupt (they accumulate in <code>ICR</code>,
+so none is lost).</p>
+<p>Within that gate, a cause is set and <code>vnic_update_irq()</code> is called at exactly these points
+(<a href="../qemu-device/vnic.c"><code>qemu-device/vnic.c</code></a>):</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>When</th>
+<th>Cause raised</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>End of a TX run</strong> - the engine drained a <code>TDT</code>-doorbell burst</td>
+<td><code>TXDONE</code> (+ <code>RXAVAIL</code> in loopback, since looped frames also land in the RX ring)</td>
+<td><code>vnic_engine_run()</code> - <strong>one</strong> MSI for the whole <code>TDH..TDT</code> batch, <em>not</em> per descriptor</td>
+</tr>
+<tr>
+<td><strong>A frame arrived from the backend</strong> (tap mode)</td>
+<td><code>RXAVAIL</code></td>
+<td><code>vnic_receive()</code>, after <code>pci_dma_write</code> of the frame + <code>DD</code></td>
+</tr>
+<tr>
+<td><strong>Driver wrote <code>ICS</code></strong> (software-raise)</td>
+<td>whatever bits it wrote</td>
+<td><code>vnic_mmio_write</code> ICS case - lets the driver self-trigger</td>
+</tr>
+<tr>
+<td><strong>Driver re-armed <code>IMS</code></strong> (RW1S) after a NAPI poll</td>
+<td><em>(no new cause)</em> - <strong>re-delivers</strong> a cause that latched while masked</td>
+<td><code>vnic_mmio_write</code> IMS case - the NAPI "mask -&gt; poll -&gt; re-arm" path</td>
+</tr>
+<tr>
+<td><strong>The ITR timer expired</strong></td>
+<td><em>(no new cause)</em> - delivers the <strong>coalesced</strong> interrupt deferred earlier</td>
+<td><code>vnic_itr_expire()</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Two things to take away. First, the device <strong>coalesces by design</strong>: the TX engine raises a single MSI
+after draining the whole submitted burst, and ITR coalesces further across events - so the interrupt
+count is far below the packet count. Second, the <strong>mask is the driver's throttle</strong>: the ISR masks with
+<code>IMC</code> and <code>napi_schedule()</code>s; while masked, <code>TXDONE</code>/<code>RXAVAIL</code> keep latching in <code>ICR</code> but raise no MSI;
+when the poll finishes and re-arms <code>IMS</code>, any still-pending cause fires once more - which is exactly
+what stops NAPI from missing a completion that arrived mid-poll.</p>
+<hr>
+<h2 id="6-the-nic-backend-choosing-it-and-how-the-device-calls-it">6. The NIC backend - choosing it, and how the device calls it</h2>
+<p>Sections 1-5 are about the <strong>guest &lt;-&gt; device</strong> edge. This section is the other edge: <strong>device &lt;-&gt;
+the outside world</strong>. A QEMU NIC is two separate objects - a device front-end (<code>-device vnic</code>) and a
+<strong>backend</strong> (<code>-netdev &lt;type&gt;,id=n0</code>), wired together with <code>netdev=n0</code>. The device is
+<strong>backend-agnostic</strong>: it talks to whatever backend through one small API, so switching tap / user /
+bridge is a command-line change, not a device change (D-30). The VN1000's <code>loopback=on</code> (default)
+uses <strong>no</strong> backend at all - it loops internally (Phase 9); <code>loopback=off</code> attaches to the <code>-netdev</code>.</p>
+<h3 id="61-how-the-device-calls-the-backend-the-nic-client-api">6.1 How the device calls the backend (the NIC client API)</h3>
+<p><strong>QEMU side.</strong> In <code>realize</code> the device creates a NIC client and gives it a <code>NetClientInfo</code> vtable:</p>
+<pre><code class="language-c">static NetClientInfo net_vnic_info = {
+    .type        = NET_CLIENT_DRIVER_NIC,
+    .size        = sizeof(NICState),
+    .can_receive = vnic_can_receive,   /* may we accept a frame right now?     */
+    .receive     = vnic_receive,       /* a frame arrived from the backend     */
+};
+/* in vnic_realize(): */
+qemu_macaddr_default_if_unset(&amp;s-&gt;conf.macaddr);
+s-&gt;nic = qemu_new_nic(&amp;net_vnic_info, &amp;s-&gt;conf, object_get_typename(OBJECT(s)), dev-&gt;id, s);
+</code></pre>
+<ul>
+<li><strong>TX (guest -&gt; world):</strong> the TX engine hands a frame to the backend with
+  <code>qemu_send_packet(qemu_get_queue(s-&gt;nic), buf, len)</code>.</li>
+<li><strong>RX (world -&gt; guest):</strong> the backend calls our <code>vnic_receive()</code>; we <code>pci_dma_write</code> the frame into
+  the RX ring, set <code>DD</code>, advance <code>RDH</code> and raise <code>RXAVAIL</code> (then <code>msi_notify</code>).</li>
+<li><strong>Flow control / backpressure:</strong> <code>can_receive()</code> returns false when we cannot take a frame; the
+  backend then <strong>pauses delivery</strong> and resumes only after the device calls
+  <code>qemu_flush_queued_packets(qemu_get_queue(s-&gt;nic))</code>. Two flush points are needed: the <code>RDT</code> refill
+  doorbell (ring had filled), <strong>and when RX is first enabled</strong> (<code>CTRL.RXEN</code>) - omitting the latter
+  leaves the backend paused forever (the Phase 10 bug, lessons-learned <strong>L-08</strong>).</li>
+<li><code>DEFINE_NIC_PROPERTIES(VNICState, conf)</code> adds the <code>mac=</code> and <code>netdev=</code> device properties.</li>
+</ul>
+<p><em>L1 analogue:</em> none - Level 1 had no external backend; its "network" was the internal loopback
+engine. The VN1000 keeps that as <code>loopback=on</code>, so <code>qemu_send_packet</code>/<code>receive()</code> are used only in
+<code>loopback=off</code> (tap) mode; the descriptor-ring + MSI half (sections 3-5) is identical either way.</p>
+<h3 id="62-choosing-the-backend-netdev-type">6.2 Choosing the backend (<code>-netdev &lt;type&gt;</code>)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th><code>-netdev</code></th>
+<th>Guest reaches the internet</th>
+<th>Host setup</th>
+<th>Host can reach guest / raw-L2 <code>tcpdump</code></th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>tap</strong></td>
+<td>not by itself (needs host routing/NAT or a bridge)</td>
+<td>create the tap; add NAT/bridge for internet</td>
+<td><strong>yes</strong> - real L2 on a host interface, bidirectional</td>
+<td>what Level 2 uses (D-25): the realistic "real NIC" path</td>
+</tr>
+<tr>
+<td><strong>user</strong> (slirp)</td>
+<td><strong>yes, zero config</strong> (built-in NAT + DHCP + DNS)</td>
+<td>none, no root</td>
+<td>no (only inbound via <code>hostfwd=</code>); no raw L2</td>
+<td>userspace TCP/IP stack inside QEMU; easiest internet</td>
+</tr>
+<tr>
+<td><strong>bridge</strong></td>
+<td>yes (first-class LAN member)</td>
+<td>a host bridge the tap joins</td>
+<td>yes</td>
+<td>full LAN presence; awkward where the host net is itself NAT'd (e.g. WSL2)</td>
+</tr>
+<tr>
+<td><strong>socket</strong></td>
+<td>n/a</td>
+<td>—</td>
+<td>VM-to-VM only</td>
+<td>connects two QEMU NICs together</td>
+</tr>
+<tr>
+<td><strong>vhost-net / vhost-user</strong></td>
+<td>yes (fast path)</td>
+<td>kernel/dpdk datapath</td>
+<td>—</td>
+<td>offloads the datapath and <strong>bypasses an emulated device</strong> - not usable with a custom model like ours</td>
+</tr>
+</tbody>
+</table></div>
+<p>The device model is the same for all of these; only the <code>-netdev</code> differs.</p>
+<h3 id="63-how-user-slirp-works-the-contrast-with-tap">6.3 How <code>user</code> (slirp) works - the contrast with tap</h3>
+<p><code>tap</code> hands <strong>raw Ethernet frames</strong> to <code>/dev/net/tun</code>, so they enter the <strong>host kernel</strong> network
+stack like a real NIC's would; the host then routes/NATs/bridges them. <strong>slirp</strong> instead runs a
+<strong>userspace TCP/IP stack + virtual router inside the QEMU process</strong> (the <code>libslirp</code> library): it
+<em>terminates</em> the guest's L2/L3/L4, presents a virtual network (guest <code>10.0.2.15</code>, gateway/DNS
+<code>10.0.2.2</code>/<code>10.0.2.3</code>, its own DHCP), and when the guest opens a connection it <strong>opens an ordinary
+host <code>socket()</code> to the real destination and relays bytes</strong> between the two - a socket-level NAT.
+That is why slirp needs no host config or root (it only borrows the host's ability to make outbound
+connections), but also why the host cannot initiate to the guest (except <code>hostfwd=</code>) and there is no
+real L2 interface to <code>tcpdump</code>. ("Slirp" is the name of a mid-1990s program that emulated a SLIP/PPP
+link to give shell users IP connectivity - a play on <strong>SLIP</strong> (Serial Line IP), not an acronym.)</p>
+<hr>
+<h2 id="summary-guest-action-qemu-hook">Summary - guest action &lt;-&gt; QEMU hook</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Guest action</th>
+<th>Reaches QEMU as</th>
+<th>VN1000 / L1 analogue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>enumerate / read IDs, size BARs, enable MSI</td>
+<td><code>config_read</code>/<code>config_write</code> (default <code>pci_default_*</code>)</td>
+<td>device "appears"; n/a on L1</td>
+</tr>
+<tr>
+<td><code>readl</code>/<code>writel</code> on the BAR</td>
+<td><code>MemoryRegionOps.read</code>/<code>.write</code> (<code>vnic_mmio_*</code>)</td>
+<td>the <code>vn_rd32</code>/<code>vn_wr32</code> switch (doorbell, ICR/IMS/...)</td>
+</tr>
+<tr>
+<td>(no guest call) device reads/writes ring + buffers</td>
+<td><code>pci_dma_read</code>/<code>pci_dma_write</code> at the driver's <code>dma_addr</code></td>
+<td>engine <code>memcpy</code> of the <code>vnic_hal_map</code> pointer</td>
+</tr>
+<tr>
+<td><code>request_irq</code> handler fires</td>
+<td><code>msi_notify(dev, vec)</code> -&gt; APIC injects the vector</td>
+<td>the simulated-MSI tasklet (D-20)</td>
+</tr>
+<tr>
+<td><code>pci_set_master</code>, <code>dma_alloc_coherent</code>, <code>dma_map_single</code></td>
+<td>enable bus-master; produce the <code>dma_addr</code>s the device DMAs</td>
+<td><code>vnic_hal_map</code> returns a kernel pointer</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Bottom line for Level 2:</strong> <code>qemu-device/vnic.c</code> re-implements, on the host side, the exact
+register/descriptor/interrupt behaviour the Level 1 fake engine already validated - <code>vn_wr32</code>
+becomes <code>vnic_mmio_write</code>, the engine's <code>memcpy</code> becomes <code>pci_dma_read/write</code>, and <code>vn_wr32(ICS)</code>
+becomes <code>msi_notify</code>. The guest driver's <code>core/</code> is unchanged; only <code>hal/vnic_hal_l2.c</code> swaps
+fake-register access + pointer tokens for <code>readl/writel</code> + <code>dma_*</code> (D-12).</p>
+<p class="footnote">Generated from <code>qemu-device-model.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

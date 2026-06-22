@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 8 bring-up - raw evidence</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Phase 8 bring-up - raw evidence</h1>
+<div class="meta"></div>
+</header>
+<h1 id="phase-8-bring-up-raw-evidence">Phase 8 bring-up - raw evidence</h1>
+<p>Level 2 keystone validated in the QEMU guest on a <strong>self-built QEMU 6.2.0</strong> with the VN1000 device
+compiled in (<code>-device vnic</code>). See <a href="lessons-learned.html">lessons-learned L-06</a> and TODO Phase 8.</p>
+<ul>
+<li><strong>Date</strong>: 2026-06-12</li>
+<li><strong>Host QEMU</strong>: <code>qemu-system-x86_64</code> 6.2.0 (Debian <code>1:6.2+dfsg-2ubuntu6.30</code>), self-built tree at
+  <code>~/qemu</code> with <code>hw/net/vnic.c</code> (+ <code>vnic_regs.h</code>) and the meson/Kconfig hook.</li>
+<li><strong>Launch</strong>: <code>sudo env QEMU="$HOME/qemu/build/qemu-system-x86_64" VNIC_DEVICE=1 VMDIR="$HOME/vnic-vm" ./run-qemu.sh</code></li>
+<li><strong>Module</strong>: <code>vnic-l2.ko</code> (out-of-tree, unsigned -&gt; expected taint).</li>
+</ul>
+<h2 id="lspci-guest"><code>lspci</code> (guest)</h2>
+<p>The device is not in <code>pci.ids</code>, so it shows as <code>Device 1234:11e9</code> (grep by ID, not name):</p>
+<pre><code>$ lspci -t -vvv
+-[0000:00]-+-00.0  Intel Corporation 82G33/G31/P35/P31 Express DRAM Controller
+           +-01.0  Device 1234:1111
+           +-02.0  Red Hat, Inc. Virtio network device
+           +-03.0  Device 1234:11e9          &lt;-- VN1000 (vendor 0x1234, device 0x11E9)
+           +-04.0  Red Hat, Inc. Virtio block device
+           +-05.0  Red Hat, Inc. Virtio block device
+           +-1f.0  Intel Corporation 82801IB (ICH9) LPC Interface Controller
+           +-1f.2  Intel Corporation 82801IR/IO/IH (ICH9R/DO/DH) 6 port SATA Controller [AHCI mode]
+           \-1f.3  Intel Corporation 82801I (ICH9 Family) SMBus Controller
+</code></pre>
+<h2 id="dmesg-after-insmod-vnic-l2ko-guest"><code>dmesg</code> after <code>insmod vnic-l2.ko</code> (guest)</h2>
+<pre><code>[  192.265949] vnic_l2: loading out-of-tree module taints kernel.
+[  192.265963] vnic_l2: module verification failed: signature and/or required key missing - tainting kernel
+[  192.267067] vnic 0000:00:03.0 (unnamed net_device) (uninitialized): VN1000 L2: MSI self-test passed (1 interrupt(s) seen)
+[  192.267083] vnic 0000:00:03.0 (unnamed net_device) (uninitialized): VN1000 L2 probed (ID=0x564e3130, version=0x00010000, cap=0x00000003)
+</code></pre>
+<p>Notes:
+- The taint lines are normal for an out-of-tree unsigned module.
+- <code>(unnamed net_device) (uninitialized)</code> is expected: Phase 8 does not <code>register_netdev</code> (D-28);
+  the netdev is named <code>vnic0</code> only in Phase 9.</p>
+<h2 id="acceptance-check-all-met">Acceptance check (all met)</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Output criterion</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lspci</code> shows the device</td>
+<td><code>1234:11e9</code> at <code>00:03.0</code></td>
+</tr>
+<tr>
+<td><code>ID</code> reads <code>0x564E3130</code></td>
+<td><code>ID=0x564e3130</code> (real <code>readl</code> over BAR0)</td>
+</tr>
+<tr>
+<td>register write/read-back</td>
+<td>MMIO works (ID read; ICS/IMS writes drove the MSI)</td>
+</tr>
+<tr>
+<td>device-raised MSI reaches the ISR</td>
+<td><code>MSI self-test passed (1 interrupt(s) seen)</code></td>
+</tr>
+</tbody>
+</table></div>
+<p class="footnote">Generated from <code>phase8-bringup.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

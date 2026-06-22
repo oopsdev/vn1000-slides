@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 10 - real tap backend (guest &lt;-&gt; host) - evidence</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Phase 10 - real tap backend (guest &lt;-&gt; host) - evidence</h1>
+<div class="meta"></div>
+</header>
+<h1 id="phase-10-real-tap-backend-guest-host-evidence">Phase 10 - real tap backend (guest &lt;-&gt; host) - evidence</h1>
+<p>Level 2 with <code>loopback=off</code> + <code>-netdev tap</code> bridges real packets between the guest's <code>vnic0</code> and the
+WSL2 host over <code>vnic-tap0</code>. See <a href="lessons-learned.html">lessons-learned L-08</a> and TODO Phase 10.</p>
+<ul>
+<li><strong>Date</strong>: 2026-06-12</li>
+<li><strong>Device</strong>: tap backend <code>b7dc2c0</code>; RX flow-control fix <code>a8850d1</code></li>
+<li><strong>Host</strong>: <code>vnic-tap0</code> 192.168.20.1/24; guest <code>vnic0</code> 192.168.20.2/24</li>
+<li><strong>Launch</strong>: <code>sudo env QEMU=$HOME/qemu/build/qemu-system-x86_64 VNIC_TAP=vnic-tap0 VMDIR=$HOME/vnic-vm ./run-qemu.sh</code></li>
+</ul>
+<h2 id="guest-host-ping-after-the-rx-fix">guest -&gt; host ping (after the RX fix)</h2>
+<pre><code>$ ping -c3 192.168.20.1
+64 bytes from 192.168.20.1: icmp_seq=1 ttl=64 time=0.439 ms
+64 bytes from 192.168.20.1: icmp_seq=2 ttl=64 time=0.631 ms
+64 bytes from 192.168.20.1: icmp_seq=3 ttl=64 time=1.03 ms
+3 packets transmitted, 3 received, 0% packet loss
+</code></pre>
+<p>Replies returning proves <strong>both directions</strong> work over the tap: TX (request out via <code>qemu_send_packet</code>)
+and RX (reply in via the <code>receive()</code> callback -&gt; <code>pci_dma_write</code> into the RX ring -&gt; RXAVAIL MSI).</p>
+<h2 id="guest-interface-stats">guest interface stats</h2>
+<pre><code>$ ip -s link show vnic0
+3: vnic0: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; ... link/ether 96:17:de:b5:dc:a6
+    RX:  bytes packets errors dropped  missed   mcast
+           414       5      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+          1174      15      0       0       0       0
+</code></pre>
+<p>RX packets &gt; 0 (was 0 before the fix), 0 errors/drops. TX (15) &gt; RX (5) is expected on a real link:
+the guest emits its own link-up chatter (ARP request + IPv6 DAD/RS/MLD multicast) that gets no reply,
+while RX counts only what the host actually sent back (3 echo replies + the ARP reply). Unlike Phase 9
+loopback (where every TX is looped to RX so RX == TX), the two directions are independent here.</p>
+<h2 id="the-bug-we-hit-and-fixed-l-08">The bug we hit and fixed (L-08)</h2>
+<p>Before <code>a8850d1</code>, RX stayed 0 and only TXDONE MSIs fired (3 TX, 0 RXAVAIL in <code>/proc/interrupts</code>),
+even though host-side <code>tcpdump -ni vnic-tap0</code> showed both the request and the reply. Cause: QEMU
+disabled the tap read handler while <code>RXEN</code> was clear (<code>can_receive</code> false) and nothing re-armed it
+once the driver enabled <code>RXEN</code>. Fix: <code>qemu_flush_queued_packets()</code> on <code>CTRL.RXEN</code> enable. The
+host-tap <code>tcpdump</code> was a red herring - it captures kernel-side, before the device reads.</p>
+<h2 id="external-reachability-guest-public-internet-through-vnic0">External reachability - guest -&gt; public internet through vnic0</h2>
+<p>With the host as a router + NAT (<code>scripts/tap-nat.sh up</code>: <code>ip_forward=1</code> + outbound MASQUERADE out
+the WAN iface) and a guest default route via the tap, the guest reaches the <strong>public internet through
+vnic0</strong> - real ICMP / DNS / TCP / HTTP, not just the host:</p>
+<pre><code># guest
+$ sudo ip route add default via 192.168.20.1 dev vnic0 metric 50
+$ ping -c3 1.1.1.1
+64 bytes from 1.1.1.1: icmp_seq=1 ttl=55 time=8.25 ms        # ttl 64-&gt;55 = ~9 real hops
+3 packets transmitted, 3 received, 0% packet loss
+$ curl -sI http://example.com
+HTTP/1.1 200 OK
+Server: cloudflare
+CF-RAY: a0be3fb3bb729fe9-SIN                                  # Cloudflare Singapore edge
+$ ip route get 1.1.1.1
+1.1.1.1 via 192.168.20.1 dev vnic0 src 192.168.20.2           # confirms it egresses via vnic0
+</code></pre>
+<p>Path: <code>guest app -&gt; vnic0 (the emulated device) -&gt; tap -&gt; host forward+MASQUERADE -&gt; WSL2 NAT -&gt;
+Windows -&gt; internet</code>, and back. This exercises the full Level 2 datapath (real DMA/MMIO/MSI) with
+arbitrary real traffic - a TCP handshake, DNS, a larger HTTP response - well beyond the loopback
+ping. Double-NAT, so latency/throughput are not representative, but functional correctness is shown.
+Outbound only; inbound to a guest service would need a per-service DNAT (+ Windows portproxy).</p>
+<h2 id="throughput-iperf3-guest-host-over-the-tap-l-09">Throughput - iperf3 guest &lt;-&gt; host over the tap (L-09)</h2>
+<p>QEMU 6.2 + KVM, <code>iperf3</code> 10 s each way (this is the <strong>per-packet doorbell</strong> baseline; Phase 12 / L-10
+later batches the TX doorbell -&gt; ~1.86 Gbit/s, see results/phase12-tx-doorbell.md).</p>
+<p>TX - guest -&gt; host (<code>iperf3 -c 192.168.20.1 -t 10</code>):</p>
+<pre><code>[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  46.1 MBytes   386 Mbits/sec    0    154 KBytes
+[  5]   1.00-2.00   sec  47.9 MBytes   402 Mbits/sec    0    154 KBytes
+[  5]   2.00-3.00   sec  45.8 MBytes   384 Mbits/sec    0    191 KBytes
+[  5]   3.00-4.00   sec  44.1 MBytes   370 Mbits/sec    0    191 KBytes
+[  5]   4.00-5.00   sec  38.5 MBytes   323 Mbits/sec    0    191 KBytes
+[  5]   5.00-6.00   sec  38.2 MBytes   321 Mbits/sec    0    191 KBytes
+[  5]   6.00-7.00   sec  39.6 MBytes   332 Mbits/sec    0    191 KBytes
+[  5]   7.00-8.00   sec  20.9 MBytes   175 Mbits/sec    0    191 KBytes
+[  5]   8.00-9.00   sec  38.9 MBytes   326 Mbits/sec    0    191 KBytes
+[  5]   9.00-10.00  sec  39.5 MBytes   330 Mbits/sec    0    191 KBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   0.00-10.00  sec   417 MBytes   350 Mbits/sec    0             sender
+[  5]   0.00-10.04  sec   417 MBytes   349 Mbits/sec                  receiver
+</code></pre>
+<p>RX - host -&gt; guest (<code>iperf3 -c 192.168.20.1 -t 10 -R</code>):</p>
+<pre><code>[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec   502 MBytes  4.21 Gbits/sec
+[  5]   1.00-2.00   sec   479 MBytes  4.02 Gbits/sec
+[  5]   2.00-3.00   sec   385 MBytes  3.23 Gbits/sec
+[  5]   3.00-4.00   sec   415 MBytes  3.49 Gbits/sec
+[  5]   4.00-5.00   sec   432 MBytes  3.62 Gbits/sec
+[  5]   5.00-6.00   sec   468 MBytes  3.93 Gbits/sec
+[  5]   6.00-7.00   sec   508 MBytes  4.26 Gbits/sec
+[  5]   7.00-8.00   sec   459 MBytes  3.85 Gbits/sec
+[  5]   8.00-9.00   sec   414 MBytes  3.47 Gbits/sec
+[  5]   9.00-10.00  sec   434 MBytes  3.64 Gbits/sec
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   0.00-10.04  sec  4.40 GBytes  3.77 Gbits/sec   79             sender
+[  5]   0.00-10.00  sec  4.40 GBytes  3.78 Gbits/sec                  receiver
+</code></pre>
+<p>Device counters after both (<code>ip -s link show vnic0</code>): <strong>0 errors, 0 dropped</strong> each way
+(3,420,099 RX / 342,405 TX packets).</p>
+<p><strong>RX (~3.77 Gbit/s) is ~10x TX (~350 Mbit/s)</strong> - structural, not a bug: TX ends each batch with a
+<code>writel(TDT)</code> doorbell = an <strong>MMIO VM-exit</strong> (synchronous in the vCPU thread), while RX is delivered
+by the iothread and drained by <strong>NAPI batching</strong> (many packets per MSI, few guest exits). See L-09.
+The 79 Retr were TCP spurious RTOs, not device drops (<code>rx_dropped</code> = 0) - the L-08 RX flow-control
+held at multi-Gbit/s. Note: the <code>RX bytes</code> figure under-reads because <code>STAT_*BYTES</code> are 32-bit device
+registers that wrap past 4 GiB (packet counts are reliable); the netdev's <code>altname enp0s3</code> is udev's
+predictable name kept as an <em>alternative</em> (primary stays <code>vnic0</code>, NET_NAME_USER).</p>
+<p class="footnote">Generated from <code>phase10-tap.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

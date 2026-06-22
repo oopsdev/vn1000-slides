@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linux NIC Simulation (vnic)</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Linux NIC Simulation (vnic)</h1>
+<div class="meta"></div>
+</header>
+<h1 id="linux-nic-simulation-vnic">Linux NIC Simulation (vnic)</h1>
+<p>A learning project to understand the <strong>Linux NIC driver working flow</strong> end to end — the
+device/driver hardware-software interface (registers, DMA descriptor rings, interrupts,
+NAPI) and netdev integration — by building a software-simulated NIC (<strong>VN1000</strong>) and its
+Linux driver. It runs first as an in-kernel engine (Level 1) and finally as a QEMU PCI
+device that behaves like a real NIC inside the guest (Level 2, pingable to the host).</p>
+<blockquote>
+<p>Scope: a Linux-kernel simulation framework that exercises the core architecture shared by
+NIC / NVMe / GPU / accelerator drivers — queue submission, DMA buffers, completion
+handling, interrupt moderation, and datapath performance analysis.</p>
+</blockquote>
+<hr>
+<h2 id="levels-two">Levels (two)</h2>
+<p>Each level exposes its own netdev — Level 1 is <code>vnic_loop0</code> (the in-kernel loopback engine),
+Level 2 is <code>vnic0</code> (the QEMU device) — so <strong>both drivers can be loaded at once</strong> (distinct module
+and interface names). The ring / DMA / interrupt engine and the shared spec header are <strong>identical</strong>
+across them; Level 2 only swaps the "device" behind the rings from an in-kernel engine to a QEMU PCI
+device (real MMIO / DMA / MSI) — it is not a rewrite.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Level</th>
+<th>What</th>
+<th>Acceptance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Level 1 — kernel-only netdev</strong></td>
+<td>pure kernel module: single netdev <code>vnic_loop0</code> (real-NIC structure: <code>net_device</code> ops + NAPI + TX/RX ring + DMA-like buffers + simulated interrupt); the engine does internal loopback (swap src/dst IP, keep ports); no PCI bus</td>
+<td><code>vnic_loop0</code> appears in <code>ip link</code>; after assigning an IP, <code>ping</code> the fictional peer; server on <code>0.0.0.0</code> + client to the peer can test TCP/UDP (iperf)</td>
+</tr>
+<tr>
+<td><strong>Level 2 — QEMU PCI device + netdev</strong></td>
+<td>custom QEMU PCI device (BAR / MMIO / MSI / DMA); the guest driver registers <code>net_device</code> <code>vnic0</code>; packets flow through the QEMU backend to the host</td>
+<td><code>vnic0</code> appears in <code>ip link</code>; after assigning an IP, <strong>ping the host</strong>; visible in host-side tcpdump</td>
+</tr>
+<tr>
+<td>Level 3 — FPGA / PCIe endpoint (bonus)</td>
+<td>real hardware; out of the main scope</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p>The device and the driver share one register / descriptor definition (<code>include/vnic_regs.h</code>)
+so the two sides never drift apart — the most common source of bugs in this kind of project.</p>
+<hr>
+<h2 id="repo-layout-planned">Repo layout (planned)</h2>
+<pre><code>Linux_NIC_Simulation/
+├── README.md  CHANGELOG.md  TODO.md  .gitignore  .gitattributes
+├── docs/
+│   ├── architecture.md           system design: layering, flow diagrams, register/descriptor summary
+│   ├── vn1000-datasheet.md       VN1000 device hardware spec (authoritative)
+│   ├── diagrams/                host/device block, TX path, RX path (SVG/PNG)
+│   ├── design-decisions.md       decision log (why it is built this way)
+│   └── dev-setup.md              environment setup SOP (WSL2 + QEMU guest)
+├── include/
+│   └── vnic_regs.h          shared spec header (used by driver + qemu-device)
+├── driver/                  Linux kernel driver (Level 1 / Level 2 share core)
+│   ├── Makefile             make -&gt; vnic-l1.ko (+ vnic-l2.ko when present); make l1 / make l2
+│   ├── vnic.h               private structs (struct vnic_priv / vnic_ring)
+│   ├── core/                shared: netdev ops / ring / NAPI / datapath / stats
+│   ├── hal/                 hardware-access layer (vnic_hal_rd32/wr32, dma, irq) + L1/L2 backends
+│   ├── level1/              L1 only: engine (internal loopback) + entry
+│   └── level2/              L2 only: PCI probe / BAR / MSI + entry
+├── qemu-device/             QEMU VN1000 PCI device model (Level 2)
+├── tools/                   user-space tests (AF_PACKET) and benchmarks
+├── tests/                   functional / stress test scripts
+├── scripts/                 build / run-qemu / setup scripts
+└── results/                 benchmark / profiling results
+</code></pre>
+<hr>
+<h2 id="development-environment">Development environment</h2>
+<ul>
+<li><strong>Edit</strong>: Windows (this directory)</li>
+<li><strong>Build / run</strong>: QEMU + an Ubuntu guest under WSL2 — <strong>kernel-module development happens inside the guest</strong> (the WSL2 custom kernel has no matching headers; the guest has <code>apt install linux-headers</code>, kgdb works, and a module panic only kills the guest). Full SOP: <a href="dev-setup.html">docs/dev-setup.md</a>.</li>
+<li><strong>Level 2 needs</strong>: building QEMU from source (there is no stable out-of-tree mechanism to load a custom device dynamically).</li>
+<li><strong>Debugging</strong>:</li>
+<li>guest kernel: QEMU <code>-s -S</code> + gdb single-step</li>
+<li>QEMU device model: host gdb attached to the QEMU process</li>
+</ul>
+<hr>
+<h2 id="build-run">Build / Run</h2>
+<p>Commands are filled in as each phase lands; see <a href="TODO.html">TODO.md</a> for current status.</p>
+<pre><code class="language-bash"># in the guest, after cloning:
+cd driver &amp;&amp; make            # builds vnic-l1.ko (+ vnic-l2.ko once Level 2 exists); or: make l1 / make l2
+sudo insmod vnic-l1.ko
+ip link show vnic_loop0           # Level 1 netdev (Level 2's is vnic0; both can coexist)
+sudo IFACE=vnic_loop0 bash scripts/setup-vnic.sh   # assign IP + static neighbor for the fictional peer
+</code></pre>
+<hr>
+<h2 id="docs">Docs</h2>
+<ul>
+<li><a href="docs-index.html">docs/index.md</a> — <strong>documentation index</strong>: every doc, the suggested reading order, and a one-line summary of each</li>
+<li><strong><a href="nic-driver-walkthrough.html">docs/nic-driver-walkthrough.md</a> — START HERE: a guided tour of the NIC driver working flow (TX/RX end to end, the three levels + the HAL seam, the hard parts, and where each "why" lives)</strong></li>
+<li><a href="teaching-plan.html">docs/teaching-plan.md</a> — <strong>weekly teaching plan</strong>: a 13-week summer schedule (Tue 08:00–09:00 UTC+8, full-time students) — Level 1 by W4, Level 2 by W7, then the advanced backlog. Rendered with a clickable week TOC: <a href="teaching-plan.html">docs/slides/teaching-plan.html</a> (public: <a href="https://oopsdev.github.io/vn1000-slides/teaching-plan.html">https://oopsdev.github.io/vn1000-slides/teaching-plan.html</a>)</li>
+<li><a href="index.html">docs/slides/vnic-slides.html</a> — teaching slide deck: TCP/IP flow, PCIe NIC anatomy, the Linux driver framework, the QEMU device model, the project goal, dev/test setup, and the performance benchmark. <strong>View rendered:</strong> <a href="https://oopsdev.github.io/vn1000-slides/">https://oopsdev.github.io/vn1000-slides/</a> (GitHub Pages; auto-mirrored to a public repo by CI since this one is private — just edit &amp; push, see <a href="slides-readme.html">docs/slides/README.md</a>)</li>
+<li><a href="architecture.html">docs/architecture.md</a> — system design (layering, flow diagrams, interrupt/polling, locking, Level 1-&gt;2 evolution)</li>
+<li><a href="background-knowledge.html">docs/background-knowledge.md</a> — kernel mechanisms behind the design (NAPI: why it exists, pre/post-NAPI TX/RX flow); learning-oriented background</li>
+<li><a href="vn1000-datasheet.html">docs/vn1000-datasheet.md</a> — VN1000 device hardware spec (registers, descriptors, ring buffer, operation)</li>
+<li><a href="design-decisions.html">docs/design-decisions.md</a> — decision log (why it is built this way)</li>
+<li><a href="lessons-learned.html">docs/lessons-learned.md</a> — empirical log: what each change/experiment revealed when tested (e.g. ring-size tuning)</li>
+<li><a href="dev-setup.html">docs/dev-setup.md</a> — environment setup SOP</li>
+<li><a href="debug-kernel.html">docs/debug-kernel.md</a> — SOP to run the test suite under KASAN / lockdep / kmemleak (Phase 5 gate)</li>
+<li><a href="qemu-device-model.html">docs/qemu-device-model.md</a> — Level 2 background: how QEMU emulates the PCIe device (config / MMIO / DMA / MSI callbacks) and how the guest driver maps to them</li>
+<li><a href="qemu-build.html">docs/qemu-build.md</a> — SOP to build a QEMU (pinned to the guest's version) with the VN1000 device and boot the guest under it</li>
+<li><a href="TODO.html">TODO.md</a> — phased plan and task list</li>
+<li><a href="CHANGELOG.html">CHANGELOG.md</a> — change log</li>
+</ul>
+<hr>
+<h2 id="references-reading-order">References (reading order)</h2>
+<ol>
+<li>Intel <strong>e1000e</strong> Linux driver — the most approachable head/tail ring register model</li>
+<li>Intel <strong>82574 datasheet</strong> — to cross-check the e1000e registers (TDBAL/TDH/TDT, etc.)</li>
+<li>Intel <strong>82599 datasheet</strong> + Linux <strong>ixgbe</strong> — production 10G NIC, NAPI, multi-queue</li>
+<li><strong>ixy</strong> (educational user-space driver) — understand the 82599 datapath in minimal code</li>
+<li><strong>virtio-net / virtio_ring</strong> — preparation for the QEMU version (descriptor ring essence)</li>
+</ol>
+<p>See <a href="architecture.html">docs/architecture.md</a> for the per-stage reference mapping.</p>
+<p class="footnote">Generated from <code>README.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

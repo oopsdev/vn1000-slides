@@ -1,0 +1,1766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Background Knowledge - Linux Kernel Networking Mechanisms</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Background Knowledge - Linux Kernel Networking Mechanisms</h1>
+<div class="meta"><span>2026-06-15</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="background-knowledge">Background Knowledge</h1>
+<p>This is a learning project, so this document collects the <strong>kernel mechanisms</strong> behind the design -
+why they exist, what problem they solve, and how a driver uses them. It complements
+<a href="architecture.html">architecture.md</a> (what <em>this</em> driver does) by explaining the <em>general</em> kernel
+concepts it relies on.</p>
+<p>Topics:</p>
+<ol>
+<li><a href="#1-the-linux-nic-datapath-rx-and-tx-end-to-end">The Linux NIC datapath - RX and TX (end to end)</a></li>
+<li><a href="#2-napi">NAPI - why polling was added to an interrupt-driven stack</a></li>
+<li><a href="#3-deferred-execution-kthread-vs-softirq-vs-tasklet-vs-workqueue">Deferred execution: kthread vs softirq vs tasklet vs workqueue</a></li>
+<li><a href="#4-memory-barriers---ordering-the-descriptor-handshake">Memory barriers - ordering the descriptor handshake</a></li>
+<li><a href="#5-mmio-register-access---why-readlwritel-not-a-raw-pointer">MMIO register access - why readl/writel, not a raw pointer</a></li>
+<li><a href="#6-tuntap---virtual-interfaces-and-the-qemu-tap-backend">TUN/TAP - virtual interfaces, and the QEMU tap backend</a></li>
+<li><a href="#7-throughput-mechanisms---tx-doorbell-batching-interrupt-moderation-and-virtio">Throughput mechanisms - TX doorbell batching, interrupt moderation, and virtio</a></li>
+<li><a href="#8-where-the-descriptor-ring-lives---host-ram-vs-device-mmio">Where the descriptor ring lives - host RAM vs device MMIO</a></li>
+<li><a href="#9-the-netdev-lifecycle---register-vs-open-why-insmod-does-not-bring-the-link-up">The netdev lifecycle - register vs open (why insmod does not bring the link up)</a></li>
+<li><a href="#10-interrupt-register-semantics---why-imsimc-and-icrics-are-split-pairs">Interrupt register semantics - why IMS/IMC (and ICR/ICS) are split pairs</a></li>
+<li><a href="#11-dma-mappings---coherent-vs-streaming">DMA mappings - coherent vs streaming</a></li>
+<li><a href="#12-bring-up-and-teardown-ordering---enabling-napi-the-controller-and-interrupts">Bring-up and teardown ordering - enabling NAPI, the controller, and interrupts</a></li>
+<li><a href="#13-reading-tcp-retransmissions---real-loss-vs-a-late-spurious-retransmit">Reading TCP retransmissions - real loss vs a late (spurious) retransmit</a></li>
+</ol>
+<blockquote>
+<p>More topics (MSI/MSI-X detail, <code>sk_buff</code> lifecycle) will be added here as the project touches them.
+(Topics are stable IDs cross-referenced from other docs/code, so new ones are appended rather than
+renumbered - the ideal shallow-to-deep order is noted in the project memory.)</p>
+</blockquote>
+<hr>
+<h2 id="1-the-linux-nic-datapath-rx-and-tx-end-to-end">1. The Linux NIC datapath (RX and TX, end to end)</h2>
+<p>The big picture first: how a packet moves across the three components - the <strong>NIC</strong>, the
+<strong>Host Memory</strong> (the descriptor ring + packet buffers) and the <strong>CPU (Driver)</strong> - and how control of
+each descriptor flips between <strong>NIC Owned</strong> and <strong>Driver Owned</strong>. RX (receive) and TX (transmit) are
+mirror images of the same ownership handshake. The later topics zoom into pieces of this: NAPI
+(topic 2) is the interrupt/poll steps, deferred execution (topic 3) is the ISR/poll contexts, and
+memory barriers (topic 4) are what make the ownership handshake safe.</p>
+<p>Both paths are split into the same five steps (<strong>A</strong> init, <strong>B</strong> the data movement, <strong>C/D</strong> the
+interrupt + NAPI handling, <strong>E</strong> cleanup/recycle); the per-step labels (A1, B2, ...) match the
+numbered arrows in the figures.</p>
+<h3 id="11-the-rx-path">1.1 The RX path</h3>
+<p><img alt="Linux NIC driver RX packet reception path - NIC / Host Memory / CPU Driver swimlanes with the numbered A-E data flow" src="diagrams/rx-path.svg"></p>
+<p><em>Figure 1 - the RX path as a component / data-flow diagram. Each descriptor's fill encodes its
+ownership (blue = NIC Owned, green = Driver Owned); it flips to Driver Owned at B3 and back to NIC
+Owned at E1. The sequence diagram below shows the same A-E steps ordered in time.</em></p>
+<pre><code class="language-mermaid">sequenceDiagram
+  participant D as CPU (Driver)
+  participant M as Host Memory
+  participant N as NIC
+
+  Note over D,N: Step A - driver init (set up the Rx ring)
+  D-&gt;&gt;M: A1 alloc + map Rx descriptor ring + packet buffers
+  D-&gt;&gt;M: A2 write buffer phys addr into descriptors (status = NIC Owned)
+  D-&gt;&gt;N: A3 write ring base + head/tail to NIC CSR
+
+  Note over D,N: Step B - packet arrival + DMA
+  N-&gt;&gt;N: B1 Ethernet frame arrives, into NIC Buffer FIFO
+  N-&gt;&gt;M: B2 DMA-write raw packet into the Rx packet buffer
+  N-&gt;&gt;M: B3 update descriptor (len, status = Driver Owned)
+
+  Note over D,N: Step C - interrupt + NAPI schedule
+  N-&gt;&gt;D: C1 MSI-X interrupt over PCIe
+  D-&gt;&gt;N: C2 ISR acks + masks this IRQ in the CSR
+  D-&gt;&gt;D: C3 schedule NAPI softirq poll (ksoftirqd)
+
+  Note over D,N: Step D - NAPI poll + deliver upstream
+  D-&gt;&gt;M: D1 napi_poll scans descriptors for Driver-Owned valid packets
+  D-&gt;&gt;M: D2 read packet data from the Rx packet buffer
+  D-&gt;&gt;D: D3 wrap into sk_buff, netif_receive_skb to IP / TCP / UDP
+  D-&gt;&gt;N: D4 driver unmasks the IRQ after napi_complete_done (only once the ring is drained)
+
+  Note over D,N: Step E - cleanup + recycle
+  D-&gt;&gt;M: E1 clear descriptor fields, set status = NIC Owned
+  D-&gt;&gt;N: E2 write updated Tail to NIC CSR (recycle)
+</code></pre>
+<p><strong>Step A - driver init (ring buffer setup)</strong>
+- <strong>A1</strong>: the driver allocates and DMA-maps the Rx descriptor ring and the packet buffers in kernel
+  space.
+- <strong>A2</strong>: it writes each packet buffer's physical (bus) address into the matching descriptor and
+  marks the descriptor <strong>NIC Owned</strong> (control handed to the NIC).
+- <strong>A3</strong>: it programs the ring base/length and the head/tail pointers into the NIC's CSR
+  (control/status registers) so the hardware knows where the free buffers are.</p>
+<p><strong>Step B - packet arrival + DMA</strong>
+- <strong>B1</strong>: an Ethernet frame arrives at the NIC and enters the NIC's internal buffer FIFO.
+- <strong>B2</strong>: the NIC's DMA engine reads the current descriptor and DMA-writes the raw packet data
+  straight into the corresponding Rx packet buffer in Host Memory.
+- <strong>B3</strong>: when the DMA completes, the NIC updates the descriptor (writes the length, flips status to
+  <strong>Driver Owned</strong> - control returned to the driver).</p>
+<p><strong>Step C - interrupt + NAPI schedule</strong>
+- <strong>C1</strong>: the NIC raises a hardware interrupt (MSI-X) to the CPU over the PCIe bus.
+- <strong>C2</strong>: the CPU enters the NIC's ISR and, to avoid an <strong>interrupt storm</strong>, acknowledges and
+  <strong>masks</strong> this NIC's interrupt in the CSR (so a flood cannot keep re-interrupting while we poll).
+- <strong>C3</strong>: the ISR then <strong>schedules the NAPI softirq poll</strong> (e.g. on <code>ksoftirqd</code>) and returns - the
+  heavy lifting is deferred out of hardirq context.</p>
+<p><strong>Step D - NAPI poll + deliver upstream</strong>
+- <strong>D1</strong>: the NAPI poll routine runs and reads descriptor status directly from Host Memory, looking
+  for <strong>Driver-Owned</strong>, valid descriptors.
+- <strong>D2</strong>: it reads the packet data out of the corresponding Rx packet buffer.
+- <strong>D3</strong>: it wraps the data into the kernel's standard <code>sk_buff</code> and calls <code>netif_receive_skb</code> to
+  hand it up the Linux protocol stack (IP / TCP / UDP), up to <code>budget</code> packets.
+- <strong>D4</strong>: once the poll has <strong>drained the ring</strong> (work_done &lt; budget), the driver calls
+  <code>napi_complete_done</code> - which ends the NAPI polling state and returns <code>true</code> if it is safe to
+  re-arm - and then <strong>the driver itself re-enables (unmasks)</strong> the device interrupt by writing the
+  NIC's interrupt-enable register (e.g. <code>IMS</code>). <code>napi_complete_done</code> is generic NAPI core and does
+  not touch the hardware mask; the register write is the driver's. If <code>budget</code> was exhausted
+  instead, the poll returns <em>without</em> unmasking and NAPI stays scheduled to keep polling. This mask
+  (C2) / unmask (D4) pair is exactly what bounds the interrupt rate under load.</p>
+<p><strong>Step E - cleanup + recycle</strong>
+- <strong>E1</strong>: the driver clears the consumed descriptor fields and marks the status back to <strong>NIC
+  Owned</strong>.
+- <strong>E2</strong>: it writes the updated <strong>Tail</strong> pointer into the NIC CSR, telling the NIC fresh empty slots
+  are available - completing the ring <strong>recycle</strong>.</p>
+<p><strong>The recurring idea is descriptor ownership</strong>: a descriptor is either <em>NIC Owned</em> (the device may
+write a packet into its buffer) or <em>Driver Owned</em> (the device is done; the driver must process and
+then recycle it). The buffers are posted <strong>before</strong> any packet arrives, because the NIC needs a
+destination to DMA into.</p>
+<blockquote>
+<p>How VN1000 maps to this: it is exactly the <strong>Level 2</strong> path. <strong>Level 1</strong> swaps the NIC + DMA for
+an in-kernel engine kthread (loopback <code>memcpy</code>) and the MSI-X for a tasklet, but the descriptor
+ownership is the same - the <code>DD</code> bit <em>is</em> the "NIC Owned (0) / Driver Owned (DD)" status. See
+<a href="architecture.html#6-level-1-datapath-in-kernel-engine-internal-loopback">architecture.md section 6 / 7</a>.</p>
+</blockquote>
+<p><strong>When the refill allocation fails (inside step E).</strong> Step E refills each consumed slot with a <em>fresh</em>
+buffer so the device always has somewhere to DMA. The replacement must be allocated <strong>before</strong> the
+received frame is handed up the stack - once delivered, that <code>skb</code> belongs to the stack and its buffer
+can no longer be DMA'd into. So if the allocation (or its DMA mapping) fails, the slot has only its one
+buffer and no replacement, forcing a choice:</p>
+<ul>
+<li><strong>deliver the frame but cannot refill the slot</strong> - with no buffer, the slot cannot be <em>published</em>
+  back to the device (advancing the tail <code>RDT</code> over a buffer-less slot would point the device at freed
+  memory). So <code>RDT</code> stops keeping up with the device's head, and the <strong>pool of posted RX buffers
+  drains</strong> by one per failure until the device runs out (<code>RXEMPTY</code>) and RX stalls. (The descriptor
+  array does not resize - it is the <em>count of posted buffers</em> that drains.) With a single
+  <code>next_to_clean</code> cursor nothing records that the slot owes a buffer, so it is never revisited - the
+  loss does not heal.</li>
+<li><strong>keep the old buffer in the slot and drop the frame</strong> - the slot stays published, the posted pool
+  stays full, and RX is <strong>self-healing</strong> (the next successful alloc refills normally). You lose exactly
+  one packet (<code>rx_dropped</code>), recovered by TCP retransmit or tolerated by UDP.</li>
+</ul>
+<p>Every mainstream NIC driver (e1000 / igb / ixgbe) takes the second: <strong>keeping the ring full beats
+delivering one more packet.</strong> The invariant "every RX slot always holds a mapped buffer" is what keeps
+RX alive, so it is never traded away for a single delivery - which is <em>why</em> the frame is not sent up
+when its replacement cannot be allocated. Recycling is also the <strong>simplest, lowest-cost</strong> option: it
+keeps the ring full with <strong>no extra bookkeeping</strong> (no deficit counter, no second cursor, no separate
+refill path), and a transient failure heals on the next poll. A driver that prefers to <em>compensate
+later</em> can use <strong>deferred / lazy refill</strong> (ixgbe): a second cursor records the deficit and a later poll
+retries the allocation, re-posting the slot once it succeeds - recovering the capacity at the cost of
+that bookkeeping. (In VN1000 this is the project decision <strong>D-18 / D-22</strong>, which keeps the simple
+recycle - deferred refill is an advanced TODO; the fault-injection test <strong>F1</strong> forces 1-in-3 refill
+failures and asserts <code>rx_dropped</code> rises while <code>rx_errors</code> stays 0 and the datapath recovers.)</p>
+<h3 id="12-the-tx-path">1.2 The TX path</h3>
+<p><img alt="Linux NIC driver TX packet transmission path - NIC / Host Memory / CPU Driver swimlanes with the numbered A-E data flow" src="diagrams/tx-path.svg"></p>
+<p><em>Figure 2 - the TX path, the transmit mirror of Figure 1. On the way out the data flows CPU -&gt;
+Host Memory -&gt; NIC, and the descriptor's ownership flips the opposite way - the driver hands a
+filled descriptor to the NIC at B3 (the doorbell) and the NIC hands it back at C3 (DD done).</em></p>
+<p><strong>Step A - driver init (ring buffer setup)</strong>
+- <strong>A1</strong>: the driver allocates and DMA-maps the Tx descriptor ring; the descriptors start empty and
+  <strong>Driver Owned</strong> (the driver is free to fill them).
+- <strong>A2</strong>: it programs the ring base/length and the head/tail pointers (<strong>TDH/TDT</strong>) into the NIC's
+  CSR.</p>
+<p><strong>Step B - transmit request (<code>ndo_start_xmit</code>)</strong>
+- <strong>B1</strong>: the protocol stack hands a packet down to the driver as an <code>sk_buff</code>, calling the driver's
+  <code>ndo_start_xmit</code>.
+- <strong>B2</strong>: the driver DMA-maps the skb's data and writes the buffer physical address + length into
+  the next free Tx descriptor.
+- <strong>B3</strong>: it marks the descriptor <strong>NIC Owned</strong> and rings the <strong>doorbell</strong> - writing the updated
+  <strong>Tail (TDT)</strong> to the CSR to tell the NIC a new frame is ready.</p>
+<p><strong>Step C - NIC transmit + DMA</strong>
+- <strong>C1</strong>: seeing TDT advanced, the NIC's DMA engine reads the descriptor and DMA-reads the packet
+  data out of Host Memory.
+- <strong>C2</strong>: the NIC transmits the Ethernet frame onto the wire (via its internal FIFO).
+- <strong>C3</strong>: after the send, the NIC writes the descriptor back (sets <strong>DD / done</strong>, flips status to
+  <strong>Driver Owned</strong>) and advances <strong>TDH</strong> - control returned to the driver.</p>
+<p><strong>Step D - TX-completion interrupt + NAPI</strong>
+- <strong>D1</strong>: the NIC raises a TX-done interrupt (MSI-X). TX completions are usually <strong>coalesced</strong>, so
+  this fires far less often than once per packet.
+- <strong>D2</strong>: the ISR acknowledges and <strong>masks</strong> the IRQ in the CSR.
+- <strong>D3</strong>: it <strong>schedules the NAPI poll</strong> and returns.</p>
+<p><strong>Step E - cleanup + recycle</strong>
+- <strong>E1</strong>: the NAPI poll (<code>napi_poll</code>) reaps the completed (<strong>DD</strong>) descriptors, DMA-unmaps each
+  buffer and frees the <code>sk_buff</code> (<code>napi_consume_skb</code>).
+- <strong>E2</strong>: if the queue had been stopped because the ring was full (<code>netif_stop_queue</code>), the driver
+  now calls <strong><code>netif_wake_queue</code></strong> so the stack can resume transmitting.
+- <strong>E3</strong>: once the completions are drained (work_done &lt; budget), the driver calls <code>napi_complete_done</code>
+  (NAPI bookkeeping; it returns whether re-arming is safe) and then <strong>re-enables (unmasks)</strong> the IRQ
+  itself via the NIC's interrupt-enable register - the same mask (D2) / unmask (E3) pair as on RX,
+  bounding the TX-completion interrupt rate.</p>
+<blockquote>
+<p>Why TX rarely livelocks: the host only sends what it chooses to, and a full Tx ring applies
+backpressure via <code>netif_stop_queue</code>, so - unlike RX - you cannot be flooded by your own
+transmissions. That is why TX completions are coalesced and TX is not what NAPI's <code>budget</code>
+primarily targets (expanded in topic 2).</p>
+</blockquote>
+<h3 id="13-the-drivers-ring-cursors-vs-the-hardware-headtail">1.3 The driver's ring cursors vs the hardware head/tail</h3>
+<p>The figures show the hardware pointers <code>TDH/TDT</code> (and <code>RDH/RDT</code>); the driver also keeps <strong>two software
+cursors per ring</strong> - <code>next_to_use</code> and <code>next_to_clean</code> - and it is worth being clear why they are
+<em>not</em> the same thing.</p>
+<ul>
+<li><strong><code>*DH</code>/<code>*DT</code> are the device's view</strong>: the head/tail CSRs describe the ring's <strong>current physical
+  occupancy</strong> - how far the device has consumed (TX) or produced (RX), and how far the driver has
+  published. They live in the NIC; reading the device-updated head is an MMIO access.</li>
+<li><strong><code>next_to_use</code>/<code>next_to_clean</code> are the driver's bookkeeping</strong> (plain RAM variables; the device
+  never sees them): <code>next_to_use</code> = where the driver is <em>filling/posting</em> next, <code>next_to_clean</code> =
+  where it will <em>reclaim/process</em> next.</li>
+</ul>
+<blockquote>
+<p><strong>Why TX keeps both cursors but RX keeps only <code>next_to_clean</code>.</strong> A ring with a separate <em>producer</em>
+and <em>consumer</em> inherently needs <strong>two</strong> indices (fill ahead, reap behind) - that is true even in one
+context. On <strong>TX</strong> the driver <em>fills</em> (<code>next_to_use</code>) when the stack queues packets and <em>reaps</em>
+(<code>next_to_clean</code>) later when the <strong>device</strong> signals completion: two events <strong>decoupled in time</strong>, so
+the positions diverge and both must be tracked. Those two actions also run in <strong>different contexts</strong>
+(<code>ndo_start_xmit</code> in process/BH context vs <code>vnic_tx_clean</code> in the NAPI softirq) - which is why the TX
+ring is <strong>locked</strong> between them (D-23); the lock is a <em>consequence</em> of the contexts, the two cursors
+a consequence of the producer/consumer split. On <strong>RX</strong> the producer is the <strong>device</strong> (its position
+is <code>RDH</code>, a register), and the driver's two actions - <em>consume</em> the frame and <em>refill</em> the slot - are
+done <strong>together in one NAPI pass</strong> (each consumed slot is re-posted immediately), so the refill
+position never diverges from the consume position: a single <code>next_to_clean</code> suffices (it doubles as
+the <code>RDT</code> refill point) and <code>next_to_use</code> is unused. (This is a design choice: drivers that
+<em>batch/defer</em> RX refill, e.g. ixgbe, keep a separate <code>next_to_use</code> refill cursor so they can ring
+<code>RDT</code> <strong>once per burst</strong> - the RX analogue of TX doorbell batching (D-32) - batch buffer alloc/map,
+and enable <strong>page reuse</strong> by decoupling "took the data" from "re-armed the slot". Cost: a second
+cursor + page-refcount bookkeeping; see TODO backlog A5.)</p>
+</blockquote>
+<p>Why the driver cannot just use the registers:</p>
+<ol>
+<li><strong>A completion does not mean "drain everything now".</strong> When the IRQ fires, the NAPI poll runs under
+   a <strong>budget</strong> and may stop part-way (and reschedule); TX cleanup likewise takes only what is done.
+   The driver must remember <strong>where it left off</strong> so the next poll resumes correctly - that is
+   <code>next_to_clean</code>. There is <strong>no hardware register</strong> for "how far the <em>driver</em> has processed"; <code>*DH</code>
+   only says how far the <em>device</em> got.</li>
+<li><strong>Avoid the MMIO read.</strong> To detect completion the driver scans the in-memory <strong><code>DD</code></strong> bit from
+   <code>next_to_clean</code> (a cheap cached read) instead of reading <code>*DH</code> over MMIO on every completion
+   (expensive - topic 5). <code>DD</code> write-back is also the precise <em>per-descriptor</em> signal; the head
+   pointer is coarser.</li>
+<li><strong>Batch the doorbell.</strong> <code>next_to_use</code> can run ahead of the last <code>*DT</code> the driver published, so it
+   can fill several descriptors and ring <code>*DT</code> <strong>once</strong> (<code>xmit_more</code>, D-32) rather than per packet.</li>
+</ol>
+<p>So: the registers track the <em>device</em>; the cursors track the <em>driver</em> - needed because the driver
+processes pending work incrementally and wants to avoid per-completion MMIO reads. (See the
+datasheet 5.5 control flow for the exact set/clear/check points.)</p>
+<hr>
+<h2 id="2-napi">2. NAPI</h2>
+<p><strong>NAPI</strong> ("New API") is the Linux mechanism that lets a network driver switch between
+<strong>interrupt-driven</strong> and <strong>polling</strong> modes automatically, depending on load. It was introduced
+around Linux 2.4.20 / 2.6 and is the standard RX (and TX-completion) model for all modern NIC
+drivers.</p>
+<h3 id="21-before-napi-the-pure-interrupt-driven-model">2.1 Before NAPI - the pure interrupt-driven model</h3>
+<p>Without NAPI, a NIC driver handled every packet from interrupt context.</p>
+<p>Typical <strong>RX</strong> flow (old <code>netif_rx</code> model):</p>
+<pre><code class="language-mermaid">sequenceDiagram
+  participant NIC
+  participant ISR as ISR hardirq
+  participant BL as backlog queue
+  participant SOFT as softirq
+  participant STACK as net stack
+  NIC-&gt;&gt;ISR: IRQ per packet
+  ISR-&gt;&gt;ISR: ack device, build skb
+  ISR-&gt;&gt;BL: netif_rx enqueues skb
+  ISR-&gt;&gt;SOFT: raise NET_RX_SOFTIRQ
+  SOFT-&gt;&gt;BL: dequeue skb
+  SOFT-&gt;&gt;STACK: push up the stack
+</code></pre>
+<ol>
+<li>A packet arrives, the NIC DMAs it into memory and <strong>raises an interrupt - one per packet</strong>.</li>
+<li>The hardware ISR (hardirq) acknowledges the device, wraps the packet in an <code>sk_buff</code>, and calls
+   <code>netif_rx()</code>, which puts it on the per-CPU <strong>backlog queue</strong> and raises <code>NET_RX_SOFTIRQ</code>.</li>
+<li>Later the softirq drains the backlog queue and pushes packets up the protocol stack.</li>
+</ol>
+<p>Typical <strong>TX</strong> flow: the stack calls <code>ndo_start_xmit</code>, the driver puts the frame on the TX ring and
+starts it; when the NIC finishes sending, it raises a <strong>TX-done interrupt per packet</strong>, and the ISR
+frees the completed <code>sk_buff</code>.</p>
+<h3 id="22-the-problem-interrupt-storm-and-receive-livelock">2.2 The problem - interrupt storm and receive livelock</h3>
+<p>The fatal weakness is <strong>one interrupt per packet</strong>. At high packet rates (think hundreds of
+thousands of packets per second) this breaks down:</p>
+<ul>
+<li><strong>Interrupt storm</strong>: the CPU spends nearly all its time entering/leaving the ISR. Each interrupt
+  has fixed overhead (context save, cache/TLB disturbance) that is pure waste when multiplied by
+  the packet rate.</li>
+<li><strong>Receive livelock</strong>: hardirqs have higher priority than the softirq that actually drains the
+  backlog. Under a flood, the CPU is so busy taking interrupts and enqueuing onto the backlog that
+  it <strong>never gets to run the softirq</strong> - so packets pile up and are dropped <em>after</em> the system
+  already paid to receive them. Useful throughput collapses toward zero even though the CPU is at
+  100%. (Described in Mogul and Ramakrishnan, "Eliminating Receive Livelock in an Interrupt-Driven
+  Kernel", 1996.)</li>
+<li><strong>No batching</strong>: handling one packet per interrupt prevents amortising costs over a batch, and
+  hurts cache locality.</li>
+</ul>
+<p>This is fundamentally an <strong>RX</strong> problem: the <strong>RX rate is set by the outside world</strong> and is
+unbounded - a peer or an attacker can push packets at line rate, and the host <em>must</em> react to each
+one, so the interrupt load is uncapped. <strong>TX is the opposite</strong>: the host only sends what it chooses
+to, and a full TX ring applies backpressure (<code>netif_stop_queue</code>), so you <strong>cannot be flooded by
+your own transmissions</strong>. That is why only RX can livelock - and why NAPI and <code>budget</code> target RX
+(expanded in section 2.3 "Why the focus is RX, not TX").</p>
+<p>In short: the interrupt-per-packet model gives great <em>latency</em> at low load but <strong>does not scale</strong>
+and can livelock at high load.</p>
+<h3 id="23-how-napi-solves-it-interrupt-polling-hybrid">2.3 How NAPI solves it - interrupt + polling hybrid</h3>
+<p>NAPI's idea: <strong>take an interrupt to notice that work exists, then switch to polling to do the
+work</strong> - and keep the interrupt disabled while polling so a flood cannot storm the CPU.</p>
+<p>The mechanism:</p>
+<ol>
+<li>On packet arrival the NIC raises an interrupt. The ISR does <strong>almost nothing</strong>: it <strong>masks
+   (disables) the device interrupt</strong> and calls <code>napi_schedule()</code> to queue the device for polling.
+   No packets are processed in hardirq. (On a shared-vector NIC like our single-MSI VN1000 this one
+   mask covers <strong>both</strong> the RX-available and the TX-completion cause; with MSI-X each vector / NAPI
+   instance is masked independently.)</li>
+<li>The kernel runs the driver's <code>poll()</code> callback in <strong>softirq</strong> context. <code>poll()</code> reads the
+   completed descriptors <strong>directly from the NIC's RX ring in a batch</strong>, up to <code>budget</code> packets, and
+   delivers each up the stack as an <code>sk_buff</code> - with the device interrupt still <strong>off</strong>. (Exactly
+   how the skb is obtained - a pre-posted skb vs one built at completion - is a separate RX buffer
+   model choice; see section 2.6.)</li>
+<li>Wrap-up:
+   - if <code>poll()</code> <strong>drained</strong> the ring (<code>work_done &lt; budget</code>) -&gt; call <code>napi_complete_done()</code>, then the
+     <strong>driver re-enables (unmasks) the interrupt</strong> itself -&gt; back to interrupt-driven mode (low
+     latency when idle).
+   - if the ring <strong>still has packets</strong> (<code>work_done &gt;= budget</code>, i.e. the budget was used up) -&gt;
+     <strong>stay in polling mode</strong>, do not unmask, and get rescheduled -&gt; keep polling without any
+     interrupts.</li>
+</ol>
+<p>This is <strong>adaptive</strong> with no mode switch in the code:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Load</th>
+<th>Behaviour</th>
+<th>Why it is good</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Low</td>
+<td>one interrupt per packet, poll drains immediately</td>
+<td>minimal latency</td>
+</tr>
+<tr>
+<td>High</td>
+<td>one interrupt, then sustained polling, interrupt stays off</td>
+<td>no interrupt storm, no livelock, batched, bounded CPU</td>
+</tr>
+</tbody>
+</table></div>
+<p>It also moves the heavy work <strong>out of hardirq into softirq</strong> (the <code>poll</code>), keeping the hardirq path
+short, and it <strong>removes the backlog queue</strong> for NAPI devices - <code>poll()</code> reads the device ring
+directly instead of going through <code>netif_rx()</code>.</p>
+<h4 id="the-canonical-poll-skeleton">The canonical <code>poll()</code> skeleton</h4>
+<p>Every NAPI driver's poll callback has the same shape - clean TX, process RX up to <code>budget</code>, then
+decide whether to complete. The whole adaptive behaviour falls out of the single
+<code>work_done &lt; budget</code> test:</p>
+<pre><code class="language-c">/* Runs in softirq context; net_rx_action() passes @budget (= napi-&gt;weight).
+ * The return value tells the NAPI core what to do next:
+ *   work_done &lt;  budget  -&gt; we drained the ring; core removes us and we unmask
+ *   work_done &gt;= budget  -&gt; more may remain; core keeps us scheduled         */
+static int driver_poll(struct napi_struct *napi, int budget)
+{
+        struct my_priv *priv = container_of(napi, struct my_priv, napi);
+        int work_done = 0;
+
+        my_clean_tx(priv);                   /* free sent skbs; not counted vs budget */
+
+        while (work_done &lt; budget) {          /* RX, batched (steps D1-D3) */
+                if (!ring_has_owned_desc(priv))   /* ring drained for us -&gt; stop */
+                        break;
+                work_done += my_rx_one(priv);     /* D2 read data + D3 netif_receive_skb */
+                my_refill_and_advance(priv);      /* E1/E2 recycle the descriptor */
+        }
+
+        if (work_done &lt; budget) {             /* did not hit the cap =&gt; ring is empty */
+                if (napi_complete_done(napi, work_done))  /* leave the polling state */
+                        my_irq_enable(priv);              /* DRIVER unmasks the IRQ (e.g. IMS) */
+        }
+        /* else work_done &gt;= budget: stay scheduled, IRQ stays masked, polled again */
+
+        return work_done;
+}
+</code></pre>
+<p>Two things to read off the code: <code>work_done</code> is the count processed <strong>in this one call</strong> (range
+<code>[0, budget]</code>), and <code>napi_complete_done()</code> only does NAPI bookkeeping - the actual unmask is the
+driver's <code>my_irq_enable()</code> register write, guarded by it.</p>
+<h4 id="a-worked-example-5-packets-pending-budget-3">A worked example - 5 packets pending, <code>budget</code> = 3</h4>
+<p><code>budget</code> caps <strong>one</strong> <code>poll()</code> call, not the queue, so a 5-packet burst drains over <strong>two</strong> poll
+calls on a <strong>single</strong> interrupt:</p>
+<ol>
+<li><strong>Interrupt + schedule</strong> (once): the NIC raises one IRQ; the ISR masks it and <code>napi_schedule()</code>s
+   the poll. The IRQ stays masked until the burst is drained.</li>
+<li><strong><code>poll()</code> call #1</strong> (<code>budget</code> = 3): the loop runs 3 times (<code>work_done = 3</code>), delivering and
+   recycling each packet. <code>work_done == budget</code> -&gt; it hit the cap, so the ring may still have
+   packets -&gt; it <strong>skips</strong> <code>napi_complete_done</code> and does <strong>not</strong> unmask; it returns 3 and
+   <code>net_rx_action()</code> keeps the NAPI scheduled.</li>
+<li><strong><code>poll()</code> call #2</strong> (<code>budget</code> = 3): 2 packets remain, so the loop runs twice and then
+   <code>ring_has_owned_desc()</code> is false -&gt; <code>work_done = 2</code>. <code>work_done &lt; budget</code> -&gt; it calls
+   <code>napi_complete_done()</code> and the <strong>driver unmasks</strong> the IRQ; returns 2. Back to interrupt-driven
+   mode.</li>
+</ol>
+<p>Net result: <strong>1</strong> hardware interrupt, <strong>2</strong> <code>poll()</code> calls (3 + 2 packets), one unmask at the very
+end. Two consequences worth internalising:</p>
+<ul>
+<li>Packets that arrive <strong>while the IRQ is masked</strong> raise no new interrupt - the next <code>poll()</code> simply
+  finds and processes them. That is the interrupt-storm / livelock defence in action.</li>
+<li>Even an exact fit needs a "confirming" poll: 3 packets with <code>budget</code> = 3 take call #1
+  (<code>work_done == 3</code>, no complete) <strong>and</strong> call #2 (<code>work_done == 0 &lt; 3</code>, complete + unmask) before
+  the ring is seen as empty.</li>
+</ul>
+<blockquote>
+<p><code>net_rx_action()</code> also bounds the whole softirq run with an overall quota (<code>netdev_budget</code>,
+default 300 packets) and a 2-jiffy time limit; if a flood exceeds either, the remaining work is
+handed to <code>ksoftirqd</code> so one busy queue cannot starve the rest of the system.</p>
+</blockquote>
+<h4 id="why-the-focus-is-rx-not-tx">Why the focus is RX, not TX</h4>
+<p>NAPI was built to tame <strong>RX</strong>, and <code>budget</code> bounds <strong>RX</strong> packets - not because RX interrupts are
+individually more expensive, but because of an asymmetry in <em>who controls the rate</em>:</p>
+<ul>
+<li><strong>RX is externally driven and unbounded</strong>: packets arrive from the network at a rate the host
+  does not control (a peer or an attacker can push line rate), and if they are not serviced the RX
+  ring fills and already-DMA'd packets are dropped. This is the only direction that can flood the
+  CPU and cause receive livelock.</li>
+<li><strong>TX is self-paced and bounded</strong>: the host only transmits what it chooses to send, and when the
+  TX ring fills the driver applies backpressure (<code>netif_stop_queue</code>). You cannot be flooded by your
+  own transmissions, so the TX-completion interrupt rate is self-limiting.</li>
+</ul>
+<p>So TX never needed NAPI's "interrupt off + budget" protection. RX <em>is</em> also somewhat heavier per
+event (allocate/refill buffers, build skb, protocol demux, push up the stack) versus TX completion
+(free skb, advance the ring), but that is secondary - even if they cost the same, only RX can
+livelock. TX-completion interrupts are additionally rare by design: drivers set the report-status
+(<code>RS</code>) bit on only some TX descriptors, and TX cleanup usually rides along in the RX <code>poll</code> (or the
+next <code>ndo_start_xmit</code>), so it often needs no interrupt of its own. NAPI still cleans TX inside the
+same <code>poll</code> as a convenience - it just does not count against <code>budget</code>.</p>
+<h3 id="24-after-napi-the-typical-flow">2.4 After NAPI - the typical flow</h3>
+<p><strong>RX</strong> with NAPI:</p>
+<pre><code class="language-mermaid">sequenceDiagram
+  participant NIC
+  participant ISR as ISR hardirq
+  participant POLL as poll softirq
+  participant STACK as net stack
+  NIC-&gt;&gt;ISR: IRQ on first packet
+  ISR-&gt;&gt;ISR: mask device IRQ, napi_schedule
+  POLL-&gt;&gt;NIC: pull a batch from RX ring up to budget
+  POLL-&gt;&gt;STACK: napi_gro_receive each skb
+  Note over POLL,NIC: drained - napi_complete, re-enable IRQ. still full - keep polling, IRQ off
+</code></pre>
+<p><strong>TX completion</strong> with NAPI: submission (<code>ndo_start_xmit</code>) is unchanged - the driver puts the skb
+on the TX ring and rings the doorbell. The difference is <strong>completion</strong>: instead of a per-packet
+TX-done interrupt freeing one skb in the ISR, the driver <strong>reclaims completed TX descriptors in
+batch inside the same <code>poll()</code></strong> (freeing skbs with <code>napi_consume_skb()</code>), so TX completion is
+mitigated the same way as RX. A single NAPI poll typically handles <strong>both</strong> TX clean and RX receive
+for its queue.</p>
+<h3 id="25-related-complementary-mechanisms">2.5 Related, complementary mechanisms</h3>
+<ul>
+<li><strong>Interrupt coalescing / moderation</strong> (e.g. Intel <code>ITR</code>): the hardware itself delays/merges
+  interrupts. This is orthogonal to NAPI and stacks with it - NAPI mitigates in software, ITR in
+  hardware.</li>
+<li><strong>GRO</strong> (Generic Receive Offload): <code>napi_gro_receive()</code> coalesces several small RX packets into
+  one larger skb in the poll path, cutting per-packet stack cost.</li>
+<li><strong>Threaded NAPI</strong>: run <code>poll()</code> in a kernel thread instead of softirq, for better control under
+  heavy load.</li>
+</ul>
+<h4 id="why-interrupt-moderation-alone-does-not-replace-napi">Why interrupt moderation alone does not replace NAPI</h4>
+<p>Coalescing reduces the interrupt rate, so it is tempting to think it could have fixed the
+interrupt-per-packet problem on its own. It cannot, for two core reasons:</p>
+<ol>
+<li><strong>It is a static latency/throughput trade-off.</strong> The coalescing thresholds (packet count, timer)
+   are fixed up front, and the two goals conflict: tune them <strong>small</strong> for low latency and a flood
+   still produces many interrupts (the storm returns); tune them <strong>large</strong> for throughput and every
+   packet pays extra latency at low load (waiting for the timer or for packets that never come). One
+   fixed setting cannot serve both ends. NAPI needs no such knob - it is interrupt-driven at low
+   load and polling at high load automatically.</li>
+<li><strong>The device still interrupts; NAPI turns the interrupt off entirely while polling.</strong> With
+   coalescing the NIC just interrupts <em>less often</em>, but under sustained load it keeps interrupting
+   at the coalesced rate, and those hardirqs still <strong>preempt the softirq</strong> that drains packets - the
+   priority inversion that causes receive livelock is unchanged. NAPI masks the device interrupt for
+   the whole polling period, so the device <strong>physically cannot</strong> interrupt the CPU while it drains
+   the ring, and <code>budget</code> bounds the work per round for fairness. Moderation says "interrupt me
+   less"; NAPI says "do not interrupt me at all while I am working".</li>
+</ol>
+<p>So the two are complementary and used together (coalescing tames the first interrupt's rate, NAPI
+handles overload), but moderation by itself is insufficient - which is exactly why NAPI was added.</p>
+<h3 id="26-how-this-maps-to-the-vn1000-project">2.6 How this maps to the VN1000 project</h3>
+<ul>
+<li>The interrupt/polling model and the exact <code>napi_schedule -&gt; net_rx_action -&gt; poll -&gt;
+  napi_complete_done</code> chain (including <code>budget</code>) are in
+  <a href="architecture.html#8-interrupt-and-polling-model">architecture.md section 8 / 8.1</a>.</li>
+<li>The per-direction datapath is in <a href="architecture.html#62-level-1-tx-flow">architecture.md 6.2 (Level 1 TX)</a>
+  and <a href="architecture.html#63-level-1-rx-flow">6.3 (Level 1 RX)</a>; the Level 2 equivalents are in section 7.</li>
+<li>Because Level 1 has no real interrupt, the "ISR" role is played by the engine kthread (Phase 2)
+  or a simulated MSI handler (Phase 4); Level 2 uses a real MSI handler via <code>request_irq()</code>. Either
+  way the NAPI half (<code>poll</code> / <code>budget</code> / <code>napi_complete_done</code>) is identical - that is the point of
+  the design.</li>
+<li><strong>RX buffer model</strong>: how the skb is obtained in <code>poll()</code> is a separate choice. VN1000 uses
+  <strong>Model A</strong> - a pre-allocated skb is posted per RX descriptor, so <code>poll()</code> does not build an skb,
+  it just finalises the already-populated one (<code>skb_put</code> + <code>eth_type_trans</code>) and refills the slot
+  with a fresh skb. The build-at-completion model (page_pool / <code>build_skb</code> / copy-break) is
+  deferred to backlog A5. See design decision D-18 and
+  <a href="architecture.html#63-level-1-rx-flow">architecture.md 6.3 (Level 1 RX)</a>.</li>
+</ul>
+<hr>
+<h2 id="3-deferred-execution-kthread-vs-softirq-vs-tasklet-vs-workqueue">3. Deferred execution: kthread vs softirq vs tasklet vs workqueue</h2>
+<p>A hardware interrupt handler (the <em>top half</em>, hardirq context) must be tiny - it runs with that
+interrupt line disabled and preempts almost everything. So the real work is <strong>deferred</strong> to a
+<em>bottom half</em> that runs later. The kernel offers several deferral mechanisms, and the right one
+depends on <strong>one question first: does the work need to sleep?</strong></p>
+<h3 id="31-the-mechanisms">3.1 The mechanisms</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>Context</th>
+<th>Can sleep?</th>
+<th>Concurrency</th>
+<th>Latency</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>hardirq</strong> (top half)</td>
+<td>hardirq (atomic)</td>
+<td>no</td>
+<td>one per IRQ</td>
+<td>lowest</td>
+<td>ack the device, mask, kick a bottom half</td>
+</tr>
+<tr>
+<td><strong>softirq</strong></td>
+<td>softirq (atomic)</td>
+<td>no</td>
+<td>same type runs on <strong>many CPUs</strong> at once</td>
+<td>very low</td>
+<td>high-rate net/block bottom halves (NAPI = <code>NET_RX_SOFTIRQ</code>)</td>
+</tr>
+<tr>
+<td><strong>tasklet</strong></td>
+<td>softirq (atomic)</td>
+<td>no</td>
+<td><strong>serialised</strong> - one CPU at a time per tasklet</td>
+<td>very low</td>
+<td>simple driver interrupt bottom half</td>
+</tr>
+<tr>
+<td><strong>workqueue</strong></td>
+<td>process (<code>kworker</code> kthread)</td>
+<td><strong>yes</strong></td>
+<td>configurable</td>
+<td>higher (scheduler)</td>
+<td>deferrable work that may block (alloc, mutex, I/O)</td>
+</tr>
+<tr>
+<td><strong>kthread</strong></td>
+<td>process</td>
+<td><strong>yes</strong></td>
+<td>you create/own each one</td>
+<td>scheduler-dependent</td>
+<td>long-lived loops / dedicated workers that wait for events</td>
+</tr>
+</tbody>
+</table></div>
+<p>Key relationships:
+- A <strong>tasklet is built on softirqs</strong> (<code>TASKLET_SOFTIRQ</code>). It trades a little of softirq's parallelism
+  (a given tasklet never runs on two CPUs at once) for a simpler, race-free programming model - which
+  is why it is the classic "interrupt bottom half" primitive.
+- <strong>softirq and tasklet are atomic</strong>: no sleeping, no <code>mutex</code>, no <code>GFP_KERNEL</code>, no blocking I/O. Use
+  <code>GFP_ATOMIC</code>, spinlocks, and <code>napi_consume_skb()</code>-style helpers.
+- <strong>workqueue and kthread run in process context</strong>: they <em>can</em> sleep, at the cost of higher,
+  scheduler-dependent latency.</p>
+<h3 id="32-choosing-one">3.2 Choosing one</h3>
+<ol>
+<li><strong>Does the work sleep / block?</strong> (allocate <code>GFP_KERNEL</code>, take a <code>mutex</code>, do I/O, <code>msleep</code>.)
+   - Yes -&gt; process context: <strong>workqueue</strong> (one-off deferrals) or <strong>kthread</strong> (a long-lived loop).
+   - No -&gt; atomic context: <strong>tasklet</strong> (simple) or <strong>softirq</strong> (only the fixed set, for hot paths).</li>
+<li><strong>Is it a short, latency-sensitive bottom half fired from an interrupt?</strong> -&gt; <strong>tasklet</strong>.</li>
+<li><strong>Is it a long-running background loop that waits for events and owns a lifecycle?</strong> -&gt; <strong>kthread</strong>.</li>
+<li><strong>Is it a hot, high-rate path that must scale across CPUs?</strong> -&gt; <strong>softirq</strong> (in practice you
+   <em>consume</em> NAPI rather than register a new softirq).</li>
+</ol>
+<blockquote>
+<p>Note: tasklets are the classic primitive and still widely used, but recent kernels discourage them
+for new code (BH-workqueues were added as a replacement around 6.9). For this learning project the
+tasklet is the clearest way to model an interrupt bottom half.</p>
+</blockquote>
+<h3 id="33-how-vn1000-uses-them">3.3 How VN1000 uses them</h3>
+<ul>
+<li><strong>Engine = kthread</strong> (<a href="../driver/hal/vnic_hal_l1.c">hal/vnic_hal_l1.c</a>). It is a long-lived "device"
+  that <strong>sleeps</strong> in <code>wait_event_interruptible()</code> until a doorbell, then does a run. It needs a
+  sleepable context (it blocks on the wait queue) and owns a lifecycle (<code>kthread_run</code> at init,
+  <code>kthread_stop</code> at exit). A kthread with its own event loop is the natural model for "hardware
+  running independently, waiting for the driver to ring the doorbell".</li>
+<li><strong>Phase 4 simulated MSI handler = tasklet</strong>. It models a hardware interrupt handler: short, must
+  not sleep, runs in softirq context, low latency. A <strong>workqueue</strong> was rejected (process context,
+  can sleep, least interrupt-like) and so was calling <code>napi_schedule()</code> inline (no separation). See
+  <a href="architecture.html#82-completion-signalling---phase-3-vs-phase-4">architecture.md 8.2</a> and D-20.</li>
+<li><strong>NAPI poll = softirq</strong>: <code>vnic_poll</code> runs in <code>NET_RX_SOFTIRQ</code> (we do not create this; the kernel
+  runs the registered poll there). That is why it must not sleep - see topic 2.</li>
+</ul>
+<hr>
+<h2 id="4-memory-barriers-ordering-the-descriptor-handshake">4. Memory barriers - ordering the descriptor handshake</h2>
+<h3 id="41-the-problem-things-are-reordered">4.1 The problem: things are reordered</h3>
+<p>For speed, both the <strong>compiler</strong> (compile time) and the <strong>CPU</strong> (run time - store buffers,
+out-of-order execution) may reorder memory accesses. On weakly-ordered CPUs (ARM, PowerPC) this
+reordering is aggressive; even x86 can reorder a store followed by a load. That breaks any
+"publish then signal" protocol between a <strong>producer</strong> and a <strong>consumer</strong>:</p>
+<pre><code>producer:  desc-&gt;addr = ...; desc-&gt;len = ...;   // payload
+           desc-&gt;status = DD;                    // the &quot;ready&quot; flag
+consumer:  if (desc-&gt;status &amp; DD)                // sees the flag
+               use(desc-&gt;addr, desc-&gt;len);       // reads the payload
+</code></pre>
+<p>Without ordering, the producer's <code>status = DD</code> can become visible <strong>before</strong> the <code>addr</code>/<code>len</code>
+writes, or the consumer can read <code>addr</code>/<code>len</code> <strong>before</strong> it reads <code>status</code> - so the consumer acts on
+a half-written descriptor. No lock is involved (this is lock-free single-producer/single-consumer),
+so a <strong>barrier</strong> is what enforces the order.</p>
+<blockquote>
+<p><strong>Note - why does the compiler reorder at all, and what does it gain?</strong>
+The compiler's only contract is to preserve the behaviour of a <strong>single thread</strong> (the "as-if"
+rule): the observable result for <em>this</em> thread must be unchanged. Within that contract it is free
+to move, merge, or drop memory accesses, and it does so to make the code faster:</p>
+<ul>
+<li><strong>Hiding load latency.</strong> A load from memory can cost hundreds of cycles. The compiler hoists
+  loads early and sinks the dependent use later, so the CPU can do other work while the value is
+  in flight instead of stalling on it.</li>
+<li><strong>Better register allocation / fewer accesses.</strong> Reordering lets it keep a value in a register
+  and reuse it (or merge two accesses into one, or delete a load whose result is already known),
+  cutting memory traffic.</li>
+<li><strong>Scheduling for the pipeline.</strong> Independent instructions can be interleaved to keep the CPU's
+  execution units busy and avoid pipeline bubbles (e.g. not placing a load immediately before the
+  instruction that needs its result).</li>
+</ul>
+<p>The catch: the "as-if" rule only looks at <em>one</em> thread. It has no idea another CPU or a <strong>device</strong>
+is watching the same memory and <em>depends on the order</em> of the writes. That is exactly where the
+producer/consumer handshake breaks, and why we must explicitly tell the compiler "do not reorder
+across this point" with a barrier. (The CPU reorders at run time for the same latency-hiding
+reasons, under the same single-thread assumption - which is why a <em>compiler</em> barrier alone is not
+always enough; see 4.3 and 5.2.)</p>
+</blockquote>
+<h3 id="42-the-pattern-publish-observe-aka-release-acquire">4.2 The pattern (publish / observe, a.k.a. release / acquire)</h3>
+<ul>
+<li><strong>Producer</strong>: write payload -&gt; <strong>write barrier</strong> -&gt; write the flag.</li>
+<li><strong>Consumer</strong>: read the flag -&gt; <strong>read barrier</strong> -&gt; read payload.</li>
+</ul>
+<p>The write barrier keeps the payload writes ahead of the flag; the read barrier keeps the payload
+reads behind the flag. They must be <strong>used in pairs</strong> to work.</p>
+<h3 id="43-the-linux-barriers">4.3 The Linux barriers</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Barrier</th>
+<th>Orders</th>
+<th>Use when the other side is...</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>barrier()</code></td>
+<td>the <strong>compiler</strong> only</td>
+<td>(just stops compile-time reordering)</td>
+</tr>
+<tr>
+<td><code>smp_wmb()</code> / <code>smp_rmb()</code> / <code>smp_mb()</code></td>
+<td>CPU stores / loads / both, <strong>between CPUs</strong></td>
+<td>another <strong>CPU</strong> sharing normal memory</td>
+</tr>
+<tr>
+<td><code>smp_store_release()</code> / <code>smp_load_acquire()</code></td>
+<td>the flag + everything before/after it</td>
+<td>the modern, less error-prone CPU pair</td>
+</tr>
+<tr>
+<td><code>dma_wmb()</code> / <code>dma_rmb()</code></td>
+<td>accesses to <strong>DMA (coherent) memory</strong>, as seen by a device</td>
+<td>a <strong>device doing DMA</strong></td>
+</tr>
+<tr>
+<td><code>wmb()</code> / <code>rmb()</code> / <code>mb()</code></td>
+<td>strongest, includes MMIO</td>
+<td>broad ordering incl. device registers</td>
+</tr>
+</tbody>
+</table></div>
+<p>Also relevant: <code>READ_ONCE()</code> / <code>WRITE_ONCE()</code> stop the compiler from tearing or refetching the flag
+itself; <code>writel()</code>/<code>readl()</code> already carry ordering for MMIO registers.</p>
+<h3 id="44-choosing-who-is-the-other-side">4.4 Choosing: who is the other side?</h3>
+<ul>
+<li><strong>CPU &lt;-&gt; CPU</strong> (two threads/contexts sharing normal memory): <code>smp_wmb</code>/<code>smp_rmb</code>.</li>
+<li><strong>CPU &lt;-&gt; device via DMA</strong> (driver writes a descriptor in DMA memory that a device reads, or reads
+  data a device DMA-wrote): <code>dma_wmb</code>/<code>dma_rmb</code>. On x86 these are often the same instruction as the
+  <code>smp_*</code> ones, but on ARM/PowerPC <code>dma_*</code> is stronger (a wider coherence domain that includes the
+  device), so using <code>dma_*</code> where a device is involved is required for portability.</li>
+</ul>
+<h3 id="45-how-vn1000-uses-them">4.5 How VN1000 uses them</h3>
+<p>The TX/RX rings are a lock-free producer/consumer with the <strong><code>DD</code> bit as the flag</strong> and the
+descriptor <code>addr</code>/<code>len</code> as the payload (topic mirrors design-decisions D-18/D-19):</p>
+<ul>
+<li><strong>Driver core (<a href="../driver/core/vnic_netdev.c">core/vnic_netdev.c</a>) uses <code>dma_wmb</code>/<code>dma_rmb</code></strong>,
+  because from the driver's side the peer is a <em>device</em> (the Level 1 engine today, the Level 2 QEMU
+  device later). Examples: <code>ndo_start_xmit</code> does <code>dma_wmb()</code> before ringing <code>TDT</code>; <code>vnic_tx_clean</code>
+  and <code>vnic_rx_clean</code> do <code>dma_rmb()</code> after seeing <code>DD</code>; the RX refill does <code>dma_wmb()</code> before
+  clearing <code>status</code>. This keeps the core correct for both levels.</li>
+<li><strong>The Level 1 engine (<a href="../driver/hal/vnic_hal_l1.c">hal/vnic_hal_l1.c</a>) uses <code>smp_wmb</code>/<code>smp_rmb</code></strong>,
+  because it <em>is</em> a CPU (a kthread) - the L1 "device" side is CPU &lt;-&gt; CPU. The pairing still holds:
+  <code>dma_*</code> is at least as strong as <code>smp_*</code>, so the driver's <code>dma_wmb</code> pairs with the engine's
+  <code>smp_rmb</code>, and vice versa.</li>
+<li>The flag reads use <code>READ_ONCE(desc-&gt;status)</code> so the compiler cannot tear or hoist them.</li>
+</ul>
+<p>At Level 2 the engine disappears; the device is QEMU doing real DMA, and the driver's existing
+<code>dma_*</code> barriers are exactly what that needs - which is why switching the core to <code>dma_*</code> made it
+Level-2-ready with no datapath logic change.</p>
+<h3 id="46-the-whole-driver-device-synchronization-it-is-not-a-lock">4.6 The whole driver &lt;-&gt; device synchronization (it is <em>not</em> a lock)</h3>
+<p>Barriers are one piece. You cannot put a lock between the CPU and a device, so the TX/RX rings are
+race-free by a stack of <strong>four</strong> cooperating guarantees:</p>
+<ol>
+<li><strong>Single-owner protocol (<code>DD</code>)</strong> - at any instant a descriptor is owned by exactly one side and
+   only the owner writes it; <code>DD</code> plus the <code>TDT</code>/<code>RDT</code> doorbells are the handoff points, so the driver
+   and device never write the same descriptor at once.</li>
+<li><strong>Ordering across the handoff</strong> - producer <code>dma_wmb()</code> <em>before</em> publishing the flag, consumer
+   <code>dma_rmb()</code> <em>after</em> reading it (4.2-4.5). Stops "saw <code>DD=1</code> but read stale payload".</li>
+<li><strong><code>READ_ONCE</code> on the flag (compiler, not CPU)</strong> - <code>READ_ONCE(desc-&gt;status)</code> forces the compiler to
+   actually reload <code>status</code> from memory each time, once, untorn - so it cannot cache the device's flag
+   in a register and spin on a stale value. It emits <strong>no fence</strong>; it is the <em>compiler-level</em> companion
+   to <code>dma_rmb()</code> (the <em>CPU-level</em> ordering). You need <strong>both</strong>: <code>READ_ONCE</code> so you observe the new
+   <code>DD</code>, <code>dma_rmb()</code> so the payload reads are ordered after it.</li>
+<li><strong>Reachable, consistent memory</strong> - the descriptor ring is <strong>coherent</strong> (<code>dma_alloc_coherent</code>, L2),
+   so no manual cache management is needed (only the ordering barriers); the packet <strong>buffers</strong> are
+   streaming-mapped and <code>dma_unmap</code>'d (which syncs them for the CPU) before the driver reads RX data,
+   and are never freed while the device might still DMA them (the driver waits for <code>DD</code>). D-26 keeps
+   this portable (the RX unmap happens before delivery).</li>
+</ol>
+<p>The driver's own <code>tx_ring.lock</code> (D-23) is a <strong>separate</strong> concern: it serialises the driver's two
+contexts (<code>ndo_start_xmit</code> in process context vs <code>vnic_tx_clean</code> in the NAPI softirq), <em>not</em> the driver
+against the device; RX needs no such lock (consume + refill are one NAPI pass). Drop any of the four
+above and you get a classic bug - a torn handoff, a missed completion, stale data, or a use-after-free
+of a buffer the device is still writing.</p>
+<hr>
+<h2 id="5-mmio-register-access-why-readlwritel-not-a-raw-pointer">5. MMIO register access - why readl/writel, not a raw pointer</h2>
+<p>At Level 2 the driver talks to the device's registers (CTRL, the <code>TDT</code>/<code>RDT</code> doorbells, <code>ICR</code>/<code>IMS</code>
+/<code>IMC</code>, ...) through <strong>MMIO</strong> in a PCI BAR. <code>pci_iomap()</code> / <code>ioremap()</code> returns a
+<code>void __iomem *</code> that maps the device's BAR (as <em>uncacheable device memory</em>, not RAM). The <strong>only
+correct</strong> way to touch it is the accessor family - <code>readl()</code>/<code>writel()</code> (32-bit), <code>readw</code>/<code>writew</code>,
+<code>readb</code>/<code>writeb</code> - <strong>never</strong> by dereferencing the pointer as if it were normal memory.</p>
+<blockquote>
+<p><strong>"Memory-mapped" but not RAM - resolving the apparent paradox.</strong> It can seem contradictory that
+MMIO is <em>memory</em>-mapped yet you must <em>not</em> access it like memory. The resolution: <strong>"memory-mapped"
+means it lives in the memory address space and is reached by ordinary load/store instructions</strong> (as
+opposed to a separate I/O-port space, e.g. x86 <code>IN</code>/<code>OUT</code>) - and <code>readl</code>/<code>writel</code> <strong>are</strong> exactly
+those load/store instructions, so there is no conflict with the design. What "memory-mapped" does
+<strong>not</strong> mean is that the region behaves like <strong>RAM</strong>. <em>Memory is not RAM</em>: a BAR is device registers
+- reads/writes have <strong>side effects</strong> (<code>ICR</code> read-to-clear, the <code>TDT</code> doorbell) and must not be
+cached, reordered, merged, split or elided. So you do reach it with load/store (it is memory-mapped),
+but through accessors that suppress the RAM-style compiler/CPU optimisations and add the right width,
+endianness and barriers (5.1-5.2). On x86 <code>readl</code>/<code>writel</code> reduce to about a <code>volatile</code> access;
+on weakly-ordered arches (ARM, PowerPC) they also add byte-swapping and memory barriers.</p>
+</blockquote>
+<h3 id="51-why-a-raw-ptr-dereference-is-wrong">5.1 Why a raw <code>*ptr</code> dereference is wrong</h3>
+<ol>
+<li><strong>Elision / reordering (the dangerous one).</strong> A plain <code>*ptr</code> is not <code>volatile</code>, so the compiler
+   may cache it in a register, merge two accesses into one, drop a "dead" read, or reorder it. If the
+   access is optimised away, <strong>the load/store is never emitted</strong> - the device never sees it. (Worse:
+   it can pass in a debug build and silently break at <code>-O2</code>.) <code>readl</code>/<code>writel</code> use a volatile access,
+   so exactly one access of the right width is always emitted.</li>
+<li><strong>Access width.</strong> <code>readl</code> is a 32-bit access. A struct/pointer dereference may emit byte-sized or
+   merged accesses that a device rejects or mis-handles (real devices, and emulated ones, declare the
+   access sizes they accept).</li>
+<li><strong>Ordering / barriers.</strong> <code>readl</code>/<code>writel</code> carry a compiler barrier and, on weakly-ordered CPUs, a
+   memory barrier, so MMIO is ordered with respect to other MMIO. This is essential for things like
+   the <strong>doorbell</strong>: the descriptor in memory must be visible before the <code>TDT</code> write that tells the
+   device to read it.</li>
+<li><strong>Endianness.</strong> <code>readl</code>/<code>writel</code> are <strong>little-endian by definition</strong> (they byte-swap on a
+   big-endian CPU); a raw dereference is native-endian and breaks on BE.</li>
+<li><strong><code>__iomem</code> typing.</strong> The token is annotated <code>__iomem</code> precisely so that dereferencing it is a
+   sparse / type error - the annotation exists to force the accessors.</li>
+</ol>
+<h3 id="52-what-the-ordering-covers-and-what-it-does-not-vs-topic-4">5.2 What the ordering covers - and what it does not (vs topic 4)</h3>
+<p><code>readl</code>/<code>writel</code> give two guarantees:</p>
+<ul>
+<li><strong>The access is emitted</strong> (volatile): never optimised away, cached, or merged.</li>
+<li><strong>MMIO is ordered against MMIO</strong>: successive register accesses reach the device in program order -
+  <code>writel(a, REG_A); writel(b, REG_B);</code> is seen by the device as A-then-B. Devices often require
+  this ("clear <code>ICR</code> before re-enabling <code>IMS</code>", "write the index register before the data
+  register", ...).</li>
+</ul>
+<p>For that second guarantee, two <em>different</em> kinds of reordering have to be stopped - and they are not
+the same thing:</p>
+<ul>
+<li><strong>Compiler barrier</strong> - stops the <em>compiler</em> reordering / removing / merging accesses at compile
+  time (the instruction stream). <code>readl</code>/<code>writel</code> always include this.</li>
+<li><strong>CPU / bus barrier</strong> - stops the <em>CPU</em> reordering accesses at run time. x86 is strongly ordered
+  (TSO) so this is nearly free; weakly-ordered CPUs (ARM, PowerPC) need a real barrier instruction,
+  which <code>readl</code>/<code>writel</code> include. A compiler barrier alone does <strong>not</strong> stop CPU reordering.</li>
+</ul>
+<p>What this ordering does <strong>not</strong> cover: an MMIO access vs a <strong>normal-memory</strong> (DMA) access.
+<code>readl</code>/<code>writel</code> order MMIO-vs-MMIO only; they say nothing about <em>when a write to a descriptor in
+ordinary DMA memory becomes visible to the device</em> relative to a doorbell MMIO write. That is the job
+of <code>dma_wmb()</code>/<code>dma_rmb()</code> (topic 4). So the doorbell needs <strong>both</strong> - the descriptor barrier <em>and</em>
+the ordered MMIO write:</p>
+<pre><code class="language-c">/* ndo_start_xmit (core/vnic_netdev.c) */
+... fill the descriptor (addr/len/flags) ...     /* writes to normal DMA memory */
+dma_wmb();                               /* those become device-visible before the doorbell */
+vnic_hal_wr32(priv, VN_REG_TDT, next);   /* writel(): MMIO doorbell; device now DMA-reads the desc */
+</code></pre>
+<p><code>writel</code>'s compiler barrier already stops the <em>compiler</em> sinking the descriptor write below the
+doorbell, but only <code>dma_wmb()</code> guarantees the <em>device</em> actually observes the descriptor first.</p>
+<p>When you deliberately batch and want to skip the per-access barrier, the relaxed variants
+<code>readl_relaxed</code>/<code>writel_relaxed</code> drop the CPU/bus barrier (keeping the volatile + compiler
+guarantee) - then you must place the barriers yourself.</p>
+<h3 id="53-the-qemu-connection">5.3 The QEMU connection</h3>
+<p>This is also <em>why the device sees the right thing</em> at Level 2. The MMIO access traps to QEMU's BAR
+callback at the <strong>physical-address</strong> level (KVM faults it out; TCG routes it through softmmu) - but
+only if the access is actually <strong>emitted</strong> (point 1), at the <strong>right width</strong> (point 2), in the
+<strong>right order</strong> (point 3). So <code>readl</code>/<code>writel</code> are not merely guest-side hygiene; they are what makes
+the emulated device observe the intended register operation. See
+<a href="qemu-device-model.html">qemu-device-model.md</a> section 3.</p>
+<h3 id="54-how-vn1000-uses-them">5.4 How VN1000 uses them</h3>
+<ul>
+<li><strong>Level 1</strong>: <code>vnic_hal_rd32</code>/<code>vnic_hal_wr32</code> are a plain C switch over an in-memory fake register
+  block - no MMIO, so no accessor is involved (the "device" is a kthread in the same address space).</li>
+<li><strong>Level 2</strong>: the same <code>vnic_hal_rd32</code>/<code>vnic_hal_wr32</code> become <code>readl</code>/<code>writel</code> on the <code>pci_iomap</code>'d
+  BAR (D-12 keeps <code>core/</code> unchanged; only the HAL backend differs). The doorbell ordering above and
+  the <code>ICR</code> read-to-clear / <code>IMS</code>/<code>IMC</code> register dance then rely on exactly these accessor
+  guarantees.</li>
+</ul>
+<hr>
+<h2 id="6-tuntap-virtual-interfaces-and-the-qemu-tap-backend">6. TUN/TAP - virtual interfaces, and the QEMU tap backend</h2>
+<h3 id="61-the-problem-it-solves">6.1 The problem it solves</h3>
+<p>A network interface is normally backed by <strong>hardware</strong> - a real NIC driver puts frames on a wire.
+TUN/TAP is the kernel mechanism that lets a <strong>userspace program be the "hardware"</strong> behind an
+otherwise-ordinary network interface: the kernel sees a normal netdev, but the frames are handed to /
+taken from a process through a file descriptor. This is the building block behind VMs, VPNs, tunnels,
+containers and sandboxes - anything that needs to move packets between the kernel's network stack and
+a userspace program <em>without</em> a physical NIC. For us, it is how the QEMU process (host userspace)
+connects the emulated VN1000 to the host's real network stack (Phase 10).</p>
+<h3 id="62-tun-vs-tap-l3-vs-l2">6.2 TUN vs TAP - L3 vs L2</h3>
+<p>Both are exposed through the same char device <code>/dev/net/tun</code>; you choose the mode when you open it:</p>
+<ul>
+<li><strong>TUN</strong> (<code>IFF_TUN</code>) = <strong>L3</strong>: the fd carries bare <strong>IP packets</strong> (no Ethernet header). Point-to-point
+  and routed - the typical VPN/tunnel device (<code>tun0</code>).</li>
+<li><strong>TAP</strong> (<code>IFF_TAP</code>) = <strong>L2</strong>: the fd carries full <strong>Ethernet frames</strong> (with MAC headers). Behaves
+  like a real Ethernet port - can be bridged, has a MAC, sees ARP/broadcast. The VM case.</li>
+</ul>
+<p>A NIC's datapath <em>is</em> Ethernet frames (our <code>vn_desc</code> buffers hold whole frames, the device does an
+Ethernet-MAC swap in loopback), so the QEMU NIC backend uses <strong>TAP</strong>.</p>
+<h3 id="63-the-two-ends-of-a-tap">6.3 The two ends of a tap</h3>
+<p>A tap has two ends, and keeping them straight is the key to the whole thing:</p>
+<ul>
+<li><strong>kernel end</strong> - a normal netdev (e.g. <code>vnic-tap0</code>): it has a MAC, you can give it an IP, and
+  <code>ip link</code> / <code>tcpdump</code> / routing / <code>iptables</code> treat it exactly like a physical interface.</li>
+<li><strong>userspace end</strong> - an open fd on <code>/dev/net/tun</code> bound to that interface: <code>read(fd)</code> returns the
+  next frame the kernel <strong>transmitted out</strong> the interface; <code>write(fd)</code> <strong>injects</strong> a frame as if it
+  had been <strong>received</strong> on the interface.</li>
+</ul>
+<p>So the directions are mirror-imaged across the fd:</p>
+<pre><code>   kernel-side TX  ==  program's read(fd)     (host sends out vnic-tap0  -&gt; QEMU reads it)
+   kernel-side RX  ==  program's write(fd)    (QEMU writes a frame       -&gt; appears as RX on vnic-tap0)
+</code></pre>
+<h3 id="64-how-qemu-uses-the-tap-data-flow">6.4 How QEMU uses the tap (data flow)</h3>
+<pre><code>guest:    app -&gt; guest IP stack -&gt; vnic0 (emulated PCIe NIC)
+                                      |   QEMU device:  TX = qemu_send_packet,  RX = receive()
+WSL2 host:                       QEMU process  &lt;-&gt;  /dev/net/tun (fd)
+                                      |
+                                 vnic-tap0  (host netdev: MAC, IP 192.168.20.1, tcpdump-able)
+                                      |
+                                 host IP stack (routing / NAT / firewall)
+</code></pre>
+<ul>
+<li><strong>Guest TX</strong>: <code>vnic0</code> transmits -&gt; the device's <code>qemu_send_packet</code> -&gt; <code>write()</code> to the tap fd -&gt;
+  the frame appears as <strong>received on <code>vnic-tap0</code></strong> -&gt; the host stack handles it (replies, routes, NATs).</li>
+<li><strong>Guest RX</strong>: the host sends a frame out <code>vnic-tap0</code> -&gt; kernel hands it to QEMU via the fd -&gt;
+  QEMU's <code>receive()</code> callback <code>pci_dma_write</code>s it into the RX ring + raises <code>RXAVAIL</code>.</li>
+</ul>
+<p>A consequence worth remembering: <strong><code>tcpdump -ni vnic-tap0</code> is kernel-side</strong> - it shows frames at the
+interface whether or not QEMU has read them. During Phase 10, the host's ICMP replies were visible to
+<code>tcpdump</code> on the tap even though the emulated device never received them (the read side was paused);
+the tap capture was a red herring (see lessons-learned L-08). Confirm guest delivery with the device's
+own RX stats / interrupt count, not just host-side <code>tcpdump</code>.</p>
+<h3 id="65-persistent-vs-transient-and-permissions">6.5 Persistent vs transient, and permissions</h3>
+<ul>
+<li><strong>Transient</strong>: QEMU (via a helper script) creates the tap on start and removes it on exit; needs
+  <code>CAP_NET_ADMIN</code> at launch.</li>
+<li><strong>Persistent</strong> (<code>ip tuntap add dev vnic-tap0 mode tap user "$USER"</code>): created once and <strong>owned by a
+  user</strong>, so it survives QEMU restarts and that user can open the fd <strong>without root</strong>. Creating it
+  still needs <code>CAP_NET_ADMIN</code> (root) because it adds a kernel interface; <code>/dev/net/tun</code> itself is
+  usually world-rw, so <em>opening</em> an existing user-owned tap does not need root (though KVM access
+  often still does). We use a persistent, user-owned tap (run with <code>script=no,downscript=no</code>) so the
+  guest can be rebooted against the same <code>vnic-tap0</code>.</li>
+</ul>
+<h3 id="66-why-a-tap-not-slirp-for-a-real-nic">6.6 Why a tap (not slirp) for "a real NIC"</h3>
+<p><code>tap</code> puts <strong>real L2 on a host interface</strong>, so the host can <code>ping</code> the guest, <code>tcpdump</code> real frames,
+and the link can be bridged / routed / NAT'd - the guest behaves like a real NIC plugged into the
+host (the Level 2 goal, D-25). The alternative, <strong>user-mode <code>slirp</code></strong>, is a userspace TCP/IP stack
+<em>inside</em> QEMU that NATs guest connections into host sockets: zero host setup and instant internet, but
+no real L2, and the host cannot initiate to the guest (only <code>hostfwd</code>). The device model is identical
+for both - only the <code>-netdev</code> differs (see qemu-device-model.md section 6 for the device&lt;-&gt;backend API
+and the full backend comparison).</p>
+<h3 id="67-how-vn1000-uses-it">6.7 How VN1000 uses it</h3>
+<ul>
+<li><strong>Level 1</strong>: no tap - the "network" is the in-kernel loopback engine in the same address space.</li>
+<li><strong>Level 2, loopback mode</strong> (<code>-device vnic</code>, the default; the test suite): no tap - the device loops
+  each TX frame back into its own RX ring internally.</li>
+<li><strong>Level 2, tap mode</strong> (<code>-device vnic,loopback=off -netdev tap,...</code>): the device bridges to
+  <code>vnic-tap0</code> as above - <code>qemu_send_packet</code> on TX, the <code>receive()</code> callback on RX, with
+  <code>can_receive()</code>/<code>qemu_flush_queued_packets()</code> as the RX flow control (D-30). Host-side tap setup +
+  checks are in dev-setup.md section 8; the boot + guest-side ping/verify in qemu-build.md section 8.</li>
+</ul>
+<hr>
+<h2 id="7-throughput-mechanisms-tx-doorbell-batching-interrupt-moderation-and-virtio">7. Throughput mechanisms - TX doorbell batching, interrupt moderation, and virtio</h2>
+<p>This topic explains the real-NIC techniques behind throughput, prompted by the Level 2 measurement
+that <strong>TX (~350 Mbit/s) ran ~10x slower than RX (~3.77 Gbit/s)</strong> over the tap (lessons-learned L-09).
+The mechanisms below are what real NICs/drivers use; understanding them explains both that result and
+why a paravirtual design (virtio) exists.</p>
+<h3 id="71-the-cost-that-actually-differs-real-hardware-vs-emulation">7.1 The cost that actually differs: real hardware vs emulation</h3>
+<p>A NIC's two "edge" events are the <strong>TX doorbell</strong> (driver -&gt; device: a write to a <em>tail</em> register
+saying "descriptors are ready up to N") and the <strong>completion interrupt</strong> (device -&gt; driver). The
+<em>mechanism</em> is the same on real hardware and in QEMU; the <strong>cost</strong> is not:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>event</th>
+<th>on real hardware</th>
+<th>under KVM emulation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TX doorbell (<code>writel(TDT)</code>)</td>
+<td>a <strong>posted PCIe write</strong> - fire-and-forget, often write-combined; ~tens of cycles</td>
+<td>an <strong>MMIO VM-exit</strong> - trap to the hypervisor + device model + return; ~thousands of cycles</td>
+</tr>
+<tr>
+<td>completion interrupt</td>
+<td>a real MSI the LAPIC delivers</td>
+<td><code>msi_notify</code> -&gt; APIC injection into the vCPU (also an exit/inject)</td>
+</tr>
+</tbody>
+</table></div>
+<p>So a <em>per-packet</em> doorbell is nearly free on bare metal but a major tax under virtualization - which is
+exactly why VN1000's TX (one <code>writel(TDT)</code> per <code>ndo_start_xmit</code>) stalls while RX, driven by the
+host/iothread and drained by NAPI batching, runs far faster (topic 2, topic 5, L-09).</p>
+<h3 id="72-tx-doorbell-batching-xmit_more-and-friends">7.2 TX doorbell batching (<code>xmit_more</code>) and friends</h3>
+<p>Real drivers do <strong>not</strong> ring the doorbell per packet. The stack hands the driver a burst (GSO
+segmentation, qdisc bulk dequeue) and sets <strong><code>netdev_xmit_more()</code></strong> on all but the last; the driver
+<strong>defers the tail write</strong> and rings it <strong>once per burst</strong> (igb/ixgbe/i40e/mlx5/virtio all do this).
+Related real-NIC TX economies:
+- <strong>BQL (Byte Queue Limits)</strong> - bound the bytes outstanding in the ring to cap latency/bufferbloat.
+- <strong>TX-completion coalescing</strong> - one interrupt per <em>batch</em> of sent frames, cleaned in one NAPI poll.
+- <strong><code>RS</code>-bit thinning</strong> - set the TX descriptor's <em>Report-Status</em> bit only every Nth descriptor, so the
+  NIC writes back <code>DD</code> (a DMA write) sparsely instead of per descriptor.</p>
+<h3 id="73-interrupt-moderation-itr-adaptive-dim">7.3 Interrupt moderation (ITR / adaptive DIM)</h3>
+<p>To avoid an interrupt per packet under load, NICs have an <strong>interrupt-throttle register</strong> (Intel
+<code>ITR</code>/<code>EITR</code>, in microseconds or interrupts/sec): raise <strong>at most one IRQ per N us</strong>, or after K
+packets or T us, whichever first. Modern drivers add <strong>DIM (Dynamic Interrupt Moderation, <code>net/dim</code>)</strong>
+- adjusting the rate by load (low latency when idle, heavy coalescing when busy). This trades a little
+latency for far fewer interrupts/NAPI invocations, i.e. host-CPU efficiency.</p>
+<h3 id="74-the-virtio-alternative-designed-for-virtualization">7.4 The virtio alternative - designed for virtualization</h3>
+<p>A <strong>register + descriptor-ring</strong> NIC (e1000, and our VN1000) pays the emulation tax in 7.1 on <em>every</em>
+doorbell and interrupt - which is why QEMU's emulated <code>e1000</code> is famously slow under load.
+<strong>virtio</strong> avoids it by design. The key thing to understand is that virtio is <strong>not one layer</strong> - it
+is a split across guest and host with a shared-memory contract in between:</p>
+<p><strong>(a) Where it lives (the layers).</strong> It mirrors VN1000's stack but standardised:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>VN1000 (real-hardware model)</th>
+<th>virtio-net</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>guest driver</td>
+<td><code>vnic-l2.ko</code> (netdev)</td>
+<td><code>virtio_net.ko</code> (netdev) - <strong>same layer</strong></td>
+</tr>
+<tr>
+<td>guest core/transport</td>
+<td>our MMIO regs + <code>vn_desc</code> rings</td>
+<td><code>virtio_ring</code> (vring) + a transport: <strong>virtio-pci</strong> (also -mmio, -ccw)</td>
+</tr>
+<tr>
+<td>contract (ABI)</td>
+<td>our <code>vnic_regs.h</code></td>
+<td>the <strong>virtio spec</strong>: virtqueue layout, config space, feature bits</td>
+</tr>
+<tr>
+<td>host device</td>
+<td>QEMU <code>hw/net/vnic.c</code> (MMIO/DMA/MSI callbacks)</td>
+<td>a backend in <strong>(1)</strong> QEMU userspace (<code>hw/net/virtio-net.c</code>), <strong>(2)</strong> the host kernel (<strong>vhost-net</strong>), or <strong>(3)</strong> another process (<strong>vhost-user</strong>/DPDK)</td>
+</tr>
+</tbody>
+</table></div>
+<p>So the <em>driver</em> sits where any NIC driver sits in the guest; the <em>device</em> sits where our QEMU model
+sits - or is pushed into the host kernel (vhost) for speed.</p>
+<p><strong>(b) The virtqueue</strong> - the shared structure, in <strong>guest RAM</strong>, that both sides read/write. The split
+layout has a <strong>descriptor table</strong> (<code>{addr,len,flags,next}</code>, like our <code>vn_desc</code>), an <strong>available ring</strong>
+the <em>guest</em> publishes ("these descriptors are yours to process"), and a <strong>used ring</strong> the <em>device</em>
+publishes ("done with these"). Same producer/consumer + ownership idea as our TX/RX rings + <code>DD</code> bit,
+but the handshake is the <code>avail_idx</code>/<code>used_idx</code> indices rather than a per-descriptor done bit.</p>
+<p><strong>(c) Why it is fast - event suppression.</strong> The two expensive events are the <strong>kick</strong> (guest -&gt; host:
+write a notify register after adding to <em>avail</em> = our TX doorbell, a VM-exit) and the <strong>interrupt</strong>
+(host -&gt; guest after adding to <em>used</em> = our completion MSI). With <strong><code>VIRTIO_F_EVENT_IDX</code></strong> <em>each side
+can tell the other "do not notify me until you reach index X"</em>: while the device is actively
+processing it suppresses the guest's kicks (no exit - the guest just writes the ring and the device
+picks it up), and while NAPI is polling the guest suppresses the device's interrupts. This is exactly
+the <code>xmit_more</code> batching (7.2) + NAPI + ITR (7.3) ideas, but <strong>built into the ring protocol and
+bidirectional/dynamic</strong>: under load, kicks and interrupts fall to near-zero (the busy side just polls
+shared memory); an exit/injection happens only to wake an <em>idle</em> peer.</p>
+<p><strong>(d) vhost - bypassing QEMU on the hot path.</strong> With <strong>vhost-net</strong>, the datapath (walking the vrings,
+moving frames to/from the tap) runs in a <strong>host-kernel</strong> thread; QEMU only does setup. The kick and
+interrupt use <strong>ioeventfd / irqfd</strong>, so KVM signals the vhost thread / injects the IRQ <strong>without going
+through QEMU userspace</strong> at all.</p>
+<p>(In this project the guest's <code>enp0s2</code> is exactly a <strong>virtio-net</strong> device - <code>-device virtio-net-pci</code>
+backed by <code>-netdev user</code> (slirp) - so it is cheap and fast, versus VN1000 deliberately on the real
+register path.)</p>
+<h3 id="75-how-this-maps-to-vn1000">7.5 How this maps to VN1000</h3>
+<p>VN1000 is deliberately a <strong>real-hardware-style register + ring NIC</strong> (e1000-like), so it <em>does</em> pay the
+emulation cost - which makes it the right place to <em>study</em> these mechanisms (and virtio the contrast it
+intentionally is not). Current state and plan:
+- It already declares <code>VN_CAP_MODER</code> and a <code>VN_REG_ITR</code> register - <strong>present in the spec, not yet
+  implemented</strong>.
+- TX rang the doorbell <strong>per packet</strong> (one <code>writel(TDT)</code> per <code>ndo_start_xmit</code>) - the measured TX
+  bottleneck (L-09).
+- <strong>Implemented + measured (Phase 12)</strong>: (a) TX doorbell batching via <code>netdev_xmit_more()</code> (D-32) -
+  ~4.5x TX (414 Mbit/s -&gt; 1.86 Gbit/s, L-10); (b) device-side <strong>ITR</strong> honouring <code>VN_REG_ITR</code> via a
+  QEMU timer (D-33) - ~60x fewer interrupts at flat throughput (L-11); and an MTU sweep (L-12) -
+  ~2.5x throughput at 9000. The interrupt-rate findings are why the next two subsections matter.</p>
+<h3 id="76-per-packet-vs-per-byte-cost-why-mtu-lifts-throughput-but-not-interrupts">7.6 Per-packet vs per-byte cost (why MTU lifts throughput but not interrupts)</h3>
+<p>NIC datapath work splits into two kinds of cost, and tuning is largely about which one you are paying:</p>
+<ul>
+<li><strong>Per-byte</strong> - scales with the <em>bytes</em> moved: the payload DMA/copy, the checksum, the
+  wire/serialisation. MTU does not change this (the same bytes are moved either way).</li>
+<li><strong>Per-packet</strong> - a roughly <em>fixed</em> cost paid once per frame regardless of its size: a descriptor
+  (DMA-read it, write back <code>DD</code>, the <code>dma_wmb</code>/<code>dma_rmb</code>, ring-index updates), a <code>dma_map</code>/<code>unmap</code>, an
+  <code>sk_buff</code> alloc/free, a trip through the IP/TCP stack (<code>eth_type_trans</code>, GRO, routing, socket
+  queueing), and - in emulation especially - a <code>qemu_send_packet</code>/<code>receive()</code> call + a tap-fd op + a
+  host-stack entry per frame.</li>
+</ul>
+<p><strong>Larger MTU carries the same bytes in ~6x fewer packets (9000 vs 1500), so it cuts the <em>count</em> of the
+per-packet work</strong> - that freed CPU is what raises throughput (L-12: ~2.5x at 9000). Strikingly, at the
+higher jumbo throughput the packets/sec is actually <em>lower</em> (~257k pps at 1500/3.0 Gbit/s vs ~103k pps
+at 9000/7.4 Gbit/s), so per-second per-packet work <em>drops</em> even as bytes/sec climbs.</p>
+<p>It does <strong>not</strong> cut interrupts, because the interrupt rate is decoupled from packet count: <strong>NAPI</strong>
+already batches many packets per interrupt, and the rate is set by how often NAPI drains below budget
+and re-arms (topic 2), not by how many packets there are. So MTU's saving shows up as <strong>throughput</strong>,
+while the interrupt rate is governed by NAPI/ITR (L-11/L-12). This per-packet-vs-per-byte split is the
+single most useful lens for the tuning choices below.</p>
+<h3 id="77-tuning-a-nic-to-the-workload-throughput-vs-latencyiops">7.7 Tuning a NIC to the workload - throughput vs latency/IOPS</h3>
+<p>The knobs trade the same resources differently, so they are tuned to the <em>application</em>. The two poles:</p>
+<ul>
+<li><strong>Bulk throughput</strong> (storage replication, backup, video, big data): maximise bytes/sec and CPU
+  efficiency; per-packet latency does not matter.</li>
+<li><strong>Latency / packet-rate (IOPS)</strong> (RPC, key-value stores, HFT, telco): minimise per-packet latency
+  and sustain high packets/sec; spend CPU to do it.</li>
+</ul>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Lever</th>
+<th>Bulk throughput</th>
+<th>Latency / IOPS</th>
+<th>Why (the trade)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Interrupt moderation (ITR)</td>
+<td><strong>high</strong> coalescing</td>
+<td><strong>low</strong>/off (or adaptive <strong>DIM</strong>)</td>
+<td>coalescing cuts interrupts/CPU but adds up to ITR us latency (L-11)</td>
+</tr>
+<tr>
+<td>MTU / jumbo</td>
+<td><strong>9000</strong></td>
+<td>standard (1500)</td>
+<td>jumbo amortises per-packet cost (7.6); useless for already-small transactional packets</td>
+</tr>
+<tr>
+<td>Coalescing offloads</td>
+<td><strong>TSO/GSO + GRO/LRO</strong> on</td>
+<td><strong>GRO/LRO off</strong></td>
+<td>they hold/merge packets -&gt; throughput up but latency up</td>
+</tr>
+<tr>
+<td>Checksum offload</td>
+<td><strong>on</strong></td>
+<td><strong>on</strong></td>
+<td>a per-byte CPU saving with no latency cost - good for both (see below)</td>
+</tr>
+<tr>
+<td>Rings / queues</td>
+<td><strong>deep</strong> rings</td>
+<td><strong>shallow</strong> rings</td>
+<td>deep absorbs bursts (no drops); shallow cuts queueing latency / bufferbloat</td>
+</tr>
+<tr>
+<td>Multi-queue + <strong>RSS</strong> + IRQ affinity</td>
+<td>yes (use all cores)</td>
+<td>yes (parallel pps) + <strong>RFS</strong> for cache locality</td>
+<td>one queue caps at one CPU; both poles need cores, IOPS especially</td>
+</tr>
+<tr>
+<td>Busy-poll / kernel-bypass</td>
+<td>-</td>
+<td><strong><code>SO_BUSY_POLL</code></strong>, XDP, <strong>DPDK</strong> poll-mode</td>
+<td>poll instead of waiting on an interrupt -&gt; lowest latency, burns CPU</td>
+</tr>
+<tr>
+<td>Doorbell batching (<code>xmit_more</code>)</td>
+<td>on (fewer exits, D-32)</td>
+<td>on - only defers when a burst already exists</td>
+<td>single packets are not delayed</td>
+</tr>
+<tr>
+<td>BQL / pacing (<code>fq</code>)</td>
+<td>bound in-flight, smooth</td>
+<td><code>fq_codel</code> to cut queueing latency</td>
+<td>both reduce bufferbloat</td>
+</tr>
+</tbody>
+</table></div>
+<p>The recurring theme: <strong>coalescing/batching (ITR, GRO, deep rings) buys throughput/CPU at the cost of
+latency; polling/shallow-queue/no-coalesce buys latency at the cost of CPU.</strong> "Adaptive" schemes
+(NAPI itself, and <strong>DIM</strong> for ITR) try to sit in between - low latency when idle, heavy coalescing
+under load.</p>
+<p><strong>Checksum offload is special</strong> - it is not on the latency-vs-throughput axis at all. Today VN1000
+computes the IP/TCP/UDP checksum <strong>in software</strong> (the CPU reads every payload byte - a per-byte cost,
+7.6 - on TX before sending and on RX to verify). A NIC with <strong>hardware checksum offload</strong> does it in
+silicon: on TX the stack writes a partial checksum and the NIC fills it; on RX the NIC verifies and
+sets <code>CHECKSUM_UNNECESSARY</code> so the stack skips it. Because it removes a per-byte CPU cost in <em>both</em>
+directions with <strong>no latency penalty</strong>, it is enabled in essentially every profile - and it is
+<strong>foundational</strong>: TSO/GSO and GRO/LRO depend on it (the NIC must checksum the segments it splits or
+merges), so without checksum offload the high-throughput offloads cannot work. In emulation it is
+even cheaper: between a guest and the host (or two VMs on one host) the data never crosses a real
+wire, so the checksum can be <strong>skipped entirely</strong> - this is exactly what virtio-net does with
+<code>VIRTIO_NET_F_CSUM</code>/<code>GUEST_CSUM</code> and a big reason it is fast. VN1000 has no offload yet (<code>VN_CAP_CSUM</code>
+is reserved), so it pays the full software-checksum cost; adding it is backlog.</p>
+<p><strong>Where VN1000 sits</strong>: it has the throughput levers we built and measured - MTU (<code>ndo_change_mtu</code>),
+ITR (D-33, the latency-vs-interrupt knob), TX doorbell batching (D-32), and NAPI. The IOPS/scaling and
+offload levers are deliberately backlog: <strong>multi-queue + RSS + MSI-X</strong> (A3), <strong>checksum/TSO/GRO</strong>
+offloads (<code>VN_CAP_CSUM</code> reserved), a runtime <strong>ring-size</strong> param, adaptive <strong>DIM</strong>, and busy-poll.
+That set is exactly the menu a real driver exposes (via <code>ethtool -C/-G/-K/-L</code>, <code>SO_BUSY_POLL</code>, ...) to
+tune for the workload.</p>
+<h3 id="78-tso-gso-gro-lro-moving-segmentation-and-coalescing-off-the-hot-path">7.8 TSO / GSO / GRO / LRO - moving segmentation and coalescing off the hot path</h3>
+<p>Two stateless offloads cut per-packet work by changing <em>where</em> segmentation (TX) and coalescing (RX)
+happen. They are the per-packet-cost lever (7.6) applied to the stack/driver, complementary to MTU.</p>
+<p><img alt="TX segmentation (TSO/GSO) turns one large super-skb into many MSS-sized wire frames; RX coalescing (GRO/LRO) merges many MSS frames back into one large skb. GSO/GRO happen in software (stack / NAPI), TSO/LRO in the device; with the per-layer headers, MSS and MTU annotated." src="diagrams/tso-gro.svg"></p>
+<p><strong>TX - segmentation (TSO):</strong>
+- <em>Today (no TSO; GSO in software)</em>: a large <code>write()</code> -&gt; TCP/IP runs <strong>once</strong> on the big skb -&gt;
+  <strong>GSO</strong> segments it into MSS-sized skbs <em>just before</em> the driver -&gt; the driver sees a <strong>burst</strong> of
+  MSS frames (<code>xmit_more</code>, batched doorbell, L-10) -&gt; N descriptors, N device sends. The upper-stack
+  cost is paid once (GSO's win), but the <strong>driver/descriptor/doorbell</strong> cost is still per segment.
+- <em>With TSO</em> (<code>NETIF_F_TSO|SG|HW_CSUM</code>): the stack passes <strong>one ~64 KB GSO super-skb</strong> all the way to
+  <code>ndo_start_xmit</code> (<code>skb_is_gso</code>, <code>gso_size=MSS</code>); the driver maps it with <strong>SG</strong> (header + page frags
+  = a few descriptors, <em>no</em> <code>skb_linearize</code>) plus a TSO command (mss, header length); <strong>one doorbell</strong>;
+  the <strong>device segments</strong> it into MSS wire frames (replicate the header, fix per-segment
+  seq/IP-id/checksum). 64 KB then costs <strong>one xmit + a few descriptors + one doorbell</strong> - the
+  per-packet driver/descriptor/doorbell/exit cost is amortised over 64 KB. This is jumbo's benefit
+  (7.6) <strong>without jumbo on the wire</strong> (frames stay MSS-sized).</p>
+<p><strong>RX - coalescing (GRO already; LRO is the HW version):</strong>
+- <strong>GRO is already active</strong>: <code>vnic_rx_clean</code> delivers via <code>napi_gro_receive()</code>, which coalesces
+  same-flow segments into a larger skb <strong>in the NAPI poll (software)</strong> - so RX already gets the
+  fewer-trips-up-the-stack benefit.
+- <strong>LRO</strong> is the hardware version: the <em>device</em> coalesces same-flow segments <strong>before</strong> delivery
+  (<code>NETIF_F_LRO</code>), handing the driver fewer/larger skbs. (GRO is preferred for forwarding - LRO is
+  lossy to un-coalesce - so LRO is an end-host optimisation.)</p>
+<p><strong>Prerequisite</strong>: TSO <strong>requires checksum offload</strong> (the device must checksum each segment it creates)
+and SG. So checksum offload (7.7) is the foundation the high-throughput offloads build on.</p>
+<p><strong>VN1000 today / what would change</strong> (backlog A6): GRO is on (<code>napi_gro_receive</code>); there is no
+TSO/LRO/checksum offload. Adding them means the driver advertises the features and stops linearizing
+(maps frags as multiple descriptors), the descriptor format gains a <strong>TSO command + mss + header
+length</strong>, and the device TX engine becomes a <strong>segmenter</strong> (and, for LRO, an RX <strong>coalescer</strong>).</p>
+<h3 id="79-the-wider-offload-catalog-what-a-real-nic-exposes">7.9 The wider offload catalog (what a real NIC exposes)</h3>
+<p>Checksum (7.7) and TSO/LRO/GRO (7.8) are the common <strong>stateless per-packet</strong> offloads, but a production
+NIC exposes far more - all viewable / toggleable with <code>ethtool -k</code> (list) and <code>-K &lt;dev&gt; &lt;feat&gt; on|off</code>.
+The landscape, by category:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Offloads (ethtool / API name)</th>
+<th>What the NIC does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Stateless per-packet</strong></td>
+<td>checksum (<code>rx</code>/<code>tx</code>), scatter-gather (<code>sg</code>), TSO (<code>tso</code>), GSO (sw, <code>gso</code>), LRO (<code>lro</code>) / GRO (<code>gro</code>)</td>
+<td>the 7.7-7.8 set: checksum in silicon, DMA frags without <code>skb_linearize</code>, segment (TX) / coalesce (RX) TCP</td>
+</tr>
+<tr>
+<td><strong>Tunnel / overlay</strong></td>
+<td><code>tx-udp_tnl-segmentation</code> (VXLAN/GENEVE), <code>tx-gre-segmentation</code>, <code>rx-udp_tunnel-port-offload</code></td>
+<td>TSO + checksum on the <strong>inner</strong> packet of an overlay - vital for cloud / k8s networking</td>
+</tr>
+<tr>
+<td><strong>VLAN</strong></td>
+<td><code>tx/rx-vlan-offload</code> (802.1Q), <code>tx-vlan-stag-hw-insert</code> (QinQ)</td>
+<td>insert / strip the VLAN tag in hardware instead of the stack</td>
+</tr>
+<tr>
+<td><strong>RX steering / scaling</strong></td>
+<td><strong>RSS</strong> (<code>-x</code>/<code>-X</code>), ntuple / Flow Director (<code>-n</code>/<code>-N</code>), aRFS, RX-hash (<code>skb-&gt;hash</code>), header/data split</td>
+<td>spread RX across queues/CPUs by flow hash; steer flows to a queue/CPU; split headers from payload</td>
+</tr>
+<tr>
+<td><strong>Crypto / security</strong></td>
+<td>TLS (kTLS, <code>tls-hw-*-offload</code>), IPsec (<code>esp-hw-offload</code>), MACsec</td>
+<td>encrypt / decrypt TLS records or packets in silicon</td>
+</tr>
+<tr>
+<td><strong>Time / scheduling</strong></td>
+<td>PTP HW timestamping (PHC, <code>SO_TIMESTAMPING</code>), time-based TX (ETF/TAPRIO offload, <code>SO_TXTIME</code>), per-queue rate limit</td>
+<td>precise RX/TX timestamps; TSN pacing; traffic shaping</td>
+</tr>
+<tr>
+<td><strong>Datapath / switching</strong></td>
+<td>XDP / AF_XDP zerocopy, SR-IOV VF + switchdev / TC-flower offload (eSwitch), RDMA (RoCE/iWARP)</td>
+<td>fast path / kernel bypass; offload OvS/tc rules into the NIC; transport done in HW</td>
+</tr>
+<tr>
+<td><strong>Misc / power</strong></td>
+<td>Wake-on-LAN (<code>wol</code>), EEE, NS/ARP offload</td>
+<td>wake on a magic packet; energy saving; answer ND/ARP while the host sleeps</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>ethtool</code> is the control surface: <code>-k</code>/<code>-K</code> (features), <code>-S</code> (stats), <code>-x</code>/<code>-X</code> (RSS indirection table),
+<code>-n</code>/<code>-N</code> (ntuple / flow steering), <code>-C</code>/<code>-G</code>/<code>-L</code> (coalescing / ring size / channels), <code>-T</code>
+(timestamping capabilities).</p>
+<p><strong>Where VN1000 sits</strong> - only <strong>software GRO</strong> today (<code>napi_gro_receive</code>); everything else is absent.
+The realistic next steps are exactly the backlog items, in dependency order:</p>
+<ul>
+<li><strong>A6</strong> - checksum offload, then TSO/LRO (the stateless set; checksum is the foundation, 7.7).</li>
+<li><strong>A3</strong> - MSI-X + multi-queue + <strong>RSS</strong> (the RX-steering / scaling lever).</li>
+</ul>
+<p>The rest (tunnel, TLS/IPsec, PTP, switchdev, RDMA) is the domain of production high-speed NICs and is
+<strong>out of scope</strong> for this simulation - worth recognising, not building. The split mirrors 7.7's theme:
+<strong>stateless per-packet</strong> offloads are cheap, near-always-on wins; the <strong>stateful / steering / switching</strong>
+ones trade silicon complexity for specific workloads.</p>
+<h2 id="8-where-the-descriptor-ring-lives-host-ram-vs-device-mmio">8. Where the descriptor ring lives - host RAM vs device MMIO</h2>
+<p>VN1000 (like e1000/igb/ixgbe/virtio) puts the <strong>descriptor ring in host RAM</strong> and programs the device
+with a base address + length; the device DMA-reads/writes the descriptors. A natural question is
+whether real NICs ever keep the descriptors <strong>in the device's MMIO space</strong> (a fixed-length ring on the
+chip), with only the buffer addresses pointing into RAM. They do - it is the minority model, but there
+is a textbook datasheet example.</p>
+<h3 id="81-the-two-models">8.1 The two models</h3>
+<ul>
+<li><strong>Ring in RAM (dominant)</strong>: the descriptor array lives in coherent DMA memory; only the <strong>head/tail
+  pointers</strong> (<code>TDH</code>/<code>TDT</code>/<code>RDH</code>/<code>RDT</code>) are MMIO registers. The CPU writes descriptors with cheap
+  <em>cached</em> stores and rings one doorbell per batch; the device DMA-reads a burst of descriptors (often
+  into an on-chip <strong>descriptor cache/prefetcher</strong>, which amortises the per-descriptor PCIe read).</li>
+<li><strong>Descriptor in device MMIO (minority)</strong>: the descriptor <em>itself</em> is a register (or on-chip SRAM
+  slot) the CPU writes over MMIO. The buffer still lives in RAM (its bus address is written into the
+  descriptor). The ring is necessarily <strong>small and fixed</strong> (bounded by on-chip storage).</li>
+</ul>
+<h3 id="82-the-canonical-datasheet-example-realtek-rtl8139">8.2 The canonical datasheet example: Realtek RTL8139</h3>
+<p>The RTL8139 (ubiquitous, and the chip many people read first; QEMU emulates it in
+<code>hw/net/rtl8139.c</code>) has <strong>no TX ring in RAM</strong>. Its transmit descriptors are <strong>four fixed register
+pairs</strong> in the chip:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Register</th>
+<th>Offset</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TSAD0..TSAD3</code> (Transmit Start Address)</td>
+<td>0x20/24/28/2C</td>
+<td>the packet <strong>buffer's DMA address</strong> (-&gt; host RAM)</td>
+</tr>
+<tr>
+<td><code>TSD0..TSD3</code> (Transmit Status of Descriptor)</td>
+<td>0x10/14/18/1C</td>
+<td>write length/flags (this also <em>starts</em> the send); read back status</td>
+</tr>
+</tbody>
+</table></div>
+<p>The driver uses exactly <code>NUM_TX_DESC = 4</code> and round-robins <code>cur_tx % 4</code> (see Linux <code>8139too.c</code>). This
+matches the question precisely: <strong>descriptors in MMIO, ring length fixed (= 4), buffer address into
+RAM</strong>. (RX is yet another model: a single linear ring buffer in RAM at <code>RBSTART</code>, managed by the
+<code>CBR</code>/<code>CAPR</code> MMIO pointers - no per-packet descriptors at all.)</p>
+<p>The cost is only <strong>4 in-flight TX</strong> and a ring you cannot enlarge - which is exactly why the successors
+<strong>RTL8169/8168/8125 switched to an in-RAM descriptor ring</strong> (a <code>TNPDS</code>-style base register), i.e. the
+VN1000/e1000 model. That evolution is the trade-off made visible.</p>
+<h3 id="83-other-real-points-on-the-spectrum">8.3 Other real points on the spectrum</h3>
+<ul>
+<li><strong>PIO NICs - even the <em>buffers</em> are on-chip</strong>: NE2000 / RTL8019, and embedded MACs like the SMSC
+  LAN91C111, keep packet buffers in <strong>on-chip SRAM</strong> and the CPU moves data by I/O/MMIO - no DMA at
+  all. The most extreme "everything on the device" case; storage is fixed and small.</li>
+<li><strong>Descriptor <em>push</em> into MMIO for latency</strong>: Mellanox ConnectX <strong>BlueFlame</strong> writes the WQE
+  (descriptor) directly into device MMIO via write-combining (buffer still in RAM), to skip the
+  device's DMA-read of the descriptor - a low-latency optimisation for RDMA/HPC, not a capacity model.</li>
+</ul>
+<h3 id="84-trade-offs-why-the-ram-model-won">8.4 Trade-offs - why the RAM model won</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>Descriptor in RAM (VN1000, e1000, RTL8169)</th>
+<th>Descriptor in MMIO (RTL8139 TX)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU writes a descriptor</td>
+<td>cheap <strong>cached</strong> store</td>
+<td>expensive <strong>uncached/WC</strong> MMIO write</td>
+</tr>
+<tr>
+<td>Device obtains a descriptor</td>
+<td>a DMA-read (batched/prefetched -&gt; amortised)</td>
+<td>already on-chip -&gt; no read, lower latency</td>
+</tr>
+<tr>
+<td>Ring size</td>
+<td>large, programmable (VN1000 &lt;= 4096)</td>
+<td><strong>small, fixed</strong> (on-chip storage)</td>
+</tr>
+<tr>
+<td>Doorbell</td>
+<td>one MMIO per batch</td>
+<td>the descriptor write <em>is</em> the kick</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>general throughput</td>
+<td>tiny/embedded, or ultra-low latency</td>
+</tr>
+</tbody>
+</table></div>
+<p>CPU MMIO writes are uncached and costly, so writing a full descriptor per packet over MMIO does not
+scale; writing to cheap cached RAM and ringing one doorbell - with the device prefetching descriptors
+by DMA - wins for throughput. MMIO-resident descriptors only pay off when the ring is tiny by design
+or when shaving the descriptor-read round-trip matters more than CPU write cost.</p>
+<h3 id="85-how-vn1000-sits">8.5 How VN1000 sits</h3>
+<p>VN1000 deliberately uses the <strong>mainstream RAM-ring</strong> model (the point is to teach the common driver
+flow): <code>TDBAL/H + TDLEN</code> program the ring base/length, the descriptors live in <code>dma_alloc_coherent</code>
+memory, and only <code>TDH</code>/<code>TDT</code> (and the RX pair) are MMIO. The slide deck's address-space diagram
+(<a href="index.html">slides/vnic-slides.html</a>, 2.2) draws exactly this split: ring body in RAM,
+head/tail pointers in the BAR0 window. The RTL8139 is the useful contrast to keep in mind - same idea
+(buffers in RAM, reached by DMA), but the descriptors themselves are registers.</p>
+<h2 id="9-the-netdev-lifecycle-register-vs-open-why-insmod-does-not-bring-the-link-up">9. The netdev lifecycle - register vs open (why <code>insmod</code> does not bring the link up)</h2>
+<p>A common surprise: after <code>insmod</code>, the interface appears but is <strong>not running</strong>. Loading the module
+only <em>registers</em> the netdev; the datapath is brought up <strong>later</strong>, when the interface is
+administratively set up.</p>
+<h3 id="91-two-distinct-steps">9.1 Two distinct steps</h3>
+<ul>
+<li><strong><code>register_netdev()</code> (at probe / module load)</strong>: creates the <code>net_device</code> and makes it visible
+  (<code>ip link</code> shows <code>vnic0</code>), but leaves it <strong>administratively DOWN</strong>. No buffers are posted, no IRQ is
+  requested, the queue is stopped. The kernel does <strong>not</strong> call <code>ndo_open</code> here.</li>
+<li><strong><code>ndo_open()</code> (at <code>ip link set ... up</code>)</strong>: the kernel calls it only when something flips the
+  interface <strong>UP</strong> (<code>IFF_UP</code>). This is where the real bring-up happens: post RX buffers, request the
+  IRQ, program moderation, unmask interrupts, enable NAPI + the device, start the TX queue.</li>
+</ul>
+<p>So loading the driver and <em>using</em> the driver are deliberately separate - the interface can exist
+without consuming an IRQ or DMA buffers until someone actually wants to use it. <code>ndo_stop</code> (on
+<code>ip link set ... down</code>) is the mirror: it quiesces, frees the IRQ, and drains the buffers.</p>
+<h3 id="92-two-things-that-look-like-auto-up-but-are-not">9.2 Two things that look like "auto up" but are not</h3>
+<ul>
+<li><strong>NetworkManager / systemd-networkd</strong> may bring a freshly appeared interface up (and DHCP it) on
+  their own - but that is a <strong>userspace policy</strong>, not the driver. A driver never sets itself <code>IFF_UP</code>.</li>
+<li><strong>Carrier / link</strong> (<code>STATUS.LINK_UP</code>, <code>netif_carrier_*</code>) is the <em>physical</em> link state and is
+  separate from administrative up; the datapath only runs once the interface is <code>IFF_UP</code> <strong>and</strong> has
+  carrier.</li>
+</ul>
+<h3 id="93-how-vn1000-uses-it">9.3 How VN1000 uses it</h3>
+<p>Probe does only <code>register_netdev()</code> (<a href="../driver/level2/vnic_l2_main.c">level2/vnic_l2_main.c</a>,
+<a href="../driver/level1/vnic_l1_main.c">level1/vnic_l1_main.c</a>); the bring-up lives in
+<strong><code>vnic_open</code> -&gt; <code>vnic_up()</code></strong> (<a href="../driver/core/vnic_netdev.c">core/vnic_netdev.c</a>), which resets the
+TX indices, posts RX skbs (Model A, D-18), requests the IRQ (L2), programs <code>ITR</code>, unmasks via <code>IMS</code>,
+enables NAPI + <code>CTRL</code> (EN/TXEN/RXEN), and calls <code>netif_start_queue()</code>. <code>vnic_up()</code> is shared by
+<code>ndo_open</code> and the <code>ndo_change_mtu</code> re-init. Hence the test flow:</p>
+<pre><code>insmod vnic-l2.ko          # vnic0 appears, DOWN - ndo_open has NOT run
+ip addr add 192.168.11.2/24 dev vnic0
+ip link set dev vnic0 up   # &lt;- triggers ndo_open / vnic_up: IRQ + RX buffers + queue go live
+</code></pre>
+<p>which is exactly what <code>scripts/setup-vnic.sh</code> does. (See also topic 2 for what NAPI/interrupts then
+do, and the architecture interrupt/polling section.)</p>
+<h2 id="10-interrupt-register-semantics-why-imsimc-and-icrics-are-split-pairs">10. Interrupt register semantics - why IMS/IMC (and ICR/ICS) are split pairs</h2>
+<p>The interrupt block has register <em>pairs</em> that look redundant - <code>IMS</code>/<code>IMC</code> for the mask, <code>ICR</code>/<code>ICS</code>
+for the cause. They are not two state words; each pair is <strong>two write ports into one internal
+register</strong>, designed so the driver can flip individual bits with a <strong>single, atomic, read-free</strong>
+write. This is the classic Intel e1000 design (and the general hardware <strong>W1S/W1C</strong> pattern).</p>
+<h3 id="101-the-problem-one-readwrite-mask-forces-read-modify-write">10.1 The problem: one read/write mask forces read-modify-write</h3>
+<p>If the enable mask were a single read-write <code>IMASK</code>, enabling one cause means <strong>read-modify-write</strong>:</p>
+<pre><code>tmp = readl(IMASK); tmp |= VN_INT_TXDONE; writel(IMASK, tmp);
+</code></pre>
+<p>Two things go wrong:
+- <strong>Lost-update race</strong>: a NIC has <em>two</em> contexts touching the mask at once - the <strong>ISR top-half
+  masks</strong> the cause it just took, while the <strong>NAPI poll re-enables</strong> on completion. Between one
+  context's read and write, the other's update is clobbered.
+- <strong>Cost</strong>: an MMIO <strong>read</strong> is a full round-trip (a VM-exit under virtualisation), far more
+  expensive than a posted write (topic 5); RMW forces that read on the hot path.</p>
+<h3 id="102-the-fix-write-1-to-set-write-1-to-clear">10.2 The fix: write-1-to-set / write-1-to-clear</h3>
+<p>Split the one mask into two write-only ports, where a written <strong>1 acts on that bit and a 0 is
+ignored</strong>:</p>
+<ul>
+<li><strong><code>IMS</code> (Mask Set)</strong>: <code>writel(IMS, TXDONE)</code> <strong>enables</strong> TXDONE, leaving every other bit alone.</li>
+<li><strong><code>IMC</code> (Mask Clear)</strong>: <code>writel(IMC, TXDONE)</code> <strong>disables</strong> TXDONE, leaving the rest alone.</li>
+</ul>
+<p>Now "flip just these bits" is <strong>one posted write, no read, no RMW</strong> - the hardware ORs (IMS) or
+AND-NOTs (IMC) the operand into the single internal mask atomically. Two contexts can each touch
+their own bits with no lock and no lost update. (Reading <code>IMS</code> returns the current mask, so it is
+RW1S; <code>IMC</code> is RW1C/write-only.)</p>
+<h3 id="103-the-cause-side-mirrors-it-icr-read-to-clear-ics">10.3 The cause side mirrors it: ICR (read-to-clear) / ICS</h3>
+<p>The pending-cause register uses the same idea:
+- <strong><code>ICR</code></strong> is <strong>read-to-clear</strong>: reading it returns the pending causes <em>and</em> atomically clears them
+  (one access = ack). <code>ICS</code> lets software (or, here, the device engine) <strong>set</strong> a cause to raise it.
+- So the ISR does one read of <code>ICR</code> to learn <em>and</em> acknowledge what fired - again no RMW.</p>
+<p><strong>What <code>ICS</code> is actually for.</strong> It is the <em>software</em> way to raise an interrupt - the steady RX/TX
+datapath never needs it (the device sets <code>ICR</code> itself when an event happens). On real (Intel-style)
+NICs <code>ICS</code> is used to <strong>self-test</strong> the MSI/ISR path at probe, to <strong>force</strong> a cause (e.g. a
+link-status interrupt), and for <strong><code>netpoll</code> / <code>ndo_poll_controller</code></strong> (netconsole, kgdb-over-net);
+the MSI-X form is <code>EICS</code>. The register exists on physical NICs - it is not a simulation artefact.
+VN1000 then differs by level: the <strong>Level 2</strong> device writes <code>ICR</code> directly on completion (real-
+hardware behaviour; the <code>ICS</code> write path is implemented but unused by the datapath), while the
+<strong>Level 1</strong> in-kernel engine - which reaches its fake device only through the MMIO accessors -
+deliberately <strong>raises completions by writing <code>ICS</code></strong>, so the L1 path stays faithful (raise cause -&gt;
+MSI -&gt; ISR reads <code>ICR</code>) rather than calling <code>napi_schedule</code> behind the device's back. (Datasheet 4.9.)</p>
+<h3 id="104-how-vn1000-uses-it-and-the-residual-window-iam">10.4 How VN1000 uses it (and the residual window -&gt; IAM)</h3>
+<ul>
+<li>ISR top-half: read <code>ICR</code> (ack), <code>writel(IMC, cause)</code> (mask just that cause), <code>napi_schedule()</code>.</li>
+<li>NAPI poll done: <code>napi_complete_done()</code>, <code>writel(IMS, TXDONE|RXAVAIL)</code> (re-arm) - re-fires if a
+  cause arrived while masked (topic 2, D-11/D-20).</li>
+</ul>
+<p>Each path writes only its own bits, reads nothing it does not need, and needs no lock <em>for the
+register</em>. One small window remains - between "read <code>ICR</code>" and "write <code>IMC</code>" a new cause could slip
+in; real NICs close it with <strong>IAM (Interrupt Auto Mask)</strong>, where reading <code>ICR</code> auto-masks the
+just-reported causes in one atomic step. That is backlog <strong>A1</strong> here.</p>
+<h2 id="11-dma-mappings-coherent-vs-streaming">11. DMA mappings - coherent vs streaming</h2>
+<p>A device DMAs to <strong>bus (DMA) addresses</strong>, not CPU pointers, so any memory it will touch must be
+<strong>mapped</strong> first. The DMA API gives two kinds of mapping for two access patterns - and a NIC uses
+<em>both</em>: one for the descriptor <strong>ring</strong>, the other for the packet <strong>buffers</strong>.</p>
+<h3 id="111-why-map-at-all">11.1 Why map at all</h3>
+<p>The device sees bus addresses (an <strong>IOMMU</strong>, if present, translates them), not kernel virtual
+addresses, and on non-cache-coherent architectures the CPU's caches and the device's view can differ.
+<code>dma_alloc_*</code> / <code>dma_map_*</code> produce a <code>dma_addr_t</code> the device can use, install any IOMMU entry, and
+handle cache coherency / bounce buffers. On x86+KVM it is mostly an identity map with no cache ops,
+but using the API keeps the driver <strong>portable</strong> (D-26).</p>
+<h3 id="112-coherent-consistent-mapping-dma_alloc_coherent">11.2 Coherent (consistent) mapping - <code>dma_alloc_coherent</code></h3>
+<p>Allocates a block <strong>and</strong> maps it for the device's whole lifetime; CPU and device see a <strong>consistent</strong>
+view with <strong>no explicit sync</strong> (the kernel hands back coherent - often uncached - memory). Best for
+<strong>long-lived, small, frequently and mutually accessed</strong> structures. Trade-off: CPU access can be
+slower (uncached) and it allocates in coarse units. Freed with <code>dma_free_coherent</code>.
+- <strong>Use for:</strong> the descriptor <strong>ring</strong> (both sides poll it constantly).</p>
+<h3 id="113-streaming-mapping-dma_map_single-dma_map_page">11.3 Streaming mapping - <code>dma_map_single</code> / <code>dma_map_page</code></h3>
+<p>Maps an <strong>existing</strong> buffer for <strong>one transfer</strong> with a direction (<code>DMA_TO_DEVICE</code> /
+<code>DMA_FROM_DEVICE</code>); you must <code>dma_unmap_*</code> when the transfer completes (the unmap also <strong>syncs/bounces
+for the CPU</strong>). The ownership rule: <strong>between map and unmap the buffer belongs to the device</strong> - the
+CPU must not touch it; after unmap (or a <code>dma_sync_*</code>) it is the CPU's again. More efficient for
+one-shot transfers, works on arbitrary kernel buffers (e.g. <code>skb</code> data), and may transparently use a
+<strong>bounce buffer</strong> (SWIOTLB) if the buffer is not device-addressable. Always check <code>dma_mapping_error()</code>.
+- <strong>Use for:</strong> the packet <strong>buffers</strong> (mapped per TX/RX).</p>
+<blockquote>
+<p><strong>What SWIOTLB is.</strong> "Software I/O TLB" - the kernel's <strong>bounce-buffer</strong> fallback for when a device
+<em>cannot reach</em> a buffer (a narrow <code>dma_mask</code>, no IOMMU to remap, or a confidential VM where guest
+memory is not host/device-visible). The kernel reserves a small pool of low, device-addressable
+memory at boot; <code>dma_map_single</code> then hands the device a <strong>copy</strong> in that pool instead of the
+original buffer - <code>DMA_TO_DEVICE</code> copies in <em>at map time</em>, <code>DMA_FROM_DEVICE</code> copies back <em>at unmap
+time</em>. It is transparent to the driver, and is exactly <em>why</em> the rules above hold: you must use the
+DMA API (the device may be reading a bounce copy, not your buffer), must not touch the buffer
+between map and unmap, and must <code>dma_unmap</code> an RX buffer <strong>before reading it</strong> (the copy-back happens
+at unmap). On x86+KVM with a 64-bit mask VN1000 rarely bounces, but using the API keeps it correct
+if it does (D-26). The cost is that copy - which is why bouncing is a fallback, not the norm.</p>
+</blockquote>
+<h3 id="114-choosing-and-a-caveat">11.4 Choosing - and a caveat</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>coherent (<code>dma_alloc_coherent</code>)</th>
+<th>streaming (<code>dma_map_single</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>lifetime</td>
+<td>long-lived (alloc + map together)</td>
+<td>per-transfer (maps existing memory)</td>
+</tr>
+<tr>
+<td>sync</td>
+<td>none (consistent view)</td>
+<td><code>dma_unmap</code> / <code>dma_sync</code> at the handoff</td>
+</tr>
+<tr>
+<td>CPU access</td>
+<td>may be uncached / slower</td>
+<td>normal cached memory</td>
+</tr>
+<tr>
+<td>typical use</td>
+<td>descriptor rings, control structs</td>
+<td>packet buffers</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Caveat: coherent != ordered.</strong> Coherency removes the need for <em>cache</em> sync, but you still need the
+<code>dma_wmb()</code>/<code>dma_rmb()</code> barriers (topic 4) to <strong>order</strong> the <code>DD</code> flag against the payload. Coherency is
+about <em>visibility</em>; barriers are about <em>ordering</em> - both are required for the ring handshake.</p>
+<h3 id="115-how-vn1000-uses-them">11.5 How VN1000 uses them</h3>
+<ul>
+<li><strong>Level 2</strong> (<a href="../driver/hal/vnic_hal_l2.c">hal/vnic_hal_l2.c</a>): the ring is <code>dma_alloc_coherent</code>
+  (its bus address goes into <code>TDBAL/H</code>, <code>RDBAL/H</code>); packet buffers are <code>dma_map_single</code>
+  (<code>vnic_hal_map</code>) + <code>dma_unmap_single</code> (<code>vnic_hal_unmap</code>). Core's RX clean <strong>unmaps the old buffer
+  before delivering it</strong> - the unmap syncs it for the CPU - which keeps RX correct under a vIOMMU /
+  non-coherent host, not only on x86 (<strong>D-26</strong>); <code>dma_mapping_error</code> is checked (<strong>D-22</strong>).</li>
+<li><strong>Level 1</strong> (<a href="../driver/hal/vnic_hal_l1.c">hal/vnic_hal_l1.c</a>): <strong>neither</strong> - the ring is <code>kcalloc</code>
+  and the "map" just returns the pointer, because the engine is an in-kernel kthread in the <strong>same
+  address space</strong> (no real DMA).</li>
+<li>The <strong>HAL</strong> hides the choice behind <code>vnic_hal_ring_alloc</code> / <code>vnic_hal_map</code> / <code>vnic_hal_unmap</code>, so the
+  shared <code>core/</code> datapath is identical across levels (D-12). (Slide deck 3.6 summarises this.)</li>
+</ul>
+<hr>
+<h2 id="12-bring-up-and-teardown-ordering-enabling-napi-the-controller-and-interrupts">12. Bring-up and teardown ordering - enabling NAPI, the controller, and interrupts</h2>
+<p><code>ndo_open</code> and <code>ndo_stop</code> are not just "turn things on / off" - the <strong>order</strong> matters, because three
+things depend on one another: the <strong>NAPI poll context</strong> (topic 2), the <strong>device / controller</strong> (it
+produces completions), and the <strong>interrupt</strong> that connects them (topic 10). Get the order wrong and a
+completion is lost, or the close path never converges.</p>
+<h3 id="121-the-one-rule">12.1 The one rule</h3>
+<blockquote>
+<p><strong>Enable NAPI before the interrupt that can schedule it; on teardown, stop that interrupt source
+before draining NAPI.</strong></p>
+</blockquote>
+<p>The poll is run from the ISR via <code>napi_schedule()</code>. <code>napi_enable()</code> clears <code>NAPI_STATE_SCHED</code>, which
+makes the poll schedulable; until that is done a <code>napi_schedule()</code> does not start a poll. So if an
+interrupt fires <em>before</em> <code>napi_enable()</code>, the completion it signals is never polled - it sits in the
+ring with its <code>DD</code> set and nothing reaps it (a stuck queue / lost interrupt). Hence NAPI must be ready
+first.</p>
+<p>Note that <strong>enabling the controller is not the same as arming the interrupt.</strong> On VN1000 the device
+producing completions (<code>CTRL.EN</code>) only <em>latches</em> causes in <code>ICR</code>; no MSI fires until <code>IMS</code> arms it
+(topic 10). So the hard constraint is <strong><code>napi_enable</code> before <code>IMS</code></strong>; placing it before <code>CTRL.EN</code> too
+is just the clean, conservative choice.</p>
+<h3 id="122-bring-up-order-vnic_up">12.2 Bring-up order (<code>vnic_up</code>)</h3>
+<pre><code class="language-text">napi_enable()                     # 1. poll context ready (schedulable)
+wr32(CTRL, EN | TXEN | RXEN)       # 2. controller on - device may DMA / latch causes
+wr32(IMS, TXDONE | RXAVAIL)        # 3. arm interrupts - now MSI -&gt; ISR -&gt; napi_schedule can fire
+netif_start_queue()               # 4. allow the stack to hand us TX
+</code></pre>
+<p>"Inside-out": make the poll context ready, then the producer (device), then the wire that connects
+them (interrupt), then finally the TX queue. (<code>request_irq</code> happens earlier still - registering the
+handler is harmless while interrupts are masked.)</p>
+<h3 id="123-teardown-order-vnic_down-the-mirror-with-one-subtlety">12.3 Teardown order (<code>vnic_down</code>) - the mirror, with one subtlety</h3>
+<pre><code class="language-text">netif_tx_disable()                # 1. stop the queue (+ wait out any in-flight xmit)
+wr32(CTRL, 0)                     # 2. controller off - device stops producing / latching causes
+quiesce()                         # 3. wait out any in-flight engine run (no new completions)
+napi_disable()                    # 4. flush the in-flight poll; blocks until it clears SCHED
+wr32(IMC, &lt;all causes&gt;)           # 5. mask interrupts - LAST
+</code></pre>
+<p>Two ordering rules live here:</p>
+<ol>
+<li><strong>Disable the source before <code>napi_disable</code>.</strong> <code>napi_disable()</code> blocks until the current poll
+   finishes and prevents new ones; it can only converge once the device has stopped producing
+   completions and raising interrupts (steps 2-3). Disable first, drain second.</li>
+<li><strong>Mask interrupts (<code>IMC</code>) <em>after</em> <code>napi_disable</code>, not before.</strong> A NAPI poll <strong>re-arms <code>IMS</code> at the
+   end of each run</strong> (topic 10). If you masked before the last poll completed, that poll's re-arm
+   would simply switch interrupts back on. After <code>napi_disable</code> there is no poll left to re-arm <code>IMS</code>,
+   so the <code>IMC</code> mask finally sticks.</li>
+</ol>
+<p>"Outside-in": queue, then producer, then NAPI, then the interrupt mask - the exact reverse of bring-up.</p>
+<h3 id="124-how-vn1000-uses-it">12.4 How VN1000 uses it</h3>
+<ul>
+<li><a href="../driver/core/vnic_netdev.c"><code>vnic_up</code></a>: <code>napi_enable()</code> &rarr; <code>CTRL = EN|TXEN|RXEN</code> &rarr; <code>IMS</code>
+  &rarr; <code>netif_start_queue()</code> (exactly 12.2).</li>
+<li><a href="../driver/core/vnic_netdev.c"><code>vnic_down</code></a>: <code>netif_tx_disable()</code> &rarr; <code>CTRL = 0</code> &rarr;
+  <code>vnic_hal_quiesce()</code> &rarr; <code>napi_disable()</code> &rarr; <code>IMC</code> &rarr; <code>vnic_hal_irq_free()</code>; the comment
+  on the <code>IMC</code> line spells out rule 2 ("no poll left to re-arm IMS").</li>
+<li>Both <code>ndo_open</code> and the <code>ndo_change_mtu</code> re-init go through this same <code>vnic_up</code> / <code>vnic_down</code> pair,
+  so the discipline lives in one place. This is the runtime counterpart of the register-vs-open split
+  in topic 9 - topic 9 is <em>when</em> the datapath comes up; topic 12 is the <em>order within</em> that step.</li>
+</ul>
+<h3 id="125-the-tx-queue-flow-control-start-stop-wake">12.5 The TX queue flow-control (<code>start</code> / <code>stop</code> / <code>wake</code>)</h3>
+<p><code>netif_start_queue()</code> is the last step of bring-up for a reason, and it is one of a family of calls
+(<code>start</code> / <code>stop</code> / <code>wake</code> / <code>tx_disable</code>) that together form a small <strong>concurrency protocol</strong>, not
+standalone on/off switches. They control the <code>__QUEUE_STATE_DRV_XOFF</code> bit that gates whether the stack
+may call <code>ndo_start_xmit</code>.</p>
+<p><strong>It assumes the whole TX path is ready.</strong> The moment <code>netif_start_queue()</code> runs, the stack may call
+<code>ndo_start_xmit</code> <strong>immediately, possibly on another CPU</strong>. So everything that <code>vnic_start_xmit</code> touches
+must already be valid: the TX ring + its indices, the device enabled (<code>CTRL.TXEN</code>), and NAPI +
+interrupts armed (so completions get reaped and a full queue gets woken). Starting the queue before
+the device is enabled would let a frame be submitted to a device that is not consuming - a stuck
+queue. Hence it comes after <code>napi_enable -&gt; CTRL.EN -&gt; IMS</code> (12.2).</p>
+<p><strong><code>start</code> vs <code>wake</code> - not interchangeable.</strong>
+- <code>netif_start_queue()</code> - used <strong>once at bring-up</strong>; it just clears the bit, assuming nothing is queued
+  yet.
+- <code>netif_wake_queue()</code> - used to <strong>resume after a runtime <code>netif_stop_queue()</code></strong>; it clears the bit
+  <strong>and re-schedules the qdisc</strong> (kicks the TX softirq) to flush packets that piled up while stopped.</p>
+<p>Using <code>start</code> where you needed <code>wake</code> clears the bit but does not re-run the qdisc, so backlog sits
+until the next natural xmit.</p>
+<p><strong>Stop must be balanced by wake, or the TX watchdog fires.</strong> Once started, the netdev <strong>TX watchdog</strong>
+(<code>dev-&gt;watchdog_timeo</code>, ~5 s) watches for progress; a <code>netif_stop_queue()</code> that is never matched by a
+wake triggers <code>ndo_tx_timeout</code>. So every stop on the full-ring path must eventually be answered by a
+wake from the completion path.</p>
+<p><strong>There is a stop -&gt; wake race to respect.</strong> <code>stop</code> happens in <code>ndo_start_xmit</code>; <code>wake</code> happens in the
+NAPI TX-clean on another CPU. The classic lost-wake bug is: clean checks "stopped? has room?" <em>before</em>
+xmit has stopped the queue, so the wake is missed and the queue stays stopped forever. These calls are
+therefore used under a lock + ordering, not as free-standing toggles.</p>
+<p><strong>Teardown uses <code>netif_tx_disable</code>, not <code>netif_stop_queue</code>.</strong> <code>netif_tx_disable()</code> (12.3, step 1) both
+stops the queue <strong>and waits out any in-flight <code>ndo_start_xmit</code></strong> (it takes the tx lock), so the ring is
+safe to quiesce and free afterwards; <code>netif_stop_queue()</code> only sets the bit and is for the hot path.</p>
+<p><strong>Single default queue only.</strong> <code>netif_start_queue</code> acts on txq 0; before <code>register_netdev</code> there is no
+queue, and a DOWN interface is not transmitted to anyway. Multi-queue NICs use
+<code>netif_tx_start_all_queues</code> / <code>netif_start_subqueue</code>; VN1000 is single-queue, so <code>netif_start_queue</code>
+is the right call.</p>
+<p>How VN1000 wires it:
+- bring-up: <code>netif_start_queue()</code> (<a href="../driver/core/vnic_netdev.c"><code>vnic_up</code></a>), last.
+- full ring: <code>netif_stop_queue()</code> in <a href="../driver/core/vnic_netdev.c"><code>vnic_start_xmit</code></a> (on no room,
+  and again after the fill that fills the ring).
+- completion: <a href="../driver/core/vnic_netdev.c"><code>vnic_tx_clean</code></a> does
+  <code>if (cleaned &amp;&amp; netif_queue_stopped(netdev) &amp;&amp; !vnic_tx_full(ring)) netif_wake_queue(netdev)</code> -
+  the wake half of the protocol, serialised against xmit by <code>tx_ring.lock</code> (+ the <code>dma_wmb</code> on the
+  publish path, topic 4).
+- teardown: <code>netif_tx_disable()</code> (<a href="../driver/core/vnic_netdev.c"><code>vnic_down</code></a>).</p>
+<hr>
+<h2 id="13-reading-tcp-retransmissions-real-loss-vs-a-late-spurious-retransmit">13. Reading TCP retransmissions - real loss vs a late (spurious) retransmit</h2>
+<p>A nonzero TCP "Retr" is not proof of packet loss. This project's tests learned that twice (lessons
+<strong>L-04</strong> under load, <strong>L-13</strong> even single-stream): with ring backpressure a segment / ACK can be <em>late</em>
+rather than <em>lost</em>, so TCP retransmits something that then arrives anyway. This topic is how to tell
+the two apart.</p>
+<p><strong>The fundamental point:</strong> the sender <strong>cannot know at retransmit time</strong> whether the original was lost
+or merely late - that is <em>why</em> it retransmits (it assumes lost). "Lost vs late" is decided <strong>after the
+fact</strong>, from whether the receiver turns out to have gotten the data twice.</p>
+<h3 id="131-the-key-discriminator-dsack-rfc-2883">13.1 The key discriminator - DSACK (RFC 2883)</h3>
+<ul>
+<li><strong>Late (not lost):</strong> the original <em>and</em> the retransmit both arrive, so the receiver has a
+  <strong>duplicate</strong> and sends a <strong>DSACK</strong> ("I already had this"). The sender counts <code>TCPDSACKRecv</code>.</li>
+<li><strong>Truly lost:</strong> the receiver never gets a duplicate, so <strong>no DSACK</strong> comes back.</li>
+</ul>
+<p>So the single strongest test: <strong><code>TCPDSACKRecv</code> &asymp; <code>TCPRetransSegs</code> -&gt; the retransmits were
+spurious (late); no DSACK -&gt; lean toward real loss.</strong></p>
+<p><strong>Expect <code>RetransSegs</code> &ge; <code>DSACKRecv</code>, not exact equality.</strong> A small excess is normal (e.g.
+<code>03-concurrency</code> C1 once showed <code>RetransSegs=58</code> vs <code>DSACKRecv=55</code>) - not every retransmit produces a
+<em>counted</em> duplicate. The reasons, roughly in order of how often they bite:</p>
+<ol>
+<li><strong>Measurement-window lag (usually the main one).</strong> A DSACK returns ~1 RTT <em>after</em> its retransmit.
+   When <code>nstat</code> reads right at the end of the run, the last few retransmits' DSACKs are still in flight
+   (or the flow already closed), so the retransmit is counted but its DSACK lands outside the window.</li>
+<li><strong>DSACK is best-effort.</strong> The dup-ACK carrying it can be delayed-ACK-coalesced or itself lost; the
+   receiver's GRO can coalesce duplicate segments into fewer DSACK blocks; a receiver without SACK
+   sends none at all.</li>
+<li><strong>Some retransmits genuinely filled a gap</strong> -&gt; no duplicate -&gt; no DSACK. In an internal loopback
+   that gap is <strong>not</strong> a device/wire drop (the device counters stay 0); it is a <strong>host-queue micro-drop</strong>
+   (qdisc / socket-buffer overflow under <code>-P8</code> saturation) or a <strong>real tail loss that TLP recovered</strong>.
+   Real, but <em>above</em> the driver - not loss on the wire.</li>
+<li><strong>Different units.</strong> <code>TcpRetransSegs</code> counts retransmitted <em>segments</em>; <code>TCPDSACKRecv</code> counts DSACK
+   <em>events</em>. A segment retransmitted twice, or DSACKs coalesced, breaks the 1:1 mapping.</li>
+</ol>
+<p>So read it as a <strong>ratio, not an equality</strong>: <code>DSACKRecv</code> close to <code>RetransSegs</code> (most retransmits were
+DSACK'd) <strong>and</strong> zero device drops = spurious. The opposite - a <em>large</em> <code>RetransSegs</code> with <em>few</em> DSACKs
+and rising device / qdisc drops - is what points to real loss.</p>
+<h3 id="132-which-mechanism-fired-a-clue-not-proof">13.2 Which mechanism fired (a clue, not proof)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Trigger</th>
+<th>Counter</th>
+<th>Leans</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Fast Retransmit</strong> (3 dup-ACKs / a SACK hole)</td>
+<td><code>TCPFastRetrans</code>, <code>TCPSackRecovery</code></td>
+<td><strong>real loss / reordering</strong> - the receiver signalled a gap</td>
+</tr>
+<tr>
+<td><strong>RTO</strong> (timer fired, no ACK at all)</td>
+<td><code>TCPTimeouts</code></td>
+<td>ambiguous - real loss <em>or</em> delay</td>
+</tr>
+<tr>
+<td><strong>TLP</strong> (Tail Loss Probe, before a full RTO)</td>
+<td><code>TCPLossProbes</code></td>
+<td>often <strong>spurious</strong> - the tail just was not ACKed yet</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="133-the-counters-spurious-vs-real">13.3 The counters: spurious vs real</h3>
+<ul>
+<li><strong>Spurious</strong> (the stack itself concluded the retransmit was needless): <code>TCPDSACKRecv</code> /
+  <code>TCPDSACKRecvSegs</code>, <code>TCPSpuriousRTOs</code> (F-RTO), <code>TCPSpuriousRtxHostQueues</code> (blamed on local
+  qdisc/driver queueing), <code>TCPDSACKIgnoredNoUndo</code> / <code>TCPDSACKUndo</code> (saw the DSACK, undid the cwnd cut),
+  <code>DelayedACKLost</code>.</li>
+<li><strong>Real loss</strong>: <code>TCPLostRetransmit</code>, <code>TCPFastRetrans</code>, <code>TCPSACKReorder</code>, and - decisively - a
+  <strong>link-layer drop counter &gt; 0</strong> somewhere on the path: device <code>rx_dropped</code> / <code>tx_dropped</code> (sysfs /
+  <code>ethtool -S</code>), qdisc drops (<code>tc -s qdisc</code>), a switch port drop.</li>
+</ul>
+<h3 id="134-the-decision-procedure">13.4 The decision procedure</h3>
+<ol>
+<li><strong>Link-layer drop counters first.</strong> If device drops, qdisc drops and port drops are all <strong>0</strong>, no
+   real drop happened on the path - the retransmit was a late arrival.</li>
+<li><strong><code>TCPDSACKRecv</code> vs <code>RetransSegs</code>.</strong> Close (most retransmits DSACK'd) -&gt; spurious. Expect
+   <code>RetransSegs</code> &ge; <code>DSACKRecv</code>; a small excess is normal (13.1), so judge the <em>ratio</em>, not equality.</li>
+<li><strong>The trigger.</strong> <code>LossProbes</code> / <code>Timeouts</code> (timer-based, common under latency) vs <code>FastRetrans</code> /
+   SACK recovery (receiver-signalled - real loss / reordering).</li>
+<li><strong>Spurious-specific counters</strong> (<code>SpuriousRTOs</code>, <code>SpuriousRtxHostQueues</code>, <code>DSACKIgnoredNoUndo</code>) with
+   value -&gt; even the stack judged it spurious.</li>
+</ol>
+<p>The golden pair is <strong>link-layer drops + DSACK</strong>: both clean -&gt; late; either points to a gap (drops &gt; 0,
+or fast-retrans with no DSACK) -&gt; real loss.</p>
+<h3 id="135-tools">13.5 Tools</h3>
+<ul>
+<li><strong><code>nstat</code> / <code>/proc/net/netstat</code></strong> (the <code>TcpExt:</code> counters) + <strong><code>/proc/net/snmp</code></strong> (<code>Tcp:RetransSegs</code>)</li>
+<li>the MIB the tests sample via <code>tcp_reset</code> / <code>tcp_report</code> (tests/lib.sh).</li>
+<li><strong><code>ss -ti</code></strong> - per socket: <code>retrans:</code>, <code>rto</code>, <code>rtt</code>, <code>dsack_dups</code>, <code>reord_seen</code>.</li>
+<li><strong><code>tcpdump</code> / Wireshark</strong> - the definitive view: it flags <strong>"TCP Spurious Retransmission"</strong>,
+  <strong>"Out-Of-Order"</strong>, <strong>"Fast Retransmission"</strong>, and shows the DSACK block coming back.</li>
+<li><strong>Device / qdisc drop counters</strong> - <code>ip -s link</code>, <code>ethtool -S</code>, <code>tc -s qdisc</code>.</li>
+</ul>
+<h3 id="136-how-vn1000-uses-it">13.6 How VN1000 uses it</h3>
+<p>The device backpressures on a full ring rather than dropping (D-19), so under load its drop counters
+stay 0 and any TCP Retr is latency, not loss. The tests therefore <strong>gate correctness on the device
+drop counters</strong> (<code>rx_dropped</code>/<code>tx_dropped</code>, sysfs) and treat Retr as informational, printing the TCP
+MIB to attribute it: <code>03-concurrency</code> C1 and <code>01-smoke</code> A2 both do this. Worked example - L-13's one
+retransmit was <code>RetransSegs=1</code>, <code>TCPDSACKRecv=1</code> (matched), TLP-triggered, device drops <code>0</code> -&gt;
+spurious late tail, not loss.</p>
+<p class="footnote">Generated from <code>background-knowledge.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

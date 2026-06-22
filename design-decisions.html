@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VN1000 / Linux NIC Simulation - Decision Log</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>VN1000 / Linux NIC Simulation - Decision Log</h1>
+<div class="meta"><span>2026-06-15</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="design-decisions">Design Decisions</h1>
+<p>This file records the <strong>"why" behind the project's significant design decisions</strong> - the
+context, the choice made, and the alternatives that were rejected. It is distilled from the
+development discussions (not a verbatim transcript) so the reasoning can be revisited later.</p>
+<blockquote>
+<p>Maintenance: whenever a significant design decision is made or changed, add/update a <code>D-xx</code>
+entry (decision / why / rejected alternatives) and push it with the corresponding commit, and add
+its line to the <strong>Contents</strong> below. <strong>Do a decision-log sync before wrapping up each session</strong> to
+capture that session's decisions.</p>
+</blockquote>
+<hr>
+<h2 id="contents">Contents</h2>
+<ul>
+<li><a href="#d-01-goal-and-the-three-level-path">D-01 Goal and the three-level path</a></li>
+<li><a href="#d-02-device-name-and-register-style---vn1000">D-02 Device name and register style - VN1000</a></li>
+<li><a href="#d-03-device-and-driver-share-one-spec-header">D-03 Device and driver share one spec header</a></li>
+<li><a href="#d-04-level-1--single-netdev-real-nic-structure-not-a-char-device">D-04 Level 1 = single netdev (real-NIC structure), not a char device</a></li>
+<li><a href="#d-05-internal-loopback-by-swapping-srcdst-ip-only-keep-l4-ports">D-05 Internal loopback by swapping src/dst IP only (keep L4 ports)</a></li>
+<li><a href="#d-06-why-not-snulls-two-devices--why-not-netns">D-06 Why not snull's two devices / why not netns</a></li>
+<li><a href="#d-07-tcpudp-test-method">D-07 TCP/UDP test method</a></li>
+<li><a href="#d-08-arp--l2-handling">D-08 ARP / L2 handling</a></li>
+<li><a href="#d-09-baseline-convergence-drop-mode--rst_done-single-msi">D-09 Baseline convergence (drop MODE / RST_DONE, single MSI)</a></li>
+<li><a href="#d-10-maxfrm-register--change-mtu">D-10 MAXFRM register + Change MTU</a></li>
+<li><a href="#d-11-interrupt-causemask-design-icricsimsimc-iam-is-advanced">D-11 Interrupt cause/mask design (ICR/ICS/IMS/IMC; IAM is advanced)</a></li>
+<li><a href="#d-12-driver-layout-and-hal-naming">D-12 Driver layout and HAL naming</a></li>
+<li><a href="#d-13-advanced-backlog">D-13 Advanced backlog</a></li>
+<li><a href="#d-14-development-environment---option-b-qemu-guest">D-14 Development environment - Option B (QEMU guest)</a></li>
+<li><a href="#d-15-documentation-and-diagram-conventions">D-15 Documentation and diagram conventions</a></li>
+<li><a href="#d-16-api-reference-format---kernel-doc">D-16 API reference format - kernel-doc</a></li>
+<li><a href="#d-17-language-convention">D-17 Language convention</a></li>
+<li><a href="#d-18-rx-buffer-model---pre-posted-skb-model-a">D-18 RX buffer model - pre-posted skb (Model A)</a></li>
+<li><a href="#d-19-loopback-rx-full-handling---backpressure-not-drop">D-19 Loopback RX-full handling - backpressure, not drop</a></li>
+<li><a href="#d-20-phase-4-simulated-msi---tasklet-not-a-kthreadworkqueue">D-20 Phase 4 simulated MSI - tasklet, not a kthread/workqueue</a></li>
+<li><a href="#d-21-descriptor-ring-barriers---dma_-in-core-smp_-in-the-l1-engine">D-21 Descriptor-ring barriers - dma_<em> in core, smp_</em> in the L1 engine</a></li>
+<li><a href="#d-22-hal-map-error-contract---check-every-vnic_hal_map">D-22 HAL map-error contract - check every vnic_hal_map()</a></li>
+<li><a href="#d-23-ring-locking-discipline---tx-lock-rx-lockless-napi-serialised">D-23 Ring locking discipline - TX lock, RX lockless (NAPI-serialised)</a></li>
+<li><a href="#d-24-level-2-interrupts---a-single-msi-vector">D-24 Level 2 interrupts - a single MSI vector</a></li>
+<li><a href="#d-25-level-2-datapath---device-internal-ip-swap-loopback-first-tap-later">D-25 Level 2 datapath - device-internal IP-swap loopback first (tap later)</a></li>
+<li><a href="#d-26-level-2-dma-model---coherent-ring-streaming-buffers-device-pci_dma_">D-26 Level 2 DMA model - coherent ring, streaming buffers, device <code>pci_dma_*</code></a></li>
+<li><a href="#d-27-level-2-device-build---compiled-into-a-self-built-qemu">D-27 Level 2 device build - compiled into a self-built QEMU</a></li>
+<li><a href="#d-28-phase-8-bring-up---pcimmiomsi-keystone-before-the-datapath">D-28 Phase 8 bring-up - PCI/MMIO/MSI keystone before the datapath</a></li>
+<li><a href="#d-29-distinct-netdev-names-per-level-vnic_loop0--vnic0-for-coexistence">D-29 Distinct netdev names per level (<code>vnic_loop0</code> / <code>vnic0</code>) for coexistence</a></li>
+<li><a href="#d-30-level-2-backend---selectable-tap-vs-internal-loopback-default-loopback">D-30 Level 2 backend - selectable tap vs internal loopback (default loopback)</a></li>
+<li><a href="#d-31-tap-host-side-plumbing---routingnat-on-wsl2-bridge-on-a-real-host">D-31 Tap host-side plumbing - routing+NAT on WSL2, bridge on a real host</a></li>
+<li><a href="#d-32-tx-doorbell-moderation---batch-the-doorbell-over-an-xmit_more-burst">D-32 TX doorbell moderation - batch the doorbell over an <code>xmit_more</code> burst</a></li>
+<li><a href="#d-33-interrupt-moderation-itr---device-coalesces-the-msi-with-a-qemu-timer">D-33 Interrupt moderation (ITR) - device coalesces the MSI with a QEMU timer</a></li>
+</ul>
+<hr>
+<h2 id="d-01-goal-and-the-three-level-path">D-01 Goal and the three-level path</h2>
+<p><strong>Decision</strong>: the goal is to understand the <strong>Linux NIC driver working flow</strong> end to end by
+building a software-simulated NIC and its driver. Path: Level 1 (kernel-only) -&gt; Level 2
+(QEMU PCI device) -&gt; Level 3 (FPGA, bonus).
+<strong>Why</strong>: it exercises the core architecture shared by NIC / NVMe / GPU / accelerator drivers
+(queue + DMA + completion + interrupt + NAPI). Phasing keeps every step runnable and
+demonstrable, without getting stuck on hardware / QEMU complexity up front.</p>
+<h2 id="d-02-device-name-and-register-style-vn1000">D-02 Device name and register style - VN1000</h2>
+<p><strong>Decision</strong>: name the device <strong>VN1000</strong> (1GbE virtual Ethernet controller); PCI
+<code>0x1234:0x11E9</code>; registers in <strong>Intel e1000e style</strong> (CTRL/STATUS, TDBAL/TDH/TDT,
+ICR/IMS/IMC...), descriptor in <strong>virtio style</strong> (addr/len/flags/status).
+<strong>Why</strong>: e1000e is well documented and the most approachable head/tail ring driver, so what
+is learned maps directly onto real Linux source. Vendor <code>0x1234</code> is QEMU's test vendor, so the
+guest will not bind a real driver to it.</p>
+<h2 id="d-03-device-and-driver-share-one-spec-header">D-03 Device and driver share one spec header</h2>
+<p><strong>Decision</strong>: register offsets and the descriptor layout live in <code>include/vnic_regs.h</code>, shared
+by the driver and the QEMU device.
+<strong>Why</strong>: a mismatch between the two sides is the most common bug in this kind of project; a
+single source avoids drift. The authoritative spec is <code>docs/vn1000-datasheet.md</code>; the header
+is derived from it.</p>
+<h2 id="d-04-level-1-single-netdev-real-nic-structure-not-a-char-device">D-04 Level 1 = single netdev (real-NIC structure), not a char device</h2>
+<p><strong>Decision</strong>: Level 1 is "one real NIC" - a single netdev <code>vnic0</code> (<code>net_device</code> ops + NAPI +
+TX/RX ring + DMA-like + simulated interrupt), with the engine acting as the "hardware + wire"
+behind it.
+<strong>Why</strong>: the goal is something that "looks like a real NIC's structure". The netdev structure
+is identical to Level 2, so Level 1 -&gt; Level 2 only swaps the hardware-access layer; the core
+is untouched.
+<strong>Rejected</strong>: (a) char device + ioctl (datapath sim, but not wired to the network stack, not
+pingable); (b) snull-style two netdevs (looks like "two NICs", not "one").</p>
+<h2 id="d-05-internal-loopback-by-swapping-srcdst-ip-only-keep-l4-ports">D-05 Internal loopback by swapping src/dst IP only (keep L4 ports)</h2>
+<p><strong>Decision</strong>: the engine loops a transmitted frame back into the RX ring with <strong>only the
+src/dst IP swapped (ports/payload unchanged)</strong> (reflection-on-IP). Assign <code>vnic0</code> IP=A; the
+fictional peer B is on the same subnet.
+<strong>Why</strong>:
+- Swapping is "reordering the same 16-bit words" -&gt; the <strong>IP and TCP/UDP checksums stay
+  valid</strong>, no recomputation -&gt; ICMP/TCP/UDP all testable.
+- After the swap <strong>dst=A (local)</strong> -&gt; the IP layer delivers locally to L4; <strong>src=B (non-local)</strong>
+  -&gt; avoids the "plain loopback with src=A gets dropped as a martian source" problem.
+<strong>Rejected</strong>: snull's "flip a bit in the third octet" changes the address values -&gt; breaks the
+TCP/UDP checksum (snull only recomputes IP, hence ICMP-only); and snull needs two interfaces.</p>
+<h2 id="d-06-why-not-snulls-two-devices-why-not-netns">D-06 Why not snull's two devices / why not netns</h2>
+<p><strong>Decision</strong>: Level 1 uses a single device with IP-swap; real TCP/UDP load testing is left to
+Level 2 against the host.
+<strong>Why</strong>: snull (LDD3, 2005) uses two devices + bit-flip to teach "two hosts on one wire", and
+network namespaces did not exist then. netns (~2008) is the modern clean way to have "two
+ends" but needs two instances. We want "one NIC", so a single device fits best. Level 2 via the
+QEMU backend reaches the host (a genuine remote), which is the accurate place to load-test
+TCP/UDP.</p>
+<h2 id="d-07-tcpudp-test-method">D-07 TCP/UDP test method</h2>
+<p><strong>Decision</strong>: server bound to <code>0.0.0.0</code> (or A); client connects to the fictional peer <strong>B</strong>;
+after the engine swaps the IP the packet reaches the server on A.
+<strong>Why</strong>: the server must bind a local address (cannot bind B, which is non-local); the client
+must target the non-local B (targeting A/localhost goes via <code>lo</code> and bypasses vnic0). Swapping
+the IP only (keeping ports) preserves the dst port, so it lands on the server.</p>
+<h2 id="d-08-arp-l2-handling">D-08 ARP / L2 handling</h2>
+<p><strong>Decision</strong>: resolve B's MAC via (a) a static neighbor (<code>ip neigh ... permanent</code>, zero code)
+or (b) the engine answering ARP itself; on loopback set the RX dst MAC = vnic0's own MAC
+(-&gt; <code>PACKET_HOST</code>), src MAC = B's fake MAC.
+<strong>Why</strong>: B does not exist -&gt; normal ARP gets no reply -&gt; the packet cannot be sent. Keep B on
+vnic0's subnet so strict <code>rp_filter</code> passes.</p>
+<h2 id="d-09-baseline-convergence-drop-mode-rst_done-single-msi">D-09 Baseline convergence (drop MODE / RST_DONE, single MSI)</h2>
+<p><strong>Decision</strong>: (1) drop the device-side <code>MODE</code> register - int/poll/adaptive is achieved by the
+driver's NAPI; (2) reset uses only the self-clearing <code>CTRL.RST</code>, drop <code>STATUS.RST_DONE</code>;
+(3) baseline uses a single MSI + explicit IMC.
+<strong>Why</strong>: (1) real NICs have no MODE register, and NAPI is itself an int+poll hybrid; (2) two
+ways to detect reset completion are redundant; (3) a single MSI is enough for a single queue.
+See D-13 for the advanced counterparts.</p>
+<h2 id="d-10-maxfrm-register-change-mtu">D-10 MAXFRM register + Change MTU</h2>
+<p><strong>Decision</strong>: add <code>MAXFRM</code> (max frame size); <code>ndo_change_mtu</code> quiesces -&gt; reallocates RX
+buffers -&gt; re-enables.
+<strong>Why</strong>: the device must know the RX buffer / max frame (cf. Intel <code>RCTL.BSIZE</code> / <code>RLPML</code>). In
+the single-buffer model MAXFRM doubles as the RX buffer size; TX in the skb zero-copy model
+needs no buffer reallocation (only the copy model does). Multi-descriptor split and the
+buffer/frame register split are tracked in backlog A4.</p>
+<h2 id="d-11-interrupt-causemask-design-icricsimsimc-iam-is-advanced">D-11 Interrupt cause/mask design (ICR/ICS/IMS/IMC; IAM is advanced)</h2>
+<p><strong>Decision</strong>: <code>ICR</code> (read-to-clear) / <code>ICS</code> (WO) / <code>IMS</code> (RW1S) / <code>IMC</code> (RW1C); ISR reads ICR
+-&gt; IMC mask -&gt; NAPI -&gt; after poll IMS re-enable. <code>IAM</code> (auto-mask) is backlog A1.
+<strong>Why</strong>: modeled on Intel. Splitting the mask into IMS/IMC (set/clear write paths) makes
+updates atomic and avoids a read-modify-write race. IAM (atomic ack+mask, removing the
+"read ICR -&gt; write IMC" window) is an advanced refinement.</p>
+<h2 id="d-12-driver-layout-and-hal-naming">D-12 Driver layout and HAL naming</h2>
+<p><strong>Decision</strong>: <code>driver/</code> = <code>core/</code> (shared netdev/ring/NAPI/datapath/stats) + <code>hal/</code>
+(hardware-access abstraction with the L1/L2 implementations) + <code>level1/</code>, <code>level2/</code>
+(level-specific: L1 engine, L2 PCI glue). The access layer is named <strong><code>hal</code></strong>; register
+read/write helpers are <strong><code>vnic_hal_rd32</code> / <code>vnic_hal_wr32</code></strong>; a build-time <code>LEVEL=1|2</code> produces
+<code>vnic-l1.ko</code> / <code>vnic-l2.ko</code>.
+<strong>Why</strong>: the real L1/L2 difference is the "hardware-access layer (reg/DMA/IRQ/doorbell)";
+factoring out <code>core/</code> avoids duplication. The doorbell (writing TDT/RDT) and interrupt mask
+(IMS/IMC) are just <code>vnic_hal_wr32</code>, so the HAL surface stays small. <code>hal</code> covers reg+dma+irq better
+than <code>regops</code>. The register helpers take the <strong><code>vnic_hal_</code></strong> prefix (not a short <code>vn_</code>): they are
+public, non-static, backend-specific functions (different L1/L2 implementations) called from
+level-independent <code>core/</code>, so the prefix marks every HAL crossing. The shared device spec keeps the
+<code>VN_*</code> / <code>struct vn_desc</code> naming, and level-independent core logic stays <code>vnic_*</code>.
+<strong>Rejected</strong>: scattering the access impls across level1//level2/ (defeats "access functions in
+one place"); a runtime ops table (only needed if one module must support both levels at once;
+compile-time selection is simpler here).</p>
+<h2 id="d-13-advanced-backlog">D-13 Advanced backlog</h2>
+<p><strong>Decision</strong>: A1 IAM (auto-mask); A2 forced mode comparison (int/poll/adaptive + MODE
+register); A3 MSI-X / multi-queue / RSS; A4 jumbo multi-descriptor RX + buffer/frame register
+split.
+<strong>Why</strong>: keep the baseline main path minimal and runnable; these bring the project closer to a
+production NIC and deepen understanding of real-NIC features.</p>
+<h2 id="d-14-development-environment-option-b-qemu-guest">D-14 Development environment - Option B (QEMU guest)</h2>
+<p><strong>Decision</strong>: run QEMU + an Ubuntu guest under WSL2; do all kernel-module development inside
+the guest.
+<strong>Why</strong>: the WSL2 custom kernel has no matching <code>linux-headers</code> in apt, so out-of-tree modules
+cannot be built there; the guest has headers, kgdb works, and a module panic only kills the
+guest; Level 2 needs a QEMU guest anyway, so this unifies the environment.
+<strong>Rejected</strong>: (A) building the WSL2 kernel to get a build tree (stays in WSL2 but a panic kills
+the whole WSL2 VM).</p>
+<h2 id="d-15-documentation-and-diagram-conventions">D-15 Documentation and diagram conventions</h2>
+<p><strong>Decision</strong>: the block diagram is a <strong>hand-authored SVG</strong> (<code>docs/diagrams/host-address-space.svg</code> -
+a CPU / RAM-rings / BAR0-MMIO / DMA-engine / transceiver address-space view with the full CSR map,
+shared with the slide deck; it replaced the earlier app-&gt;stack-&gt;driver layering SVG);
+<code>docs/architecture.md</code>'s register/descriptor sections point to the datasheet (the
+authoritative source) to avoid drift; the config-space doc lists the full Type 0 header +
+capabilities. Document language: see D-17.
+<strong>Why</strong>: Mermaid's auto-layout (dagre) cannot fix coordinates and repeatedly failed to
+reproduce the requested layout; an SVG gives exact positions and renders on GitHub.</p>
+<h2 id="d-16-api-reference-format-kernel-doc">D-16 API reference format - kernel-doc</h2>
+<p><strong>Decision</strong>: function / struct comments use <strong>kernel-doc</strong> (<code>/** func() - ... @param: ...
+Return: */</code>); <code>scripts/gen-docs.sh</code> calls the kernel build tree's <code>scripts/kernel-doc</code> to
+generate man pages (and HTML when <code>mandoc</code> is present). The existing <code>include/vnic_regs.h</code>,
+<code>driver/vnic.h</code>, <code>driver/hal/vnic_hal.h</code> were annotated; new files follow the same convention.
+<strong>Why</strong>: kernel-doc is the de-facto standard for Linux kernel code (docs.kernel.org uses it),
+so it matches kernel documentation conventions; the comments read well as plain text. The
+man/mandoc path has few dependencies (only the kernel build tree), avoiding a Sphinx setup.
+<strong>Rejected</strong>: Doxygen (general C/C++ standard, can draw call graphs, but not a kernel
+convention and incompatible with kernel-doc); Sphinx + Breathe / Hawkmoth (nicer HTML but
+heavier out-of-tree setup, kept as an optional future upgrade). Whether to use Doxygen for the
+user-space <code>tools/</code> is to be evaluated later.</p>
+<h2 id="d-17-language-convention">D-17 Language convention</h2>
+<p><strong>Decision</strong>: all repository content is in <strong>English</strong> - commit messages, docs
+(README / TODO / CHANGELOG / docs/<em>), and code / kernel-doc comments. Conversation with the
+developer stays in </em><em>Traditional Chinese</em><em>.
+</em><em>Why</em>*: the repo should read in English (the common language for Linux kernel work and for
+sharing the project); Chinese is just the working-chat language. The earlier Chinese docs were
+translated to English in one batch on 2026-06-10.</p>
+<h2 id="d-18-rx-buffer-model-pre-posted-skb-model-a">D-18 RX buffer model - pre-posted skb (Model A)</h2>
+<p><strong>Decision</strong>: RX buffers are posted to the ring <strong>before</strong> any frame arrives (mandatory - the
+device needs a destination to DMA into). The baseline uses <strong>Model A</strong>: pre-allocate one <code>sk_buff</code>
+per RX descriptor and store its buffer address in the descriptor. On completion the skb is already
+populated, so the driver only does <code>skb_put(len)</code> + <code>eth_type_trans</code> + <code>napi_gro_receive</code>, then
+allocates a fresh skb to refill the slot and advances <code>RDT</code>. In Level 1 the loopback engine copies
+the TX frame (with src/dst IP swapped) into the pre-posted RX skb buffer; in Level 2 the device
+DMA-writes into it - the driver side is identical.
+<strong>Why</strong>: simplest and clearest for the learning goal, matches the classic e1000 design and our
+single-buffer descriptor model (MAXFRM = RX buffer size); zero-copy on the completion side (the skb
+is allocated at refill, not on the hot path). Keeping the buffer pre-posted also preserves the
+device/driver boundary unchanged across L1/L2.
+<strong>Rejected (-&gt; backlog A5)</strong>: Model B - post plain buffers / pages and build the skb at completion
+(<code>build_skb</code> / <code>napi_build_skb</code>, <code>page_pool</code> recycling, copy-break for small frames, frags for
+jumbo). This is what modern high-speed drivers (ixgbe, virtio-net) do and is more memory-efficient,
+but it is more complex and not needed for the baseline.</p>
+<h2 id="d-19-loopback-rx-full-handling-backpressure-not-drop">D-19 Loopback RX-full handling - backpressure, not drop</h2>
+<p><strong>Decision</strong>: when the Level 1 loopback engine finds the RX ring full, it <strong>stalls</strong> (stops
+consuming TX, leaves the descriptor un-<code>DD</code>) instead of dropping the frame. The TX ring then
+fills and <code>netif_stop_queue</code> throttles the sender; NAPI refilling RX rings the <code>RDT</code> doorbell,
+which wakes the stalled engine. RX ring stays small (256).
+<strong>Why</strong>: measured. With drops, a 256 ring caused 745 TCP retransmits (4.41 Gbit/s) and a 4096
+ring removed them but cost throughput (3.62 Gbit/s, ~6 MB cache-thrashing working set).
+Backpressure with a 256 ring gave <strong>0 retransmits at 6.03 Gbit/s</strong> - best on both axes: no drops
+(cwnd grows, no retransmit overhead) and a cache-friendly ring. The right fix for overflow was
+"do not drop" (convert to flow control), not "enlarge the ring". See lessons-learned L-02 and
+results/loopback-iperf3.md.
+<strong>Note</strong>: the resume path (RX refill doorbell wakes the engine) plus the <code>napi_schedule</code> after
+every stall guarantees a poll always runs to drain RX, so the stall cannot deadlock. A real NIC
+does not couple TX completion to RX this way - the coupling is inherent to the loopback model
+(a TX frame <em>becomes</em> an RX frame), so this models a congested link that stops accepting frames.</p>
+<h2 id="d-20-phase-4-simulated-msi-tasklet-not-a-kthreadworkqueue">D-20 Phase 4 simulated MSI - tasklet, not a kthread/workqueue</h2>
+<p><strong>Decision</strong>: in Phase 4 the engine stops calling <code>napi_schedule()</code> directly. Instead the engine
+(the device, still a kthread) sets the interrupt cause (<code>ICS</code> -&gt; <code>ICR</code> bit) and "fires the MSI"
+only if unmasked (<code>IMS</code>); the <strong>simulated MSI handler runs as a tasklet</strong> and does the real ISR
+sequence - read <code>ICR</code> (read-to-clear), mask the cause via <code>IMC</code>, then <code>napi_schedule()</code>. After the
+poll, <code>napi_complete_done()</code> re-enables the cause via <code>IMS</code>.
+<strong>Why</strong>: a tasklet runs in <strong>softirq</strong> context - it cannot sleep, runs deferred, and is separate
+from the engine - which is the closest software analogue to a hardware interrupt handler, so it
+models the MSI -&gt; ISR -&gt; NAPI timing and the <code>IMS</code>/<code>IMC</code> masking faithfully. The mask makes the
+interrupt + polling hybrid real: completions accumulate in <code>ICR</code> while masked and do not re-fire
+until the poll re-enables <code>IMS</code>.
+<strong>Rejected</strong>: (a) keep calling <code>napi_schedule()</code> inline from the engine (Phase 3's shortcut - no
+register protocol, does not teach the ISR/mask flow); (b) a <strong>workqueue</strong> (the original TODO
+wording) - runs in process context like another kthread, can sleep, higher latency, least like a
+real interrupt. At Level 2 the tasklet is replaced by the real MSI hardirq handler via
+<code>request_irq()</code>; the <code>vnic_poll</code> half is unchanged.</p>
+<h2 id="d-21-descriptor-ring-barriers-dma_-in-core-smp_-in-the-l1-engine">D-21 Descriptor-ring barriers - dma_<em> in core, smp_</em> in the L1 engine</h2>
+<p><strong>Decision</strong>: the shared driver core (<code>core/vnic_netdev.c</code>) uses <strong><code>dma_wmb()</code>/<code>dma_rmb()</code></strong> for the
+TX/RX descriptor <code>DD</code>-bit handshake; the Level 1 engine (<code>hal/vnic_hal_l1.c</code>) keeps
+<strong><code>smp_wmb()</code>/<code>smp_rmb()</code></strong>.
+<strong>Why</strong>: from the driver's side the peer is a <em>device</em> - the L1 engine today, the L2 QEMU device
+(real DMA) later - so <code>dma_*</code> is the correct family (on ARM/PowerPC <code>dma_*</code> covers the device's
+coherence domain, where <code>smp_*</code> would not). The L1 engine <em>is</em> a CPU (a kthread), so its side is
+CPU-to-CPU and <code>smp_*</code> is the precise tool. The pair still holds because <code>dma_*</code> is at least as
+strong as <code>smp_*</code>. Using <code>dma_*</code> in core makes it correct for <strong>both</strong> levels, so moving to Level 2
+needs no datapath/barrier change in core. See background-knowledge.md topic 3.</p>
+<h2 id="d-22-hal-map-error-contract-check-every-vnic_hal_map">D-22 HAL map-error contract - check every vnic_hal_map()</h2>
+<p><strong>Decision</strong>: <code>vnic_hal_map()</code> is paired with a predicate <strong><code>vnic_hal_mapping_error(priv, token)</code></strong>
+(mirroring <code>dma_mapping_error()</code>), and the core checks <strong>every</strong> map result. On failure: TX
+(<code>ndo_start_xmit</code>) drops the frame (<code>tx_dropped</code>, free the skb) and does <strong>not</strong> advance the ring or
+ring the doorbell, so the device never sees the half-filled descriptor; RX (<code>vnic_rx_post</code> and the
+<code>vnic_rx_clean</code> refill) frees the new skb, keeps the old buffer mapped in the slot and drops the
+frame - the RX invariant "every slot always holds a mapped buffer" is preserved. The refill maps the
+replacement <strong>before</strong> delivering the received skb so a map failure cannot leave an empty slot. The
+same recycle path also covers the earlier <strong>allocation</strong> failure (<code>napi_alloc_skb</code> returning NULL, not
+only a map error): either trigger keeps the old buffer in the slot and drops the frame
+(<code>rx_dropped</code>), so the "every slot always holds a mapped buffer" invariant holds whichever step fails.
+The general "recycle beats leak" reasoning is in background-knowledge.md topic 1.1.</p>
+<p><strong>Cost / impact of the two options (why recycle, not deliver-and-leak).</strong> On a failed replacement the
+slot holds one buffer and no spare, forcing a choice:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Immediate cost</th>
+<th>Downstream impact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Deliver the old frame, do not refill the slot</strong> (rejected)</td>
+<td>none for this packet</td>
+<td>the slot has no buffer, so it <strong>cannot be published</strong> - advancing <code>RDT</code> over a buffer-less slot would make the device DMA into freed memory. <code>RDT</code> therefore stops keeping up with <code>RDH</code>, and the <strong>pool of posted RX buffers <code>[RDH, RDT)</code> drains by one per failure</strong> until it reaches zero: the device hits <code>RXEMPTY</code> and RX stalls. The descriptor array itself does <strong>not</strong> resize - it is the <em>count of posted buffers</em> that drains. In this single-<code>next_to_clean</code>-cursor Model A there is <strong>no recovery point</strong>: the cursor has advanced past the slot and nothing records that it still owes a buffer, so it is never revisited.</td>
+</tr>
+<tr>
+<td><strong>Keep the old buffer, drop the received frame</strong> (chosen)</td>
+<td><strong>one packet</strong> (<code>rx_dropped++</code>), recovered by TCP retransmit or tolerated by UDP</td>
+<td>the slot stays published (<code>RDT</code> advances normally), so the posted pool stays full and the path is <strong>self-healing</strong>: the next successful alloc refills normally and RX continues at full depth. <code>rx_errors</code> stays 0 - a buffer-pressure drop is backpressure, not a hardware / protocol error.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The decision trades a <strong>bounded, recoverable</strong> cost (one dropped packet, fixed up by TCP) for avoiding
+an <strong>unbounded</strong> failure (posted-pool drain -&gt; RX stall) that this single-cursor design cannot undo.
+It is also the <strong>lowest-cost, simplest</strong> option: recycling keeps the ring full with <strong>zero extra
+bookkeeping</strong> - no deficit counter, no second RX cursor, no separate refill path - and a transient
+allocation failure heals itself on the next poll.</p>
+<p><strong>Could we compensate later instead?</strong> Yes - <strong>deferred / lazy refill</strong> (e.g. ixgbe) lets the slot
+stay un-posted, records the deficit with a second RX cursor (a <code>next_to_use</code> / <code>next_to_alloc</code> lagging
+<code>next_to_clean</code>), and retries the allocation on a subsequent poll, advancing <code>RDT</code> only once it
+succeeds. That <em>does</em> recover the capacity at a later point, but adds the second cursor + separate
+refill-path bookkeeping and buys nothing in this single-buffer-per-packet model - so VN1000 keeps the
+simpler recycle (deferred refill is tracked as an advanced TODO). Either way the principle is the same
+as the loopback engine's RX-full backpressure (D-19): <strong>never lose the ring's ability to receive.</strong>
+<strong>Why</strong>: streaming DMA (<code>dma_map_single</code>) can fail on Level 2, and a bad token handed to the device
+is a DMA fault / corruption. A companion predicate keeps the token opaque (D-12) and lets each level
+answer correctly - Level 1 only fails a NULL token; Level 2 returns <code>dma_mapping_error()</code>. Recording
+it now (while only L1 exists) means the L2 backend just implements the predicate, with no datapath
+change. See Phase 5.2 and background-knowledge.md topic 1 (E1/E2 lifecycle).</p>
+<h2 id="d-23-ring-locking-discipline-tx-lock-rx-lockless-napi-serialised">D-23 Ring locking discipline - TX lock, RX lockless (NAPI-serialised)</h2>
+<p><strong>Decision</strong>: the <strong>TX</strong> ring is guarded by <code>tx_ring.lock</code> - <code>ndo_start_xmit</code> takes it with
+<code>spin_lock_bh()</code>, <code>vnic_tx_clean</code> (NAPI softirq) with plain <code>spin_lock()</code>. The <strong>RX</strong> ring takes
+<strong>no driver lock</strong>: <code>vnic_rx_clean</code> is its only accessor and NAPI serialises polls. <code>rx_ring</code>'s
+<code>next_to_use</code> is unused (the device is the RX producer); only <code>next_to_clean</code> tracks the driver. The
+queue <strong>stop</strong> (xmit, on full) and <strong>wake</strong> (tx_clean, after freeing) decisions both run under
+<code>tx_ring.lock</code>, so there is no missed wakeup; <code>ndo_start_xmit</code> also stops the queue proactively after
+a full enqueue and returns <code>NETDEV_TX_BUSY</code> only as the rare-race safety net.
+<strong>Why</strong>: the TX producer (process ctx) and consumer (softirq) are not serialised against each other
+by the stack, so they need a lock; <code>spin_lock_bh()</code> in xmit also fences the local NAPI softirq.
+Putting stop and wake under the same lock makes them atomic w.r.t. the index updates, removing the
+classic SPSC missed-wakeup race without an explicit <code>smp_mb()</code> + re-check (the lockless
+alternative). RX has a single serialised consumer, so a lock would be pure overhead. The DD-bit
+ownership handshake is ordered by <code>dma_wmb()</code>/<code>dma_rmb()</code> (D-21), independent of these locks.
+<strong>Rejected</strong>: one lock shared by both rings (RX contends for nothing); lockless TX SPSC (needs the
+<code>smp_mb()</code> + re-check dance and careful barrier review - more error-prone for no measured gain here).</p>
+<h2 id="d-24-level-2-interrupts-a-single-msi-vector">D-24 Level 2 interrupts - a single MSI vector</h2>
+<p><strong>Decision</strong>: Level 2 uses <strong>one MSI vector</strong> (the device declares <code>msi_init(pdev, 0, 1, ...)</code> with
+<code>VN_CAP_MSI</code>; the driver requests it with <code>pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI)</code> +
+<code>request_irq()</code>). All causes (<code>TXDONE</code>/<code>RXAVAIL</code>/<code>RXEMPTY</code>/<code>ERR</code>) share that one vector and are
+demultiplexed by reading <code>ICR</code> in the ISR, exactly as the single L1 tasklet did.
+<strong>Why</strong>: the device is single-queue (one TX + one RX ring), so a single completion vector is
+sufficient and is the simplest faithful model; it keeps the L2 ISR a 1:1 replacement for the L1
+simulated-MSI tasklet (D-20) and the <code>vnic_poll</code> half unchanged. MSI (not legacy INTx) because the
+whole interrupt design - <code>ICR</code>/<code>ICS</code>/<code>IMS</code>/<code>IMC</code>, raise-by-memory-write - is modelled on MSI.
+<strong>Rejected</strong>: <strong>MSI-X / multi-vector / multi-queue</strong> (per-queue or per-cause vectors) - real value
+only with multiple queues and RSS, which is explicitly backlog <strong>A3</strong>; legacy <strong>INTx</strong> - level-
+triggered shared-line semantics are a worse fit and add no learning over MSI.</p>
+<h2 id="d-25-level-2-datapath-device-internal-ip-swap-loopback-first-tap-later">D-25 Level 2 datapath - device-internal IP-swap loopback first (tap later)</h2>
+<p><strong>Decision</strong>: Phase 9's device datapath is a <strong>device-internal loopback identical to the Level 1
+engine</strong> - the QEMU device DMA-reads each TX frame and writes it back into the RX ring with the
+Ethernet MAC and IPv4 src/dst swapped (D-05), raising <code>TXDONE</code>+<code>RXAVAIL</code>. RX-full uses backpressure
+(D-19), resumed by the <code>RDT</code> doorbell. Only in Phase 10 does a real <strong>tap</strong> backend replace the
+loopback (kept as a selectable device mode).
+<strong>Why</strong>: it lets the <strong>entire existing Level 1 test suite run unchanged on Level 2</strong>, so the new
+DMA/MMIO/MSI plumbing is validated against a known-good datapath before any external networking - a
+Phase 9 failure is then unambiguously plumbing, not the backend. Reusing the proven IP-swap
+transform keeps TCP/UDP checksums valid (D-05/D-07).
+<strong>Rejected</strong>: jumping straight to <code>tap</code> (couples plumbing bring-up with host tap/bridge setup - two
+failure domains at once); a different loopback transform (the L1 one is already test-validated).</p>
+<h2 id="d-26-level-2-dma-model-coherent-ring-streaming-buffers-device-pci_dma_">D-26 Level 2 DMA model - coherent ring, streaming buffers, device <code>pci_dma_*</code></h2>
+<p><strong>Decision</strong>: descriptor rings use <strong><code>dma_alloc_coherent()</code></strong> (CPU and device see them with no
+explicit sync; <code>desc_dma</code> is programmed into <code>TDBAL/H</code>, <code>RDBAL/H</code>); packet buffers use <strong>streaming
+<code>dma_map_single()</code>/<code>dma_unmap_single()</code></strong> (<code>vnic_hal_mapping_error</code> = <code>dma_mapping_error</code>, D-22); and
+the QEMU device reaches guest memory with <strong><code>pci_dma_read</code>/<code>pci_dma_write</code></strong> at the driver's bus
+addresses. The L2 ISR is a real <code>request_irq</code> handler that masks via <code>IMC</code> and <code>napi_schedule()</code>s;
+<code>vnic_poll</code> re-arms <code>IMS</code> (unchanged from L1). The shared <code>core/</code> is untouched (D-12).
+<strong>Why</strong>: coherent memory for the small, frequently-walked descriptor ring avoids per-descriptor
+sync; streaming maps for packet buffers are the normal NIC pattern (the device DMAs the skb data).
+The DD-bit handshake + <code>dma_wmb()</code>/<code>dma_rmb()</code> in core (D-21) already orders ownership for a <em>device</em>
+peer, so the datapath logic was unchanged - moving the <code>vnic_hal_*</code> backend was enough.
+<strong>Portable RX completion</strong>: core's <code>vnic_rx_clean</code> <strong>unmaps the old RX buffer before delivering it</strong>
+(<code>vnic_hal_unmap</code> = <code>dma_unmap_single</code>, which also syncs it for the CPU), then installs the freshly
+mapped replacement; the error paths keep the old still-mapped buffer in place and drop. This is the
+one HAL call added to core for Level 2 - a <strong>no-op on Level 1</strong> - and it makes the RX path correct
+even under a <strong>vIOMMU / non-coherent host</strong> (no elided unmap, no dma-debug splat), not just on the
+cache-coherent x86 <code>q35</code> target. TX already unmaps in <code>vnic_tx_clean</code>.
+<strong>Rejected</strong>: coherent buffers for packets too (wasteful, unlike real NICs); leaving the per-frame RX
+unmap out and relying on the x86-no-vIOMMU no-op (works on the current target but leaks the mapping
+under an IOMMU and is not how a real driver behaves - rejected in favour of the portable form).</p>
+<h2 id="d-27-level-2-device-build-compiled-into-a-self-built-qemu">D-27 Level 2 device build - compiled into a self-built QEMU</h2>
+<p><strong>Decision</strong>: the QEMU device (<code>qemu-device/vnic.c</code>) is <strong>compiled into a checked-out QEMU source
+tree</strong> (<code>hw/net/vnic.c</code> + a meson/Kconfig hook, sharing <code>include/vnic_regs.h</code>) and run as a
+self-built binary pinned to the guest's current QEMU version; <code>run-qemu.sh</code> points at it via
+<code>QEMU=</code>. Full SOP in <a href="qemu-build.html">qemu-build.md</a>.
+<strong>Why</strong>: QEMU has <strong>no stable out-of-tree device-module ABI</strong> (unlike a Linux <code>.ko</code>), so a device
+must be built inside a QEMU tree. Pinning to the guest's version keeps emulated behaviour matched to
+what the guest already runs. This is a <strong>WSL2-host</strong> task, distinct from the in-guest driver work
+(D-14).
+<strong>Rejected</strong>: an out-of-tree QEMU plugin/module (no supported ABI); patching the distro QEMU binary
+(not reproducible); a separate userspace process speaking a custom protocol (would not exercise the
+real PCI/MMIO/DMA/MSI path, which is the point of Level 2).</p>
+<h2 id="d-28-phase-8-bring-up-pcimmiomsi-keystone-before-the-datapath">D-28 Phase 8 bring-up - PCI/MMIO/MSI keystone before the datapath</h2>
+<p><strong>Decision</strong>: Phase 8 brings up <strong>only</strong> the bus/register/interrupt plumbing and stops there. The
+device exposes a BAR0 <strong>register file</strong> (read-only <code>ID</code>/<code>VERSION</code>/<code>CAP</code>/<code>STATUS</code>/<code>TDH</code>/<code>RDH</code>/stats,
+read-to-clear <code>ICR</code>, RW1S/RW1C <code>IMS</code>/<code>IMC</code>, <code>CTRL</code> with self-clearing <code>RST</code>); the <code>TDT</code>/<code>RDT</code>
+doorbells only store their value. The driver's <code>vnic_probe()</code> enables the device, maps BAR0, checks
+the <code>ID</code> magic, sets up the MSI, and runs a <strong>probe-time self-test</strong> (raise <code>TXDONE</code> via <code>ICS</code>, wait
+for the ISR) - but does <strong>not</strong> <code>register_netdev()</code> or open the datapath. The HAL gets the
+<code>pci_dev</code> from <code>to_pci_dev(netdev-&gt;dev.parent)</code> (set by <code>SET_NETDEV_DEV</code>), so <code>vnic_hal_init(priv)</code>
+keeps the shared single-arg signature; <code>vnic_hal_ring_alloc</code>/<code>map</code>/<code>unmap</code> are Phase-9 stubs.
+<strong>Why</strong>: proving MMIO + MSI + ABI in isolation makes the keystone debuggable on its own (<code>lspci</code>,
+<code>ID</code> read-back, one MSI to the ISR) before layering DMA on top in Phase 9 - a failure then is
+unambiguous. Not registering the netdev avoids exposing a half-built datapath (<code>ndo_open</code> would call
+the ring/DMA stubs); discovering <code>pdev</code> via <code>dev.parent</code> avoids widening the shared <code>vnic_priv</code>/HAL
+just for Level 2. The self-test lives in the L2 HAL (with the ISR) and is deleted in Phase 9 when
+real completions drive the interrupt and the ISR calls <code>napi_schedule()</code>.
+<strong>Rejected</strong>: registering the netdev in Phase 8 with stubbed open (a loaded-but-broken <code>vnic0</code>
+invites <code>ip link set up</code> -&gt; NULL ring deref); building the DMA datapath in the same step (couples two
+hard-to-localise failure domains - the explicit Phase 8/9 split is the debuggability win); adding a
+<code>pci_dev *</code> to the shared <code>vnic_priv</code> (Level-1 dead weight, breaks the "device specifics live behind
+the HAL" rule, D-12).</p>
+<h2 id="d-29-distinct-netdev-names-per-level-vnic_loop0-vnic0-for-coexistence">D-29 Distinct netdev names per level (<code>vnic_loop0</code> / <code>vnic0</code>) for coexistence</h2>
+<p><strong>Decision</strong>: Level 1 (the in-kernel loopback engine) registers its netdev as <strong><code>vnic_loop0</code></strong>;
+Level 2 (the QEMU device) keeps the canonical <strong><code>vnic0</code></strong>. With the already-distinct module names
+(<code>vnic-l1.ko</code> / <code>vnic-l2.ko</code>), both drivers can be <code>insmod</code>'d in the same guest at once and targeted
+separately. The test harness derives <code>IFACE</code> from the module level (<code>tests/lib.sh</code>: <code>*l2*</code> -&gt; <code>vnic0</code>,
+else <code>vnic_loop0</code>; still overridable) and <code>scripts/setup-vnic.sh</code> is interface/IP-parameterized, so
+the two levels can even run on separate subnets simultaneously.
+<strong>Why</strong>: both previously used <code>vnic%d</code>, so co-loading made the names <strong>load-order-dependent</strong>
+(<code>vnic0</code>/<code>vnic1</code>) - you could not tell which level was which. Giving the "real" device (L2) the clean
+<code>vnic0</code> and the engine (L1) the self-describing <code>vnic_loop0</code> makes each deterministic, and lets one
+guest A/B-test L1 vs L2 side by side. L1's rename is the only ripple and it is contained because the
+scripts/tests were already <code>IFACE</code>-parameterized.
+<strong>Rejected</strong>: keep both <code>vnic%d</code> (non-deterministic which-is-which when co-loaded); symmetric
+<code>vnl1</code>/<code>vnl2</code> (renames L2 too and reads worse than keeping the canonical <code>vnic0</code> for the real
+device); fixed <code>vnic0</code>/<code>vnic1</code> by level (L2-alone would surprise by skipping to <code>vnic1</code>).</p>
+<h2 id="d-30-level-2-backend-selectable-tap-vs-internal-loopback-default-loopback">D-30 Level 2 backend - selectable tap vs internal loopback (default loopback)</h2>
+<p><strong>Decision</strong>: the QEMU device carries a <code>loopback</code> property (<strong>default on</strong>). <code>loopback=on</code> keeps the
+Phase 9 internal IP-swap loopback (no backend). <code>loopback=off</code> + a <code>-netdev</code> (tap) makes it a real NIC
+backend: TX frames go out via <code>qemu_send_packet</code>, RX arrives via the <code>receive()</code> callback
+(<code>pci_dma_write</code> into the RX ring + <code>RXAVAIL</code>), with <code>can_receive()</code> + <code>qemu_flush_queued_packets()</code>
+(on the <code>RDT</code> refill doorbell) as the RX-full backpressure - the tap analogue of D-19.
+<code>scripts/run-qemu.sh</code> selects it with <code>VNIC_TAP=&lt;ifname&gt;</code> (<code>-netdev tap,... -device vnic,loopback=off</code>).
+<strong>Why</strong>: keeping loopback the default means a bare <code>-device vnic</code> stays in the validated, backend-free
+mode the L2 test suite needs - no host tap to set up just to run tests - while tap is opt-in for real
+guest&lt;-&gt;host traffic. It is one device with one datapath core: the TX frame has two dispositions
+(loop into RX vs send to the peer) and RX has two sources (the engine vs the <code>receive()</code> callback),
+chosen by a single bool, so the Phase 9 path is byte-for-byte unchanged when <code>loopback=on</code>.
+<strong>Rejected</strong>: auto-detect by "is a peer attached" (fragile - <code>qemu_new_nic</code> always creates a client,
+so "real peer" is murky); default <code>loopback=off</code> (would break the bare-device test invocation and
+force a host tap for every test run); a separate device type (duplicate QOM/PCI/DMA/MSI code for no
+gain). Backend = <strong>tap</strong> specifically (not user-mode/socket) so the host can <code>ping</code> the guest and see
+frames with <code>tcpdump -i tapN</code> directly (D-25).</p>
+<h2 id="d-31-tap-host-side-plumbing-routingnat-on-wsl2-bridge-on-a-real-host">D-31 Tap host-side plumbing - routing+NAT on WSL2, bridge on a real host</h2>
+<p><strong>Decision</strong>: how the host connects the tap (<code>vnic-tap0</code>) to the outside is a <strong>host-environment</strong>
+choice, separate from the device model (the QEMU/device side is identical either way - only what the
+host does with the tap interface differs). On the <strong>WSL2 host</strong> we use <strong>L3 routing + NAT</strong>: the tap
+gets its own subnet (<code>192.168.20.0/24</code>), and <code>scripts/tap-nat.sh</code> enables <code>ip_forward</code> + an outbound
+<code>MASQUERADE</code> out the WAN iface (D-30 / qemu-build.md 8.1). On a <strong>real Linux host</strong> with a physical
+NIC on a real LAN, the more correct approach is <strong>L2 bridging</strong>: create a bridge (<code>br0</code>), enslave both
+the physical NIC and the tap (<code>-netdev bridge</code> or <code>ip link ... master br0</code>); the guest then gets a
+<strong>real LAN IP via the LAN's DHCP</strong>, is directly reachable from the LAN, and needs <strong>no NAT</strong>.
+<strong>Why</strong>: WSL2's <code>eth0</code> is itself a <strong>NAT'd virtual interface behind Windows</strong>, not a port onto a
+physical LAN - bridging the tap to it reaches no real LAN, so routing+NAT is the only sensible path
+there (at the cost of double-NAT and one-way reachability - inbound needs a DNAT, D-30). On a real
+host, <strong>bridging is cleaner and more faithful to "a real NIC"</strong>: the guest is a first-class L2 member
+(own IP, pingable from any LAN host, no NAT asymmetry, accurate L2/broadcast behaviour), which is the
+natural production/demo setup. Both sit on the <em>same</em> tap - the difference is L3 (give the tap an IP,
+route/NAT) vs L2 (tap is a bridge port, no IP).
+<strong>Rejected / alternatives</strong>: bridging <strong>on WSL2</strong> (pointless - the bridge would not reach the
+physical LAN, since WSL2's network is NAT'd); <code>macvtap</code> on a real host (a lighter bridge alternative,
+but host&lt;-&gt;guest cannot talk directly by default - a worse fit when you also want host-side testing);
+slirp/user-mode (no real L2 at all - D-25/D-30). The repo automates only the WSL2 routing+NAT path
+(<code>tap-nat.sh</code>); a bridged real-host setup is documented as the alternative, not scripted here.</p>
+<h2 id="d-32-tx-doorbell-moderation-batch-the-doorbell-over-an-xmit_more-burst">D-32 TX doorbell moderation - batch the doorbell over an <code>xmit_more</code> burst</h2>
+<p><strong>Decision</strong>: <code>vnic_start_xmit</code> defers the <code>VN_REG_TDT</code> doorbell when <code>netdev_xmit_more()</code> reports
+more skbs queued behind this one, ringing it <strong>once per burst</strong> (or when the ring fills) instead of
+once per packet. A <code>tx_coalesce</code> module param (default on, runtime-writable) toggles it for A/B
+measurement. The change is in the shared <code>core/</code> and is level-independent (Phase 12 perf work).
+<strong>Why</strong>: each <code>writel(TDT)</code> is an <strong>MMIO VM-exit</strong> on Level 2 (~thousands of cycles, vs a posted
+write on real hardware); a per-packet doorbell capped TX at ~350 Mbit/s while NAPI-batched RX reached
+~3.77 Gbit/s (L-09). Batching amortizes the exit over a burst - the standard real-driver technique
+(background-knowledge topic 7.2). It is <strong>correct for both levels</strong>: the kernel guarantees the last
+skb of a dequeue burst clears <code>xmit_more</code> (so the deferred doorbell always fires), and a full ring
+forces a doorbell (so the device never stalls with un-rung descriptors); on Level 1 it just wakes the
+engine once per burst instead of per packet.
+<strong>Rejected</strong>: a count/timer-based deferral (adds latency + a flush timer; <code>xmit_more</code> is the
+kernel-native, zero-added-latency batch boundary); doing it only in the L2 HAL (the doorbell call
+lives in <code>core/</code> and is identical across levels, D-12, so the optimization belongs there - neutral on
+L1). Interrupt moderation (<code>ITR</code>) is a <strong>separate</strong> lever - interrupt <em>rate</em>, not doorbell exits -
+left as backlog / Phase 12 (b).</p>
+<h2 id="d-33-interrupt-moderation-itr-device-coalesces-the-msi-with-a-qemu-timer">D-33 Interrupt moderation (ITR) - device coalesces the MSI with a QEMU timer</h2>
+<p><strong>Decision</strong>: the QEMU device honours <code>VN_REG_ITR</code> (microseconds - the moderation register it already
+advertises via <code>VN_CAP_MODER</code>). With <code>ITR&gt;0</code> it delivers <strong>at most one MSI per ITR microseconds</strong>
+using a <code>QEMU_CLOCK_VIRTUAL</code> timer: fire immediately if the gap since the last interrupt is already
+satisfied (low latency when idle), otherwise arm the timer to fire at the gap boundary and let further
+causes <strong>coalesce</strong> into it (they stay latched in <code>ICR</code>). <code>ITR=0</code> keeps per-cause immediate delivery
+(the original behaviour). The driver programs <code>ITR</code> at open from an <code>itr_usecs</code> module param
+(default 0). This is the interrupt-side complement to D-32's TX doorbell batching (Phase 12 b).
+<strong>Why</strong>: under load the device raised an MSI per completion; <code>ITR</code> bounds the interrupt/NAPI rate, the
+standard real-NIC technique (background-knowledge topic 7.3). A virtual-clock timer is the natural
+QEMU mechanism, and the "fire-if-gap-else-schedule-and-coalesce" rule gives low latency when idle and
+real coalescing under load. Default <strong>off</strong> so the test suite is unchanged and Level 1 (whose
+simulated MSI ignores <code>ITR</code>) is unaffected - only the L2 device acts on it.
+<strong>Rejected</strong>: an "every Nth completion" counter (the rate then varies with traffic; time-based is what
+hardware does); on-by-default (would change test/L1 behaviour and add latency unasked); doing it in
+the driver (moderation is the <em>device's</em> job - the driver only programs the register, as on real
+hardware). Adaptive moderation (DIM) and MSI-X/multi-vector remain backlog (A3).</p>
+<p class="footnote">Generated from <code>design-decisions.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lessons Learned</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Lessons Learned</h1>
+<div class="meta"><span>2026-06-12</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="lessons-learned">Lessons Learned</h1>
+<p>A running log of changes and experiments and <strong>what testing actually revealed</strong> -
+especially performance and optimization findings. Newest first.</p>
+<p>This complements the other logs:
+- <a href="design-decisions.html">design-decisions.md</a> - the <em>why</em> behind a design choice (decided up front).
+- this file - the empirical <em>what happened when we tried it</em> (learned from measurement).</p>
+<blockquote>
+<p>Maintenance: after a change that we test or measure (a fix, a tuning knob, an
+optimization), add an <code>L-xx</code> entry - the change, what was measured, the lesson,
+and any follow-up. Link to the raw data under <code>results/</code>.</p>
+</blockquote>
+<hr>
+<h2 id="l-13-the-single-stream-smoke-retr-is-a-spurious-tail-loss-probe-not-loss">L-13 The single-stream smoke "Retr" is a spurious Tail Loss Probe, not loss</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-18. Found while verifying the Phase 5.2 <code>priv-&gt;up</code> fix on Level 2.</li>
+<li><strong>Trigger</strong>: <code>01-smoke.sh</code> A2 (single-stream <code>iperf3 -t 3</code> over the L2 device loopback) failed once
+  with <strong>Retr = 1</strong> while every device counter was clean. L-04 had assumed A2 would not stall at low
+  load and kept a strict <code>Retr == 0</code> - so was this real loss, or spurious again?</li>
+<li><strong>Measured</strong> (Level 2 loopback, 10 single-stream rounds, TCP MIB via <code>nstat</code>; the one round that
+  retransmitted):</li>
+</ul>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>signal</th>
+<th>value</th>
+<th>source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Tcp:RetransSegs</code></td>
+<td>1</td>
+<td><code>nstat</code> (<code>/proc/net/snmp</code>)</td>
+</tr>
+<tr>
+<td><code>TcpExt:TCPLossProbes</code></td>
+<td>1</td>
+<td><code>nstat</code> - it was a <strong>Tail Loss Probe</strong></td>
+</tr>
+<tr>
+<td><code>TcpExt:DelayedACKLost</code></td>
+<td>1</td>
+<td>a delayed ACK overran its timer</td>
+</tr>
+<tr>
+<td><code>TcpExt:TCPDSACKRecv</code> / <code>...RecvSegs</code></td>
+<td>1 / 1</td>
+<td>receiver got the segment <strong>twice</strong></td>
+</tr>
+<tr>
+<td><code>TcpExt:TCPDSACKIgnoredNoUndo</code></td>
+<td>1</td>
+<td>sender confirmed the retransmit was needless</td>
+</tr>
+<tr>
+<td><code>TcpExt:TCPFastRetrans</code> / <code>TCPLostRetransmit</code> / <code>SackReorder</code></td>
+<td>0</td>
+<td><code>nstat</code> - no loss-driven retrans</td>
+</tr>
+<tr>
+<td><code>tx_dropped</code>/<code>rx_dropped</code>/<code>tx_errors</code>/<code>rx_errors</code> (delta, all 10 rounds)</td>
+<td>0</td>
+<td>sysfs</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>What we learned</strong>:
+  1. <strong>Timeout-class, not a drop.</strong> No <code>TCPFastRetrans</code>/<code>TCPLostRetransmit</code> (not 3-dup-ACK loss
+     recovery) and no <code>TCPTimeouts</code> (not a full RTO) - it is a <strong>Tail Loss Probe</strong> (<code>TCPLossProbes</code>),
+     the Linux timer that probes the <em>tail</em> of a flow before a full RTO.
+  2. <strong>It was spurious.</strong> <code>TCPDSACKRecv == RetransSegs</code> (the receiver DSACK'd the duplicate) plus
+     <code>DSACKIgnoredNoUndo</code> (the sender agreed) prove the original tail segment <em>did</em> arrive - and the
+     device dropped nothing. A short <code>-t 3</code> flow ends with a tail whose last ACK is late under
+     loopback backpressure, so TLP fires once, harmlessly.
+  3. <strong>L-04 generalises to single-stream.</strong> L-04 saw spurious Retr under <code>-P8</code>; this shows even one
+     stream at low load can trip one spurious TLP at the tail, so A2's strict <code>Retr == 0</code> was too
+     optimistic.
+  4. <strong><code>RetransSegs</code> &gt;= <code>DSACKRecv</code> - read it as a ratio, not an equality.</strong> A later <code>-P8</code> C1 run
+     showed <code>RetransSegs=58</code> vs <code>TCPDSACKRecv=55</code> (<code>TCPLossProbes=121</code>) with device drops still <strong>0</strong>.
+     The 3-segment excess is expected, not 3 lost packets: a DSACK returns ~1 RTT <em>after</em> its
+     retransmit so the last few fall outside the <code>nstat</code> window; DSACK is best-effort (delayed-ACK
+     coalesced / lost / GRO-merged); a few retransmits genuinely fill a <strong>host-queue micro-drop</strong>
+     (qdisc overflow under saturation) or a <strong>TLP-recovered tail loss</strong> - real, but <em>above</em> the driver,
+     not a device/wire drop. So "spurious" = <code>DSACKRecv</code> <em>close to</em> <code>RetransSegs</code> <strong>and</strong> zero device
+     drops - never require strict equality (background-knowledge <strong>topic 13.1</strong>).</li>
+<li><strong>Outcome</strong>: <code>01-smoke.sh</code> A2 now tolerates a small retransmit count (<code>&lt;= 5</code>) <strong>and</strong> prints the
+  TCP-MIB delta (<code>tcp_reset</code>/<code>tcp_report</code>) so the cause is auditable inline; <code>rx_dropped</code>/<code>tx_dropped</code>
+  (A3) remain the authoritative real-loss gate - consistent with L-04 and 03-concurrency.</li>
+<li><strong>Follow-up</strong>: none - expected TCP behaviour on a backpressured loopback, not a driver bug.</li>
+</ul>
+<h2 id="l-12-mtu-scales-throughput-25x-at-9000-the-interrupt-rate-is-napi-driven-not-packet-count">L-12 MTU scales throughput (~2.5x at 9000); the interrupt rate is NAPI-driven, not packet-count</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-15. <code>scripts/perf-sweep.sh</code>. Raw:
+  <a href="phase12-itr-mtu.html">results/phase12-itr-mtu.md</a>.</li>
+<li><strong>Measurement</strong>: guest, <code>itr=0</code>, two 30 s runs per MTU, each direction.</li>
+<li><strong>RX</strong> (<code>iperf3 -R</code>, host -&gt; guest), run1/run2: 1500 <strong>3.0/2.5</strong>, 3000 <strong>4.3/4.0</strong>, 6000 <strong>5.8/6.7</strong>,
+    9000 <strong>7.4/7.4</strong> Gbit/s; 0 drop.</li>
+<li><strong>TX</strong> (<code>iperf3</code>, guest -&gt; host, doorbell batching on): 1500 <strong>3.2/3.3</strong>, 3000 <strong>4.6/4.2</strong>, 6000
+    <strong>6.6/6.2</strong>, 9000 <strong>8.6/8.2</strong> Gbit/s; 0 drop.</li>
+<li>Interrupts/s were non-reproducible in both (e.g. RX 6000: 2823/1604; TX 9000: 1024/1299).</li>
+<li><strong>What we learned</strong>:
+  1. <strong>Throughput rises monotonically and reproducibly with MTU in both directions</strong> - ~2.5x at 9000
+     vs 1500 - because the same bytes ride ~6x fewer packets, so the per-packet cost (descriptor DMA,
+     the doorbell/interrupt handling, the stack) is amortized over far more payload (background topic
+     7). <strong>TX is the faster direction at jumbo</strong> (9000: ~8.4 vs RX ~7.4 Gbit/s): TX batches the
+     doorbell (D-32) and the engine sweeps a whole burst per kick, vs RX's per-frame <code>receive()</code>
+     callback in the iothread.
+  2. <strong>The interrupt rate does NOT track MTU</strong> - it swings 2-3x run-to-run at the <em>same</em> MTU and is
+     non-monotonic. It is governed by <strong>NAPI completion timing</strong> (how often a poll drains below budget
+     and re-arms <code>IMS</code>), which is sensitive to load/scheduling, not by packet count. "Bigger MTU =
+     fewer interrupts" is not a reliable rule here.
+  3. <strong>Methodology</strong>: single 10 s runs were too noisy - a spurious 9000 throughput <em>dip</em> and wild
+     interrupt swings - and two 30 s runs were needed to separate the throughput signal from noise.
+     On KVM/WSL2, measure long and repeat before concluding.</li>
+</ul>
+<h2 id="l-11-itr-moderation-60x-fewer-interrupts-at-flat-throughput-but-napi-is-the-primary-moderator">L-11 ITR moderation: ~60x fewer interrupts at flat throughput - but NAPI is the primary moderator</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-15. D-33; <code>scripts/itr-sweep.sh</code>. Raw:
+  <a href="phase12-itr-mtu.html">results/phase12-itr-mtu.md</a>.</li>
+<li><strong>Measurement</strong>: guest, <code>iperf3 -R</code> (high RX), sweeping <code>itr_usecs</code>:
+  <code>0</code> -&gt; 849/s, <code>50</code> -&gt; 389/s, <code>500</code> -&gt; 116/s, <code>2000</code> -&gt; 14/s, <code>5000</code> -&gt; 18/s; throughput ~2.6-3.1
+  Gbit/s (flat, run variance), 0 drop throughout.</li>
+<li><strong>What we learned</strong>:
+  1. <strong>ITR cuts the interrupt rate hard</strong> (849 -&gt; 14/s, ~60x) with <strong>throughput essentially unchanged
+     and 0 drops</strong> - the classic moderation win: interrupt/CPU cost falls, throughput is unaffected
+     because NAPI already batches the <em>data</em> (topic 7.3).
+  2. <strong>NAPI is the primary moderator.</strong> Even <code>itr=0</code> is only ~849/s (not per-packet): the ISR masks
+     via <code>IMC</code> and NAPI stays in poll under load, re-arming <code>IMS</code> only when it drains below budget. ITR
+     trims further by delaying the re-trigger so more packets accumulate per interrupt. <em>(This
+     corrects my earlier guess that a sub-gap ITR "wouldn't bite" - it does, because the effect is
+     per-interrupt batching, not a hard 1/ITR cap.)</em>
+  3. <strong>No drops even at ~14 ints/s</strong> (~16k packets between interrupts) because under sustained load
+     NAPI keeps polling in softirq without a fresh interrupt; the interrupt only <em>restarts</em> NAPI after
+     it idles.</li>
+<li><strong>Cost side (not yet measured)</strong>: ITR trades latency for fewer interrupts (the RX completion is
+  delayed up to ITR us -&gt; higher RTT). A ping-RTT-per-ITR sweep is the missing half; adaptive DIM is
+  also backlog.</li>
+</ul>
+<h2 id="l-10-tx-doorbell-batching-xmit_more-45xd-tx-the-vm-exit-was-the-bottleneck">L-10 TX doorbell batching (xmit_more) ~4.5x'd TX - the VM-exit was the bottleneck</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-15. Change <code>394b2d5</code> (D-32). Raw:
+  <a href="phase12-tx-doorbell.html">results/phase12-tx-doorbell.md</a>.</li>
+<li><strong>Measurement</strong>: same-session A/B, guest -&gt; host <code>iperf3</code> over the tap, toggling the new
+  <code>tx_coalesce</code> param at runtime (no reload, nothing else changes):</li>
+<li><strong>off</strong> (per-packet doorbell, the old behaviour): <strong>414 Mbit/s</strong>, 0 Retr.</li>
+<li><strong>on</strong> (batch <code>TDT</code> over an <code>xmit_more</code> burst): <strong>1.86 Gbit/s</strong>, 0 Retr.</li>
+<li><strong>~4.5x</strong>, no added loss. The <code>off</code> number matches the L-09 per-packet baseline (~350-414 Mbit/s).</li>
+<li><strong>What it confirms</strong>: the dominant Level 2 TX cost was the <strong>per-packet <code>writel(TDT)</code> = one MMIO
+  VM-exit per packet</strong>. Deferring it across the stack's <code>xmit_more</code> burst and ringing once per burst
+  (D-32, background topic 7.2) removes most of those exits. It also closes most of the TX/RX gap from
+  L-09: TX 0.35 -&gt; 1.86 Gbit/s vs RX ~3.77 Gbit/s (RX was already NAPI-batched; the residual gap is
+  the remaining per-burst doorbell + the synchronous vCPU-thread engine run).</li>
+<li><strong>cwnd is independent confirmation</strong>: across the run the TCP congestion window grew ~6x with
+  batching on (to <strong>1.51 MB</strong>) but stayed small off (<strong>~130-350 KB</strong>) - <strong>with 0 Retr in both arms</strong>.
+  So the small <code>off</code> cwnd is <em>not</em> congestion/loss; the doorbell exits throttled the send path and
+  TCP simply read the link as slow. Removing the per-packet exit let the realized rate (and hence
+  <code>cwnd ~= rate x RTT</code>) climb. Per-second cwnd table in results/phase12-tx-doorbell.md.</li>
+<li><strong>Why it is the right fix</strong>: it is exactly what real drivers do (igb/ixgbe/mlx5), the change is in
+  the shared <code>core/</code> and is level-independent (the kernel clears <code>xmit_more</code> on the last skb of a
+  burst, and a full ring forces the doorbell, so no descriptor is left un-rung; on Level 1 it just
+  wakes the engine once per burst). 0 Retr in both arms shows correctness held.</li>
+<li><strong>Caveat / follow-up</strong>: the gain scales with burst size (GSO/qdisc), measured on QEMU 6.2 + KVM,
+  tap mode. The next lever is the interrupt side - device ITR (Phase 12 b) - which targets IRQ rate,
+  not doorbell exits.</li>
+</ul>
+<h2 id="l-09-tap-throughput-tx-doorbell-vm-exit-is-10x-slower-than-rx-napi-batch">L-09 Tap throughput: TX (doorbell VM-exit) is ~10x slower than RX (NAPI batch)</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-15. Measured on Level 2 tap (<code>loopback=off</code>), QEMU 6.2 + KVM. Raw:
+  <a href="phase10-tap.html">results/phase10-tap.md</a>.</li>
+<li><strong>Measurement</strong>: <code>iperf3</code> guest &lt;-&gt; host over the tap, 10 s each way:</li>
+<li><strong>TX</strong> (guest -&gt; host, <code>iperf3 -c</code>): <strong>~350 Mbit/s, 0 Retr</strong>.</li>
+<li><strong>RX</strong> (host -&gt; guest, <code>iperf3 -c -R</code>): <strong>~3.77 Gbit/s</strong>, 79 Retr (~0.002% of 4.4 GB).</li>
+<li>Device counters after both: <strong>0 errors, 0 dropped</strong> in each direction (3.42M RX / 342K TX pkts).</li>
+<li><strong>The lesson - the asymmetry is structural, not a bug</strong>:</li>
+<li><strong>TX is gated by the MMIO doorbell.</strong> Each transmit batch ends with <code>writel(TDT)</code>, which is an
+    <strong>MMIO trap = a VM-exit</strong> from the guest vCPU into QEMU (the engine then runs synchronously in the
+    vCPU thread). VM-exits are expensive, so TX throughput is bounded by the doorbell/exit rate.</li>
+<li><strong>RX is delivered by the iothread and drained by NAPI.</strong> The host/iothread <code>pci_dma_write</code>s frames
+    into the RX ring and raises one MSI; the guest's <strong>NAPI poll batches many packets per interrupt</strong>
+    with few guest exits. So RX amortizes far better -&gt; ~10x TX here.</li>
+<li>This is the emulated-NIC face of a real principle: <em>MMIO exits are costly; interrupt coalescing /
+    NAPI batching is what makes high throughput possible</em> (background-knowledge topics 2, 5). A real
+    optimization (and our backlog) would be to <strong>moderate/batch the TX doorbell</strong> (e.g. ITR / fewer
+    <code>writel(TDT)</code>), the TX analogue of NAPI.</li>
+<li><strong>Robustness confirmed</strong>: the 79 Retr were <strong>TCP-layer spurious RTOs, not device drops</strong>
+  (<code>rx_dropped</code>/<code>errors</code> = 0); the Phase 10 RX flow-control fix (L-08) held at sustained multi-Gbit/s.</li>
+<li><strong>Known limitations surfaced</strong>:
+  1. <code>STAT_RXBYTES</code>/<code>STAT_TXBYTES</code> are <strong>32-bit device registers that wrap past 4 GiB</strong> - packet
+     counts are reliable, byte totals above 4 GiB are not. 64-bit counters / driver-side accumulation
+     is backlog.
+  2. The L2 netdev shows <code>altname enp0s3</code> - <code>NET_NAME_USER</code> (<code>36fcc54</code>) keeps the <strong>primary</strong> name
+     <code>vnic0</code>; udev attaches its predictable name as an <strong>alternative</strong> name (both resolve). The pin
+     works as intended.</li>
+<li><strong>Follow-up</strong>: this is the seed of the Phase 12 performance analysis (real DMA/exits vs the L1
+  in-process <code>memcpy</code>).</li>
+</ul>
+<h2 id="l-08-phase-10-tap-rx-wedged-a-nic-must-flush-its-backend-when-rx-is-enabled">L-08 Phase 10 tap RX wedged: a NIC must flush its backend when RX is enabled</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-12. Tap backend <code>b7dc2c0</code>; RX fix <code>a8850d1</code>. Raw:
+  <a href="phase10-tap.html">results/phase10-tap.md</a>.</li>
+<li><strong>Trigger</strong>: first guest&lt;-&gt;host <code>ping</code> over the real tap backend (<code>loopback=off</code>). The guest's TX
+  reached the host (echo requests on <code>vnic-tap0</code>) and the host replied, but the guest got <strong>0% of the
+  replies</strong>.</li>
+<li><strong>What happened</strong>: <code>ip -s link show vnic0</code> had <strong>RX packets = 0</strong> (TX fine), and <code>/proc/interrupts</code>
+  showed <strong>3 TXDONE MSIs but 0 RXAVAIL</strong> - <code>vnic_receive()</code> was <strong>never called</strong>. Yet <code>tcpdump -ni
+  vnic-tap0</code> on the host clearly showed <em>both</em> the echo request and the reply.</li>
+<li><strong>Root cause - QEMU net flow control</strong>. While <code>RXEN</code> was clear at boot, <code>vnic_can_receive()</code>
+  returned false, so QEMU <strong>disabled the tap fd read handler</strong>. The driver enables <code>RXEN</code> <em>after</em>
+  posting RX buffers, so the <code>RDT</code>-doorbell flush fired while <code>RXEN</code> was still clear (too early); then
+  <code>RXEN</code> went up with <strong>nothing to flush the backend</strong>, leaving the tap read handler stuck off. The
+  host's reply sat in the kernel tap queue (so <code>tcpdump</code> still saw it) but QEMU never read it -&gt;
+  <code>vnic_receive()</code> never ran -&gt; no RX, no RXAVAIL.</li>
+<li><strong>What we learned</strong>:
+  1. <strong>A QEMU NIC must <code>qemu_flush_queued_packets()</code> whenever it becomes able to receive</strong> (RX turned
+     on), not only on ring-refill. A <code>can_receive()</code> that returned false earlier disables backend
+     delivery until an explicit flush re-arms it.
+  2. <strong><code>tcpdump</code> on the host tap is kernel-side</strong>: it shows frames <em>at the tap interface</em>, before and
+     independent of whether the emulated device reads them. "tcpdump sees the reply" did <strong>not</strong> mean
+     the guest device received it - the decisive signals were the device <strong>RX stats</strong> and the
+     <strong>RXAVAIL interrupt count</strong> (both zero).
+  3. Keep <code>can_receive()</code> cheap and side-effect-free (no per-frame guest-memory reads from the
+     net/iothread path); let <code>receive()</code> return 0 for ring-full and re-arm via flush.
+  4. The <strong>driver was unchanged and correct</strong> throughout (Phase 10 touched only the QEMU device) -
+     diagnose backend bring-up on the device side.</li>
+<li><strong>Fix</strong> (<code>a8850d1</code>): <code>qemu_flush_queued_packets()</code> on <code>CTRL.RXEN</code> enable; <code>vnic_can_receive()</code>
+  gates only on tap-mode + <code>RXEN</code>. <strong>Outcome</strong>: guest&lt;-&gt;host ping 0% loss, <code>vnic0</code> RX packets &gt; 0,
+  RXAVAIL interrupts now fire. Phase 10 done. Later also validated <strong>guest -&gt; public internet through
+  vnic0</strong> (ICMP/DNS/TCP/HTTP, <code>ip route get</code> confirms egress via <code>vnic0</code>) once the host is made a
+  router + NAT (<code>scripts/tap-nat.sh</code>) - the full datapath carries real external traffic, not just
+  loopback. Details in results/phase10-tap.md.</li>
+</ul>
+<h2 id="l-07-phase-9-datapath-works-on-l2-a-pci-netdev-gets-udev-renamed-by-default">L-07 Phase 9 datapath works on L2; a PCI netdev gets udev-renamed by default</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-12. Phase 9 datapath <code>f634651</code>; name-pin fix <code>36fcc54</code>. Raw run:
+  <a href="phase9-l2-tests.html">results/phase9-l2-tests.md</a>.</li>
+<li><strong>Trigger</strong>: first full <code>tests/run-all.sh</code> on Level 2 (<code>MODULE=.../vnic-l2.ko</code>), over real
+  MMIO/DMA/MSI against the self-built QEMU device.</li>
+<li><strong>What worked</strong>: the datapath is solid - iperf3 <strong>~574 Mbps, 0 Retr-as-loss / 0 drops / 0 errors</strong>,
+  lossless ping including <strong>jumbo (-s 8000) and IP-fragmented (-s 65000)</strong> frames, <code>ndo_change_mtu</code>
+  resize, RX alloc-failure injection (recycle + <code>rx_dropped</code>), <code>-P8</code> concurrency, the 40x down/up
+  flood storm, and rmmod-under-live-traffic - all pass. The shared <code>core/</code> + the IP-swap loopback
+  behaved identically to Level 1, now exercised through <code>dma_alloc_coherent</code> rings, <code>dma_map_single</code>
+  buffers and a real MSI (D-25/D-26). Retr&gt;0 with 0 drops is the same backpressure-latency artefact
+  as L-04, not loss.</li>
+<li><strong>The gotcha</strong>: 9 failures (<code>01-smoke</code> "present", all 8 <code>02-lifecycle</code> "missing on load") were
+  <strong>not</strong> datapath bugs - <strong>systemd-udev renamed <code>vnic0</code> -&gt; <code>enp0s3</code></strong>. dmesg showed it plainly:
+  <code>vnic 0000:00:03.0 enp0s3: renamed from vnic0</code>. The tests that <em>ran after</em> the rename settled all
+  passed; the failures were a <strong>rename race</strong> - the "interface present" checks fired in the
+  millisecond between <code>register_netdev</code> (still <code>vnic0</code>) and udev finishing the rename.</li>
+<li><strong>Why it renames</strong>: the L2 netdev has a <strong>PCI parent</strong> (<code>SET_NETDEV_DEV</code>) and a <strong>kernel-enumerated
+  name</strong> (<code>NET_NAME_ENUM</code>, from <code>register_netdev("vnic%d")</code>). systemd's <code>net_setup_link</code> default
+  <code>NamePolicy=keep kernel database onboard slot path</code> only <em>keeps</em> user/renamed names, so for an ENUM
+  name it computes a predictable slot name: <code>en</code> + <code>p0s3</code> (PCI <code>0000:00:03.0</code>) = <code>enp0s3</code>. This is
+  <strong>realistic real-NIC behaviour</strong> (<code>eth0</code> -&gt; <code>enp3s0</code>). Level 1 is untouched because it has <strong>no PCI
+  parent</strong>, so udev cannot derive a predictable name and leaves <code>vnic_loop0</code>.</li>
+<li><strong>What we learned</strong>:
+  1. A PCI netdev's <em>registered</em> name is not its <em>final</em> name - udev may rename it asynchronously.
+     A test/setup must either <strong>pin the name</strong> or <strong>discover the iface by driver/MAC</strong>, never assume
+     the name it registered with, and never check "present" immediately after load (rename race).
+  2. <strong>Diagnose by dmesg first</strong>: <code>renamed from X</code> tells you instantly it is naming, not datapath.</li>
+<li><strong>Fix</strong>: register a fixed <code>vnic0</code> and set <code>name_assign_type = NET_NAME_USER</code> so udev's <code>keep</code> policy
+  retains it (<code>36fcc54</code>). Single-device only (fixed name); multi-device is backlog A3. Alternatives
+  considered: a <code>/etc/systemd/network/*.link</code> file (admin-side, not in-repo) or <code>net.ifnames=0</code>
+  (global). <strong>Confirmed</strong>: with the name pinned the rename race is gone and the full suite is
+  <strong>all-green (6/6, overall PASS)</strong> at the default <code>IFACE=vnic0</code> (iperf3 ~611 Mbps, Retr 3, 0 drops).</li>
+</ul>
+<h2 id="l-06-phase-8-keystone-works-on-a-self-built-qemu-and-three-bring-up-footguns">L-06 Phase 8 keystone works on a self-built QEMU - and three bring-up footguns</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-12 (validated); Phase 8 code <code>378a64b</code>. Raw dmesg:
+  <a href="phase8-bringup.html">results/phase8-bringup.md</a>.</li>
+<li><strong>Trigger</strong>: first end-to-end run of Level 2 on the self-built QEMU 6.2.0 in the guest. <code>lspci</code>
+  initially showed <strong>no</strong> device, despite the build being correct.</li>
+<li><strong>What happened / what we learned</strong>:
+  1. <strong>The keystone itself is sound.</strong> Once launched correctly, <code>insmod vnic-l2.ko</code> logged
+     <code>ID=0x564e3130</code> (real <code>readl</code> over the BAR) and <code>MSI self-test passed (1 interrupt(s) seen)</code> -
+     a <strong>device-raised MSI reached the ISR</strong> over real MMIO/MSI. The <code>(unnamed)(uninitialized)</code>
+     netdev in the log is <strong>expected</strong> - Phase 8 deliberately does not <code>register_netdev</code> (D-28).
+  2. <strong><code>sudo VAR=val cmd</code> silently drops the env vars</strong> (sudo <code>env_reset</code>), so <code>run-qemu.sh</code> fell
+     back to the <strong>system</strong> QEMU with <strong>no <code>-device vnic</code></strong> - device absent, but the guest booted
+     fine (no error). Use <code>sudo env VAR=...</code> instead. The build was never the problem.
+  3. <strong>A hand-copied script diverges.</strong> The <code>~/vnic-vm/run-qemu.sh</code> pasted from an older dev-setup
+     had <strong>no <code>QEMU=</code>/<code>VNIC_DEVICE=</code> hooks</strong> and ignored both env vars. Fix: use the repo's
+     <code>scripts/run-qemu.sh</code> as the single source (symlink it in); dev-setup.md section 2 updated.
+  4. <strong>Guest DNS rides on the host.</strong> A transient <code>Temporary failure in name resolution</code> on the
+     WSL2 host (QEMU user-mode NAT forwards DNS to the host) made <code>git pull</code> in the guest hang - not
+     an auth or QEMU-device bug. Resolved itself once the host network recovered.
+  5. <strong>Diagnosis tip</strong>: our IDs are not in <code>pci.ids</code>, so <code>lspci</code> shows <code>Device 1234:11e9</code> and
+     <code>grep -i vnic</code> finds nothing - grep by <strong>ID</strong> (<code>lspci -nn | grep 1234:11e9</code>).</li>
+<li><strong>Outcome</strong>: Phase 8 Output fully met (lspci / ID readback / reg read-back / MSI-&gt;ISR) on real
+  QEMU + MMIO + MSI. Docs hardened against the footguns (qemu-build.md section 6 <code>sudo env</code> + <code>VMDIR</code>,
+  dev-setup.md section 2 single-source script). Next: Phase 9 DMA datapath (D-26).</li>
+</ul>
+<h2 id="l-05-destination-host-unreachable-is-an-l2neigh-failure-not-a-datapath-bug">L-05 "Destination Host Unreachable" is an L2/neigh failure, not a datapath bug</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-11, <code>16feb35</code>.</li>
+<li><strong>Trigger</strong>: the C2 concurrency test (40x <code>down</code>/<code>up</code> under a flood ping) reported <strong>100%
+  post-storm ping loss</strong>, which looked like rapid down/up wedging the RX datapath.</li>
+<li><strong>What happened</strong>: the ping output was <strong><code>Destination Host Unreachable</code> + <code>+10 errors</code> (pipe 10)</strong>,
+  not <code>Request timeout</code>. That means the packet <strong>never left</strong> - the kernel had no L2 address for the
+  peer. <code>ip link set &lt;dev&gt; down</code> flushes the per-device neighbour table, including our <strong>static
+  <code>nud permanent</code></strong> peer entry (D-08), so after the storm there was no MAC for 192.168.10.2.</li>
+<li><strong>What we learned</strong>:
+  1. <strong>Diagnose by the ping error first.</strong> <code>Destination Host Unreachable</code> / <code>+errors</code> = ARP/neigh
+     (L2) resolution failed, the frame never entered the datapath; <code>Request timeout</code> / no reply =
+     the frame went out but nothing came back (a real RX/datapath issue). Check which <strong>before</strong>
+     blaming the driver.
+  2. <strong>The driver was fine.</strong> <code>RX == TX</code>, 0 dropped, 0 errors, dmesg clean throughout - the datapath
+     survived the storm; only the host neighbour table was disturbed (standard kernel behaviour on
+     link-down, not driver state).
+  3. A static-neigh loopback test must <strong>re-establish config</strong> (<code>setup-vnic.sh</code>) after any link
+     bounce; persistence of <code>nud permanent</code> across down/up cannot be assumed.</li>
+<li><strong>Outcome</strong>: <code>tests/03-concurrency.sh</code> C2 re-runs <code>vnic_setup</code> after the storm and <code>diag()</code> now
+  dumps <code>ip neigh</code>; the test then went green (post-storm loss 0%).</li>
+</ul>
+<h2 id="l-04-with-backpressure-iperf-retr-is-latency-not-loss">L-04 With backpressure, iperf "Retr" is latency, not loss</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-11, <code>18877fc</code> (test instrumentation).</li>
+<li><strong>Trigger</strong>: the new concurrency test C1 (<code>iperf3 -P8</code>) reported <strong>Retr = 8</strong> over the Level 1
+  loopback. With D-19 backpressure (L-02) the device never drops on queue-full - so is something
+  actually dropping?</li>
+<li><strong>Measured</strong> (Level 1, RX ring 256, backpressure; one C1 run):</li>
+</ul>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>signal</th>
+<th>value</th>
+<th>source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>iperf <code>Retr</code> / <code>Tcp:RetransSegs</code></td>
+<td>8</td>
+<td>iperf JSON / <code>/proc/net/snmp</code></td>
+</tr>
+<tr>
+<td><code>rx_dropped</code> / <code>tx_dropped</code> (delta)</td>
+<td>0 / 0</td>
+<td><code>/sys/class/net/vnic0/statistics</code></td>
+</tr>
+<tr>
+<td><code>TcpExt:TCPDSACKRecv</code></td>
+<td>8 (== Retr)</td>
+<td><code>/proc/net/netstat</code></td>
+</tr>
+<tr>
+<td><code>TcpExt:TCPLossProbes</code></td>
+<td>41</td>
+<td><code>/proc/net/netstat</code></td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>What we learned</strong>:
+  1. <strong>Nonzero Retr was not packet loss.</strong> <code>rx_dropped == tx_dropped == 0</code> proves the device
+     dropped nothing, and <code>TCPDSACKRecv == RetransSegs</code> proves the receiver got every
+     "retransmitted" segment a second time - i.e. the originals <em>did</em> arrive. The retransmits were
+     <strong>spurious</strong>.
+  2. <strong>Mechanism</strong>: backpressure turns a would-be drop into <em>latency</em>. When the RX ring stalls, a
+     segment / ACK can sit queued past TCP's TLP / RTO timer, so TCP retransmits a segment that was
+     only late, not lost. This is the actual mechanism behind L-01's "deeper ring -&gt; fewer Retr": a
+     deeper ring stalls less often and for shorter, so it trips fewer spurious retransmits (at the
+     cache cost L-01 measured).
+  3. <strong>Measure loss, not Retr.</strong> Once backpressure exists, iperf <code>Retr</code> is a misleading loss proxy.
+     Gate correctness on <strong><code>rx_dropped</code> / <code>tx_dropped</code></strong> (real device loss, sysfs) and attribute
+     retransmits via the <strong>TCP MIB in procfs</strong> - <code>/proc/net/netstat</code> (<code>TCPDSACKRecv</code>,
+     <code>TCPSpuriousRtxHostQueues</code>, <code>TCPSpuriousRTOs</code>, <code>TCPLossProbes</code>) and <code>/proc/net/snmp</code>
+     (<code>RetransSegs</code>). TCP stats are <strong>not</strong> under <code>/sys/class/net</code> (that is link-layer only).</li>
+<li><strong>Outcome</strong>: <code>tests/03-concurrency.sh</code> C1 now gates on <code>rx_dropped</code> / <code>tx_dropped</code> and prints the
+  TCP-MIB delta. (The single-stream smoke <code>01-smoke.sh</code> A2 originally kept a strict <code>Retr == 0</code>, on the
+  assumption it would not stall at low load - <strong>L-13 later showed even one stream trips an occasional
+  spurious Tail Loss Probe at the tail</strong>, so A2 was relaxed to tolerate a small count + print the MIB.)</li>
+<li><strong>Follow-up</strong>: a residual <em>real</em> RX drop under burst would be a Model A <code>GFP_ATOMIC</code> refill
+  failure (<code>rx_dropped &gt; 0</code>); page_pool / Model B (backlog A5) would remove it.</li>
+</ul>
+<h2 id="l-03-the-full-interrupt-protocol-tasklet-msi-costs-nothing-here">L-03 The full interrupt protocol (tasklet MSI) costs nothing here</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-10, <code>11544ed</code>.</li>
+<li><strong>Trigger</strong>: Phase 4 replaced the engine's direct <code>napi_schedule()</code> with the real
+  <code>ICR</code>/<code>ICS</code>/<code>IMS</code>/<code>IMC</code> protocol and a tasklet "MSI" (an extra softirq hop). Did the added
+  fidelity cost throughput?</li>
+<li><strong>Measured</strong> (RX 256, backpressure, same setup):</li>
+</ul>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Completion signal</th>
+<th>Throughput</th>
+<th>Retr</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>engine <code>napi_schedule</code> (Phase 3)</td>
+<td>6.03 Gbit/s</td>
+<td>0</td>
+</tr>
+<tr>
+<td>tasklet MSI (Phase 4)</td>
+<td>6.33 Gbit/s</td>
+<td>0</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>ip -s link</code> after the Phase 4 run: <strong>TX packets == RX packets (2,762,908 each), 0 dropped,
+  0 errors</strong> - the loopback is exactly 1:1 and lossless.
+- <strong>What we learned</strong>:
+  1. <strong>No regression</strong>: 6.33 vs 6.03 Gbit/s is within run-to-run variance (intervals ranged
+     5.2-7.3). The extra tasklet hop and the <code>irq_lock</code>-protected register dance are negligible at
+     this rate, so modelling the real interrupt protocol was effectively free - we kept the
+     behaviour and gained fidelity (and Level-2 readiness: the tasklet becomes a real MSI ISR).
+  2. <strong>TX == RX with 0 dropped</strong> is the clean proof that backpressure (D-19) holds under load: no
+     frame is ever dropped, every TX loops back to exactly one RX.
+- <strong>Outcome</strong>: Phase 4 adopted; tasklet/MSI is the completion path going forward.
+- <strong>Data</strong>: <a href="loopback-iperf3.html">results/loopback-iperf3.md</a>.</p>
+<h2 id="l-02-backpressure-beats-both-dropping-and-a-bigger-ring">L-02 Backpressure beats both dropping and a bigger ring</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-10, <code>49dcd48</code>.</li>
+<li><strong>Trigger</strong>: L-01 showed a dilemma - a small RX ring drops (retransmits), a big one
+  thrashes cache (lower throughput). Tried a third option: don't drop, apply backpressure.</li>
+<li><strong>Change tested</strong>: on RX-full, the engine <strong>stalls</strong> (stops consuming TX, leaves the
+  descriptor un-DD) instead of dropping; the TX ring fills, <code>netif_stop_queue</code> throttles
+  the sender; NAPI refilling RX rings the <code>RDT</code> doorbell to resume the engine. RX ring 256.</li>
+</ul>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>RX ring</th>
+<th>RX-full policy</th>
+<th>Throughput</th>
+<th>Retr</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>256</td>
+<td>drop</td>
+<td>4.41 Gbit/s</td>
+<td>745</td>
+</tr>
+<tr>
+<td>4096</td>
+<td>drop</td>
+<td>3.62 Gbit/s</td>
+<td>0</td>
+</tr>
+<tr>
+<td>256</td>
+<td><strong>backpressure</strong></td>
+<td><strong>6.03 Gbit/s</strong></td>
+<td><strong>0</strong></td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>What we learned</strong>:
+  1. <strong>Backpressure won both axes</strong>: 0 retransmits <em>and</em> the highest throughput. It removes
+     drops (cwnd grows to ~4 MB, no retransmit overhead) while keeping the small ring's hot
+     cache (~0.4 MB working set vs the 4096 ring's ~6 MB thrash).
+  2. The real fix for overflow was <strong>"don't drop"</strong>, not "make the ring bigger". Flow control
+     (<code>netif_stop_queue</code>) turns loss into a slowdown the sender (TCP) reacts to cleanly.
+  3. Resume design matters: a stalled producer needs a wake path. Here the consumer's refill
+     doorbell (<code>RDT</code>) wakes the engine, and the <code>napi_schedule</code> after every stall guarantees a
+     poll runs to drain RX - so it cannot deadlock.</li>
+<li><strong>Outcome</strong>: adopted as the default; recorded as design-decision <strong>D-19</strong>.</li>
+<li><strong>Data</strong>: <a href="loopback-iperf3.html">results/loopback-iperf3.md</a>.</li>
+</ul>
+<h2 id="l-01-rx-ring-depth-is-a-trade-off-overflow-drops-vs-cache-thrash">L-01 RX ring depth is a trade-off (overflow drops vs cache thrash)</h2>
+<ul>
+<li><strong>Date / commit</strong>: 2026-06-10, RX ring bump <code>9684e5b</code>; baseline driver <code>95e67eb</code>.</li>
+<li><strong>Trigger</strong>: after Phase 3, <code>iperf3</code> TCP over the Level 1 internal loopback ran at
+  ~4.4 Gbit/s but reported <strong>745 retransmissions</strong> - over a software loopback with no
+  real wire, so the driver itself must be dropping frames.</li>
+<li><strong>Change tested</strong>: <code>VNIC_RX_RING_DEFAULT</code> 256 -&gt; 4096.</li>
+</ul>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>RX ring</th>
+<th>Throughput (goodput)</th>
+<th>Retr</th>
+<th>max cwnd</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>256</td>
+<td>4.41 Gbit/s</td>
+<td>745</td>
+<td>~0.47 MB</td>
+</tr>
+<tr>
+<td>4096</td>
+<td>3.62 Gbit/s</td>
+<td>0</td>
+<td>~4.0 MB</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>What we learned</strong>:
+  1. The retransmits were <strong>RX-ring overflow</strong>: the loopback engine (producer)
+     outran the single NAPI <code>vnic_poll</code> (consumer); the 256-entry ring filled and
+     extra frames were dropped. Deepening the ring took Retr 745 -&gt; 0. Hypothesis
+     confirmed.
+  2. <strong>Bigger is not free</strong>: goodput <em>dropped</em> (4.41 -&gt; 3.62 Gbit/s, receiver
+     2.57 -&gt; 2.11 GB). The loopback is CPU-bound, and a 256-deep ring reuses each
+     buffer every 256 packets (stays hot in cache, ~0.4 MB working set) while a
+     4096-deep ring spreads ~6 MB that is reused only every 4096 packets, so the
+     engine's <code>memcpy</code> and the poll's header reads miss cache far more often.
+  3. <strong>Ring depth is a trade-off with a sweet spot</strong>: too small -&gt; overflow drops<ul>
+<li>retransmits; too large -&gt; cache thrash + lower throughput.</li>
+</ul>
+</li>
+<li><strong>Follow-up</strong>: sweep 256 / 512 / 1024 / 2048 / 4096 to find the smallest depth
+  that reaches Retr = 0 with the least throughput loss. Best done with ring depth
+  as a <strong>module parameter</strong> (no rebuild per value). Tracked under Phase 7.</li>
+<li><strong>Data</strong>: <a href="loopback-iperf3.html">results/loopback-iperf3.md</a>.</li>
+</ul>
+<p class="footnote">Generated from <code>lessons-learned.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

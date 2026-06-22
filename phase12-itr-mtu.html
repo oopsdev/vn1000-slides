@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 12 - ITR moderation and MTU sweeps</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Phase 12 - ITR moderation and MTU sweeps</h1>
+<div class="meta"></div>
+</header>
+<h1 id="phase-12-itr-moderation-and-mtu-sweeps">Phase 12 - ITR moderation and MTU sweeps</h1>
+<p>Perf analysis of the two device levers beyond the TX doorbell (results/phase12-tx-doorbell.md):
+interrupt moderation (ITR, D-33) and MTU. Guest &lt;-&gt; host over the tap, QEMU 6.2 + KVM.
+See <a href="lessons-learned.html">lessons-learned L-11 (ITR)</a> and L-12 (MTU).</p>
+<h2 id="itr-sweep-scriptsitr-sweepsh-iperf3-r-mtu-1500">ITR sweep (<code>scripts/itr-sweep.sh</code>, iperf3 -R, MTU 1500)</h2>
+<pre><code>itr_us   interrupts   ints/s     rx_drop   rx_throughput
+0        8494         849        0         3.10 Gbits/sec
+50       3894         389        0         2.79 Gbits/sec
+500      1165         116        0         2.83 Gbits/sec
+2000     149          14         0         2.65 Gbits/sec
+5000     181          18         0         2.75 Gbits/sec
+</code></pre>
+<p>ITR cuts interrupts ~60x (849 -&gt; 14/s) at flat throughput, 0 drop. NAPI is the primary moderator
+(itr=0 is already only ~849/s, not per-packet); ITR trims further by batching more per interrupt. No
+drops even at ~14 ints/s because NAPI keeps polling in softirq under load (the interrupt only restarts
+it after idle). See L-11. (Latency cost of ITR not yet measured - backlog.)</p>
+<h2 id="mtu-sweep-scriptsperf-sweepsh-iperf3-r-itr0-dur30-two-runs">MTU sweep (<code>scripts/perf-sweep.sh</code>, iperf3 -R, itr=0, DUR=30, two runs)</h2>
+<pre><code>MTU    ints/s (r1/r2)   rx_drop   rx_throughput (r1 / r2)
+1500   1044 / 430       0         2.99 / 2.51 Gbits/sec
+3000    694 / 1296      0         4.33 / 4.04 Gbits/sec
+6000   2823 / 1604      0         5.82 / 6.68 Gbits/sec
+9000   1505 /  888      0         7.41 / 7.40 Gbits/sec
+</code></pre>
+<p>TX (<code>iperf3</code>, guest -&gt; host, doorbell batching on, itr=0, DUR=30, two runs):</p>
+<pre><code>MTU    ints/s (r1/r2)   rx_drop   tx_throughput (r1 / r2)
+1500   1304 / 768       0         3.22 / 3.33 Gbits/sec
+3000   1920 / 1616      0         4.57 / 4.19 Gbits/sec
+6000   2425 / 1493      0         6.56 / 6.22 Gbits/sec
+9000   1024 / 1299      0         8.59 / 8.23 Gbits/sec
+</code></pre>
+<p>Throughput rises monotonically and reproducibly with MTU in <strong>both</strong> directions (~2.5x at 9000 vs
+1500) - the per-packet cost is amortized over ~6x fewer packets. <strong>TX is faster than RX at jumbo</strong>
+(9000: ~8.4 vs ~7.4 Gbit/s): TX batches the doorbell (D-32) and the engine sweeps a whole burst per
+kick, while RX runs a per-frame <code>receive()</code> callback in the iothread. The interrupt rate does NOT
+track MTU (it swings 2-3x run-to-run at the same MTU): it is governed by NAPI completion timing, not
+packet count. 0 drop. A single 10 s run was too noisy (a spurious 9000 throughput dip + wild
+interrupt swings); 30 s x 2 was needed to separate signal from noise. See L-12.</p>
+<blockquote>
+<p>Note: an earlier 10 s RX run showed 1500 3.46 / 3000 4.47 / 6000 5.01 / <strong>9000 3.71</strong> Gbit/s - the
+9000 dip did not reproduce at 30 s (7.4 Gbit/s both runs), confirming it was variance.</p>
+</blockquote>
+<p class="footnote">Generated from <code>phase12-itr-mtu.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

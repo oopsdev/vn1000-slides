@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Development Environment SOP - Option B (WSL2 + QEMU Ubuntu guest)</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Development Environment SOP - Option B (WSL2 + QEMU Ubuntu guest)</h1>
+<div class="meta"><span>2026-06-15</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="development-environment-sop-option-b-wsl2-qemu-ubuntu-guest">Development environment SOP - Option B: WSL2 + QEMU Ubuntu guest</h1>
+<p>Run QEMU + an Ubuntu guest inside WSL2, and do <strong>all kernel-module development inside the guest</strong>.
+Rationale: see <a href="design-decisions.html">design-decisions.md</a> D-14 (the WSL2 custom kernel has no
+matching headers in apt; the guest has headers, kgdb is handy, and a panic only kills the guest;
+Level 2 needs a QEMU guest anyway).</p>
+<blockquote>
+<p>Run everything in the <strong>WSL2 Ubuntu</strong> shell (except the <code>.wslconfig</code> in step 0.2, which is on Windows).</p>
+</blockquote>
+<hr>
+<h2 id="0-prepare-the-wsl2-host">0. Prepare the WSL2 host</h2>
+<pre><code class="language-bash">sudo apt update
+sudo apt install -y qemu-system-x86 qemu-utils cloud-image-utils gdb openssh-client
+</code></pre>
+<h3 id="01-check-kvm-acceleration-without-it-things-are-much-slower-but-still-work">0.1 Check KVM (acceleration; without it things are much slower but still work)</h3>
+<pre><code class="language-bash">ls -l /dev/kvm        # present -&gt; use KVM; absent -&gt; run-qemu.sh falls back to TCG
+</code></pre>
+<p>If there is no <code>/dev/kvm</code>, add this to <code>%USERPROFILE%\.wslconfig</code> on <strong>Windows</strong>:</p>
+<pre><code class="language-ini">[wsl2]
+nestedVirtualization=true
+</code></pre>
+<p>Then run <code>wsl --shutdown</code> in Windows PowerShell, restart WSL, and re-check <code>ls -l /dev/kvm</code>.</p>
+<hr>
+<h2 id="1-build-the-ubuntu-guest-cloud-image-cloud-init">1. Build the Ubuntu guest (cloud image + cloud-init)</h2>
+<pre><code class="language-bash">mkdir -p ~/vnic-vm &amp;&amp; cd ~/vnic-vm
+
+# 1.1 Download the Ubuntu 24.04 server cloud image (qcow2)
+wget -O base.img \
+  https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+
+# 1.2 Create a 20G overlay disk backed by base (base stays clean)
+qemu-img create -f qcow2 -b base.img -F qcow2 disk.qcow2 20G
+</code></pre>
+<h3 id="13-cloud-init-user-and-packages">1.3 cloud-init: user and packages</h3>
+<pre><code class="language-bash">cat &gt; user-data &lt;&lt;'EOF'
+#cloud-config
+hostname: vnic-guest
+users:
+  - name: dev
+    groups: sudo
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: false
+    plain_text_passwd: &quot;dev&quot;      # for practice; prefer ssh_authorized_keys for real use
+ssh_pwauth: true
+package_update: true
+package_upgrade: false            # do not upgrade the kernel, to keep headers and uname consistent
+packages: [ build-essential, make, gcc, gdb, git, kmod ]
+runcmd:
+  - [ bash, -lc, &quot;apt-get install -y linux-headers-$(uname -r)&quot; ]
+EOF
+
+cat &gt; meta-data &lt;&lt;'EOF'
+instance-id: vnic-guest
+local-hostname: vnic-guest
+EOF
+
+# 1.4 Pack into a cloud-init seed disk
+cloud-localds seed.img user-data meta-data
+</code></pre>
+<hr>
+<h2 id="2-boot-script">2. Boot script</h2>
+<p>The boot script is the repo's <a href="../scripts/run-qemu.sh"><code>scripts/run-qemu.sh</code></a> - <strong>use it as-is; do
+not hand-copy a separate version.</strong> A divergent copy silently ignores the Level 2 <code>QEMU=</code> /
+<code>VNIC_DEVICE=</code> env vars (it then boots the system QEMU with no <code>-device vnic</code>, and the device never
+appears in <code>lspci</code>). It honours <code>VMDIR=</code> (image dir, default <code>~/vnic-vm</code>), <code>QEMU=</code> (binary path) and
+<code>VNIC_DEVICE=</code> (append <code>-device vnic</code>); it boots a <code>q35</code> guest (needed when Level 2 attaches a PCIe
+device) on the serial console (<code>-nographic</code>) with the gdbstub open (<code>-s</code>, :1234; add <code>-S</code> to freeze
+at boot).</p>
+<p>Symlink it into the image dir so <code>./run-qemu.sh</code> always tracks the repo:</p>
+<pre><code class="language-bash">cd ~/vnic-vm
+REPO=~/vnic                                   # your host checkout (or /mnt/c/Projects/Linux_NIC_Simulation)
+ln -sf &quot;$REPO/scripts/run-qemu.sh&quot; run-qemu.sh
+</code></pre>
+<hr>
+<h2 id="3-first-boot-login">3. First boot + login</h2>
+<pre><code class="language-bash">./run-qemu.sh
+# On first boot cloud-init creates the user, installs packages, and grows the rootfs (a few minutes).
+# The serial console shows a login prompt: user dev / password dev.
+# Leave the QEMU console: Ctrl-A then X
+</code></pre>
+<p>Or ssh from <strong>another WSL terminal</strong> (after cloud-init finishes):</p>
+<pre><code class="language-bash">ssh -p 2222 dev@localhost          # password dev
+</code></pre>
+<blockquote>
+<p><strong>Subsequent boots re-run cloud-init - this is normal.</strong> <code>run-qemu.sh</code> keeps <code>seed.img</code> attached,
+so cloud-init's services start on every boot. Because <code>meta-data</code> pins a fixed <code>instance-id</code>
+(<code>vnic-guest</code>) and <code>/var/lib/cloud</code> persists in <code>disk.qcow2</code>, the <strong>one-time</strong> modules (user, SSH
+key, package install, rootfs grow) run only on the first boot; later boots skip them and do just the
+lightweight per-boot work, so they are quick. If you instead see a <strong>full re-provision every boot</strong>,
+the state is not persisting - check <code>cloud-init status --long</code> and that <code>cat /var/lib/cloud/data/instance-id</code>
+is stable across boots.</p>
+<p>Once the guest is set up, you can make boots a clean no-op by disabling cloud-init (or by removing
+the <code>seed.img</code> <code>-drive</code> line from <code>run-qemu.sh</code>):
+<code>bash
+sudo touch /etc/cloud/cloud-init.disabled</code>
+Do <strong>not</strong> run <code>cloud-init clean</code> unless you want to force a full re-provision on the next boot.</p>
+</blockquote>
+<hr>
+<h2 id="4-verify-headers-hello-module">4. Verify: headers + hello module</h2>
+<p>Inside the guest:</p>
+<pre><code class="language-bash">uname -r
+ls -d /lib/modules/$(uname -r)/build      # should exist (headers installed)
+# If missing: sudo apt install -y linux-headers-$(uname -r)
+
+mkdir -p ~/hello &amp;&amp; cd ~/hello
+cat &gt; hello.c &lt;&lt;'EOF'
+#include &lt;linux/module.h&gt;
+static int __init h_init(void) { pr_info(&quot;hello: init\n&quot;); return 0; }
+static void __exit h_exit(void) { pr_info(&quot;hello: exit\n&quot;); }
+module_init(h_init);
+module_exit(h_exit);
+MODULE_LICENSE(&quot;GPL&quot;);
+EOF
+cat &gt; Makefile &lt;&lt;'EOF'
+obj-m += hello.o
+all:
+    $(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+clean:
+    $(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+EOF
+make
+sudo insmod hello.ko &amp;&amp; dmesg | tail -2 &amp;&amp; sudo rmmod hello
+</code></pre>
+<p>Seeing <code>hello: init</code> / <code>hello: exit</code> -&gt; the environment is OK.</p>
+<hr>
+<h2 id="5-code-sync-pick-one">5. Code sync (pick one)</h2>
+<h3 id="51-git-clone-private-repo-needs-a-token-or-gh">5.1 git clone (private repo, needs a token or gh)</h3>
+<p>GitHub has disabled password login; a private repo requires a token or gh.</p>
+<p><strong>(a) PAT in an environment variable + a helper that reads it at runtime (recommended: token never lands on disk or in the URL)</strong></p>
+<pre><code class="language-bash"># 1) env file [the 'export' is mandatory] otherwise it is only a shell variable
+#    and the child process (git helper) cannot read it
+printf 'export GITHUB_PAT=%s\n' 'your-PAT' &gt; ~/.config/vnic/env
+chmod 600 ~/.config/vnic/env
+echo 'source ~/.config/vnic/env' &gt;&gt; ~/.bashrc
+source ~/.config/vnic/env
+
+# 2) confirm it is really exported into the ENVIRONMENT (not just the current shell)
+env | grep -c GITHUB_PAT          # must be 1; if 0 -&gt; the env file is missing 'export'
+
+# 3) confirm the token is valid and can read this repo (hit the API directly, bypassing git)
+curl -s -o /dev/null -w &quot;%{http_code}\n&quot; \
+  -H &quot;Authorization: Bearer $GITHUB_PAT&quot; \
+  https://api.github.com/repos/oopsdev/Linux_NIC_Simulation
+#   200 = OK ; 401 = invalid/expired token or stray whitespace ; 404 = valid token but no access to this repo
+
+# 4) clone (the helper reads the token from env only when it runs)
+./scripts/clone-vnic.sh ~/vnic    # if this script does not exist yet -&gt; use the inline version below
+# inline (first time):
+git -c credential.helper='!f(){ echo username=oopsdev; echo &quot;password=${GITHUB_PAT}&quot;; };f' \
+    clone https://github.com/oopsdev/Linux_NIC_Simulation.git ~/vnic
+git -C ~/vnic config credential.helper '!f(){ echo username=oopsdev; echo &quot;password=${GITHUB_PAT}&quot;; };f'
+</code></pre>
+<p><strong>(b) gh (no need to fuss over scopes)</strong></p>
+<pre><code class="language-bash">sudo apt install -y gh &amp;&amp; gh auth login     # GitHub.com -&gt; HTTPS -&gt; Login with a web browser
+git clone https://github.com/oopsdev/Linux_NIC_Simulation.git ~/vnic
+</code></pre>
+<h4 id="pat-permission-notes-read-this-when-curl-is-not-200">PAT permission notes (read this when curl is not 200)</h4>
+<ul>
+<li><strong>401</strong>: token invalid / expired, or whitespace / newline got mixed in when pasting -&gt; reset with the <code>printf</code> above, or regenerate.</li>
+<li><strong>404 (most common)</strong>: valid token but it cannot see this private repo:</li>
+<li><strong>fine-grained token</strong>: Resource owner = <code>oopsdev</code>, Repository access = <strong>Only select repositories -&gt; check Linux_NIC_Simulation</strong> (do not pick "Public repositories only"), Repository permissions -&gt; <strong>Contents: Read-only</strong>.</li>
+<li><strong>classic token</strong>: check the whole <strong><code>repo</code></strong> scope.</li>
+</ul>
+<blockquote>
+<p>Later updates: commit/push on Windows -&gt; in the guest <code>cd ~/vnic &amp;&amp; git pull</code> (the helper is
+persisted; you only need <code>GITHUB_PAT</code> sourced into the environment).</p>
+<p><strong>Security</strong>: never paste the token into chat / logs / a file that will be committed; keep the
+env file in the home directory, <code>chmod 600</code>, never in the repo. If the token leaks, Revoke and
+regenerate it on GitHub immediately.</p>
+<p>Do not want to deal with auth -&gt; use the 9p share in 5.2: no clone, no token.</p>
+</blockquote>
+<h3 id="52-9pvirtfs-advanced-edit-live-on-windows-build-in-the-guest">5.2 9p/virtfs (advanced: edit live on Windows, build in the guest)</h3>
+<p>Add this to the qemu args in <code>run-qemu.sh</code> (share a path WSL can see):</p>
+<pre><code class="language-bash">  -virtfs local,path=/mnt/c/Projects/Linux_NIC_Simulation,mount_tag=vnic,security_model=none,id=vnic \
+</code></pre>
+<blockquote>
+<p><code>security_model=none</code>: <code>/mnt/c</code> (drvfs) does not support xattr, so <code>mapped-xattr</code> would fail.
+Mount inside the guest:</p>
+</blockquote>
+<pre><code class="language-bash">sudo mkdir -p /mnt/vnic
+sudo mount -t 9p -o trans=virtio,version=9p2000.L vnic /mnt/vnic
+</code></pre>
+<blockquote>
+<p>Note: <code>/mnt/c/...</code> is already cross-filesystem in WSL, and 9p adds another layer, so it is on
+the slow side; for speed, share a native WSL path instead (clone the repo into <code>~/</code>).</p>
+</blockquote>
+<hr>
+<h2 id="6-kernel-module-debugging-gdb">6. Kernel / module debugging (gdb)</h2>
+<h3 id="61-attach-to-the-guest-kernel-boot-flow-debugging">6.1 Attach to the guest kernel (boot-flow debugging)</h3>
+<p>On the host (WSL), in another terminal:</p>
+<pre><code class="language-bash"># after run-qemu.sh is given -S to freeze at boot:
+gdb
+(gdb) target remote :1234
+(gdb) continue
+</code></pre>
+<p>(To see kernel symbols you need the guest's matching <code>vmlinux</code>; most of the time we debug our
+own module - see 6.2.)</p>
+<h3 id="62-debug-your-own-module-most-common">6.2 Debug your own module (most common)</h3>
+<p>After loading the module in the guest, get its <code>.text</code> load address:</p>
+<pre><code class="language-bash">sudo insmod vnic-l1.ko
+cat /sys/module/vnic_l1/sections/.text       # e.g. 0xffffffffc0xxxxxx
+</code></pre>
+<p>Host gdb:</p>
+<pre><code class="language-bash">gdb
+(gdb) target remote :1234
+(gdb) add-symbol-file /path/to/vnic-l1.ko 0xffffffffc0xxxxxx
+(gdb) b vnic_start_xmit
+(gdb) continue
+</code></pre>
+<hr>
+<h2 id="7-daily-workflow-once-the-environment-is-ready">7. Daily workflow (once the environment is ready)</h2>
+<pre><code>edit on Windows (c:\Projects\Linux_NIC_Simulation)
+   -&gt; commit/push (or 9p live sync)
+guest:  cd ~/vnic/driver &amp;&amp; make            # build vnic-l1.ko
+        sudo insmod vnic-l1.ko
+        ip link / ping / iperf / dmesg       # verify
+        gdb to :1234 for debugging (6.2)
+</code></pre>
+<hr>
+<h2 id="8-level-2-tap-interface-host-side-for-the-real-backend">8. Level 2 tap interface (host side, for the real backend)</h2>
+<p>Only needed for the <strong>tap</strong> backend (<code>loopback=off</code>) - real guest &lt;-&gt; host traffic. The internal
+loopback (<code>-device vnic</code>, the default, what the test suite uses) needs <strong>no</strong> tap. The tap is a
+<strong>host</strong> interface (<code>vnic-tap0</code>): it is the host end of the link whose guest end is <code>vnic0</code> - QEMU
+bridges raw Ethernet frames between them (see qemu-device-model.md section 6). All commands here run
+on the <strong>WSL2 host</strong>.</p>
+<h3 id="81-prerequisites-check-once">8.1 Prerequisites (check once)</h3>
+<pre><code class="language-bash">ls -l /dev/net/tun                 # must exist (char dev); TAP is created through it
+lsmod | grep -w tun || zcat /proc/config.gz 2&gt;/dev/null | grep CONFIG_TUN   # TUN support present?
+ip tuntap help &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo &quot;ip tuntap ok&quot;   # iproute2 has tuntap
+</code></pre>
+<h3 id="82-create-address-the-tap-once-per-host-boot">8.2 Create + address the tap (once per host boot)</h3>
+<pre><code class="language-bash">sudo ip tuntap add dev vnic-tap0 mode tap user &quot;$USER&quot;   # persistent L2 tap you own
+sudo ip addr replace 192.168.20.1/24 dev vnic-tap0       # host end of the point-to-point link
+sudo ip link set vnic-tap0 up
+</code></pre>
+<h3 id="83-check-it">8.3 Check it</h3>
+<pre><code class="language-bash">ip -br addr show vnic-tap0         # expect: UP + 192.168.20.1/24 (LOWER_UP once QEMU attaches)
+ip -br link show vnic-tap0         # state + the host-side MAC
+ip neigh show dev vnic-tap0        # should be empty; if a stale PERMANENT entry lingers from an
+                                   # old static-neigh test, delete it: sudo ip neigh del &lt;ip&gt; dev vnic-tap0
+# while the guest pings, watch real frames cross the tap:
+sudo tcpdump -ni vnic-tap0 -e
+</code></pre>
+<p>Notes:
+- <code>vnic-tap0</code> shows <strong>DOWN/NO-CARRIER until QEMU opens it</strong>; it goes <code>LOWER_UP</code> once the guest is
+  attached. <code>tcpdump</code> here is <strong>kernel-side</strong> - it shows frames at the interface even if the emulated
+  device has not read them (this masked the Phase 10 RX bug; see lessons-learned L-08).
+- The guest's MAC is random per boot (<code>eth_hw_addr_random</code>), so do <strong>not</strong> pin a static neighbour on
+  the host for the guest IP - let ARP resolve (a stale <code>PERMANENT</code> entry breaks host-&gt;guest).</p>
+<h3 id="84-boot-the-guest-on-the-tap-and-tear-down">8.4 Boot the guest on the tap, and tear down</h3>
+<p>Booting with <code>VNIC_TAP=</code> and the guest-side IP + ping/verify are in
+<a href="qemu-build.html">qemu-build.md</a> section 8. To remove the tap:</p>
+<pre><code class="language-bash">sudo ip tuntap del dev vnic-tap0 mode tap
+</code></pre>
+<hr>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<ul>
+<li><code>/dev/kvm</code> missing -&gt; see 0.1; or accept TCG (slow).</li>
+<li>ssh will not connect -&gt; make sure cloud-init finished (wait a few minutes on first boot); <code>hostfwd</code> is <code>2222-&gt;22</code>, connect to <code>localhost:2222</code>.</li>
+<li><code>linux-headers-$(uname -r)</code> cannot be installed -&gt; do not <code>apt upgrade</code> the guest (it upgrades the kernel and causes a mismatch); or after installing headers, <code>sudo reboot</code> to realign.</li>
+<li>module build cannot find <code>build/</code> -&gt; headers not installed properly, go back to section 4.</li>
+<li>tap: <code>ip tuntap add</code> fails -&gt; no TUN support, see 8.1. Guest shows no <code>vnic0</code> under <code>VNIC_TAP=</code> -&gt;
+  the launched <code>run-qemu.sh</code> lacks the <code>VNIC_TAP</code> branch (run the repo's <code>scripts/run-qemu.sh</code>), or
+  <code>sudo</code> dropped the env (use <code>sudo env VAR=...</code>); confirm with <code>ps -eo args | grep qemu</code> that
+  <code>-netdev tap</code> + <code>-device vnic,...,loopback=off</code> are present.</li>
+<li>tap: host &lt;-&gt; guest ping fails -&gt; check <code>vnic-tap0</code> is <code>UP</code> with its IP and no stale <code>PERMANENT</code>
+  neigh; <code>tcpdump -ni vnic-tap0</code> to see which direction is missing (a host-side reply that the guest
+  never receives is the L-08 RX case - rebuild QEMU with the fix).</li>
+</ul>
+<p class="footnote">Generated from <code>dev-setup.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

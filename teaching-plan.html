@@ -72,9 +72,9 @@ schedule is deliberately tight.</p>
 <blockquote>
 <p>Section numbers are slides in <a href="index.html">slides/vnic-slides.html</a>
 (rendered: <a href="https://oopsdev.github.io/vn1000-slides/">https://oopsdev.github.io/vn1000-slides/</a>); "bg N" = a topic in
-<a href="../background-knowledge.md">background-knowledge.md</a>; "D-xx" / "L-xx" = entries in
-<a href="../design-decisions.md">design-decisions.md</a> / <a href="../lessons-learned.md">lessons-learned.md</a>; "Phase N" /
-"A-N" = <a href="../../TODO.md">../TODO.md</a>.</p>
+<a href="background-knowledge.html">background-knowledge.md</a>; "D-xx" / "L-xx" = entries in
+<a href="design-decisions.html">design-decisions.md</a> / <a href="lessons-learned.html">lessons-learned.md</a>; "Phase N" /
+"A-N" = <a href="TODO.html">../TODO.md</a>.</p>
 </blockquote>
 <h2 id="schedule-at-a-glance">Schedule at a glance</h2>
 <p>This table is the <strong>table of contents</strong> - click a week to jump to its detail below.</p>
@@ -201,8 +201,8 @@ schedule is deliberately tight.</p>
 <ul>
 <li><strong>Meeting:</strong> course intro; the TCP/IP packet journey + the driver's stack&lt;-&gt;hardware role (1.1-1.4);
   PCIe NIC anatomy + the VN1000 datasheet (2.1-2.4); the project goal (5.1).</li>
-<li><strong>Concepts:</strong> slides 1.1-1.4, 2.1-2.4, 5.1; <a href="../vn1000-datasheet.md">vn1000-datasheet.md</a>; bg 8.</li>
-<li><strong>Lab (-&gt; W2):</strong> Phase 0 (WSL2 + QEMU guest, hello module - <a href="../dev-setup.md">dev-setup.md</a>) <strong>and</strong>
+<li><strong>Concepts:</strong> slides 1.1-1.4, 2.1-2.4, 5.1; <a href="vn1000-datasheet.html">vn1000-datasheet.md</a>; bg 8.</li>
+<li><strong>Lab (-&gt; W2):</strong> Phase 0 (WSL2 + QEMU guest, hello module - <a href="dev-setup.html">dev-setup.md</a>) <strong>and</strong>
   Phase 1 (repo layout, <code>vnic_regs.h</code>, fake registers, <code>alloc_etherdev</code> + <code>register_netdev</code>,
   <code>net_device_ops</code>).</li>
 <li><strong>Checkpoint:</strong> guest boots over SSH; hello module loads; <code>vnic0</code> appears in <code>ip link</code>.</li>
@@ -230,7 +230,7 @@ schedule is deliberately tight.</p>
 <li><strong>Meeting:</strong> <strong>DMA mappings</strong> (coherent vs streaming, <code>dma_mapping_error</code>, bounce buffer,
   unmap-before-read - bg 11); <code>ndo_change_mtu</code>; teardown ordering (bg 12); the <strong>KASAN + lockdep +
   kmemleak</strong> gate.</li>
-<li><strong>Concepts:</strong> slides 3.6, 3.8; bg 11, bg 12; <a href="../debug-kernel.md">debug-kernel.md</a>.</li>
+<li><strong>Concepts:</strong> slides 3.6, 3.8; bg 11, bg 12; <a href="debug-kernel.html">debug-kernel.md</a>.</li>
 <li><strong>Lab (-&gt; W5):</strong> Phase 5.3 (MTU) + run <code>tests/</code> (01-06) + the KASAN/lockdep/kmemleak gate; read the
   L2 intro ahead.</li>
 <li><strong>Milestone:</strong> <strong>Level 1 is functionally complete and verified.</strong></li>
@@ -239,8 +239,8 @@ schedule is deliberately tight.</p>
 <ul>
 <li><strong>Meeting:</strong> how QEMU emulates the PCIe device - QOM <code>TypeInfo</code>, <code>PCIDevice</code>, <code>MemoryRegionOps</code>
   (MMIO), <code>msi_init</code>/<code>msi_notify</code>; building it into a pinned QEMU (D-27).</li>
-<li><strong>Concepts:</strong> slides 4, 5.3, 5.4; <a href="../qemu-device-model.md">qemu-device-model.md</a>,
-  <a href="../qemu-build.md">qemu-build.md</a>; bg 5.</li>
+<li><strong>Concepts:</strong> slides 4, 5.3, 5.4; <a href="qemu-device-model.html">qemu-device-model.md</a>,
+  <a href="qemu-build.html">qemu-build.md</a>; bg 5.</li>
 <li><strong>Lab (-&gt; W6):</strong> Phase 8 - the device skeleton + the L2 probe (<code>pci_register_driver</code>, <code>pci_iomap</code>,
   <code>dma_set_mask</code>, <code>pci_alloc_irq_vectors</code>, <code>request_irq</code>).</li>
 <li><strong>Checkpoint:</strong> <code>lspci</code> shows <code>1234:11e9</code>; MMIO read-back; <strong>MSI self-test passes</strong>.</li>
@@ -317,7 +317,7 @@ core. If the build weeks (W1-W8) slip, absorb it in the <strong>advanced weeks (
 independent backlog items and any one can be dropped or shortened. W13 is an explicit buffer. If the
 class is ahead, deepen an advanced item (e.g. real RSS hashing, or a full page_pool recycle path)
 rather than adding scope to the core.</p>
-<p class="footnote">Generated from <code>teaching-plan.md</code> by <code>scripts/gen-doc-html.py</code>.</p>
+<p class="footnote">Generated from <code>teaching-plan.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
 </div>
 </body>
 </html>

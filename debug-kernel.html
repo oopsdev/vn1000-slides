@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Debug-Kernel Test Gate (KASAN / lockdep / kmemleak)</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Debug-Kernel Test Gate (KASAN / lockdep / kmemleak)</h1>
+<div class="meta"><span>2026-06-11</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="debug-kernel-test-gate">Debug-Kernel Test Gate</h1>
+<p>The Phase 5 acceptance gate ("passes concurrency / edge tests") is meant to run
+<a href="../tests/"><code>tests/run-all.sh</code></a> on a guest kernel built with the runtime
+debug checkers - <strong>KASAN</strong> (use-after-free / out-of-bounds), <strong>lockdep</strong> (lock
+ordering / misuse) and <strong>kmemleak</strong> (leaks). The functional suite already passes
+on a stock kernel; this gate catches the races / UAF / leaks that functional
+tests cannot see.</p>
+<p>These are <strong>build-time kernel options</strong>. Stock Ubuntu <code>-generic</code> does not enable
+them (so <code>/sys/kernel/debug/kmemleak</code> is absent and the suite's <code>kml_check</code>
+SKIPs), and there is no prebuilt Ubuntu kernel that has them. So either use a
+boot parameter for partial coverage (Stage 0) or build a debug kernel (Stage 1).
+All steps run <strong>inside the guest</strong> (D-14: all kernel work in the guest).</p>
+<blockquote>
+<p>Status: documented SOP, not yet executed. The suite is green on a stock kernel
+(<code>results/</code>); running it under Stage 1 is the remaining Phase 5 item.</p>
+</blockquote>
+<hr>
+<h2 id="stage-0-slub_debug-boot-parameter-no-rebuild-partial">Stage 0 - <code>slub_debug</code> boot parameter (no rebuild, partial)</h2>
+<p>Stock Ubuntu usually has <code>CONFIG_SLUB_DEBUG=y</code> (compiled in, off by default).
+Enabling it at boot turns on slab <strong>red-zoning / poisoning / use-after-free /
+double-free / sanity</strong> checks - a large slice of what KASAN finds, for free.</p>
+<pre><code class="language-bash"># confirm the options are compiled in
+grep -E &quot;SLUB_DEBUG=|PAGE_POISONING=&quot; /boot/config-$(uname -r)
+
+# add the boot params and reboot
+sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=&quot;\(.*\)&quot;/GRUB_CMDLINE_LINUX_DEFAULT=&quot;\1 slub_debug=FZPU page_poison=1&quot;/' /etc/default/grub
+sudo update-grub &amp;&amp; sudo reboot
+</code></pre>
+<p>After reboot:</p>
+<pre><code class="language-bash">cat /proc/cmdline                 # expect ... slub_debug=FZPU ...
+cd ~/vnic &amp;&amp; sudo bash tests/run-all.sh
+</code></pre>
+<p><code>slub_debug</code> flags: <strong>F</strong> sanity, <strong>Z</strong> red-zone, <strong>P</strong> poison, <strong>U</strong> user
+tracking (records alloc/free stacks - makes a splat point at the culprit). Any
+slab corruption / UAF / double-free in our RX/TX buffer or skb handling now
+prints to <code>dmesg</code>, which the suite's <code>dmesg_clean</code> catches. lockdep, kmemleak
+and full KASAN still need a config build (Stage 1).</p>
+<hr>
+<h2 id="stage-1-build-a-debug-kernel-the-full-gate">Stage 1 - build a debug kernel (the full gate)</h2>
+<h3 id="1-give-the-guest-more-resources">1. Give the guest more resources</h3>
+<p>KASAN roughly doubles memory and slows the build/run 2-3x. A 2 vCPU / 2 GiB
+guest is too small. Bump <a href="../scripts/run-qemu.sh"><code>scripts/run-qemu.sh</code></a> for the
+debug runs, e.g. <code>-smp 4 -m 6144</code>, and restart the guest.</p>
+<h3 id="2-build-deps-kernel-source">2. Build deps + kernel source</h3>
+<p>A vanilla stable kernel avoids the signing-key hassle of the Ubuntu source tree.</p>
+<pre><code class="language-bash">sudo apt install -y build-essential libncurses-dev bison flex libssl-dev \
+                    libelf-dev bc dwarves cpio
+
+ver=6.8.12     # pick one close to your guest's `uname -r`
+curl -LO https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$ver.tar.xz
+tar xf linux-$ver.tar.xz &amp;&amp; cd linux-$ver
+</code></pre>
+<h3 id="3-configure-stock-config-the-debug-checkers">3. Configure: stock config + the debug checkers</h3>
+<pre><code class="language-bash">cp /boot/config-$(uname -r) .config
+scripts/config -d SYSTEM_TRUSTED_KEYS -d SYSTEM_REVOCATION_KEYS   # skip signing keys
+
+scripts/config -e KASAN -e KASAN_GENERIC \
+               -e PROVE_LOCKING -e DEBUG_LOCK_ALLOC -e DEBUG_SPINLOCK \
+               -e DEBUG_ATOMIC_SLEEP -e PROVE_RCU \
+               -e DEBUG_KMEMLEAK -e DEBUG_OBJECTS -e DEBUG_OBJECTS_FREE \
+               -e DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
+make olddefconfig
+</code></pre>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Catches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KASAN</code> / <code>KASAN_GENERIC</code></td>
+<td>use-after-free, out-of-bounds on heap/stack/globals</td>
+</tr>
+<tr>
+<td><code>PROVE_LOCKING</code> (lockdep) + <code>DEBUG_LOCK_ALLOC</code> + <code>DEBUG_SPINLOCK</code></td>
+<td>lock-ordering inversions, wrong-context locking, bad spinlock use</td>
+</tr>
+<tr>
+<td><code>DEBUG_ATOMIC_SLEEP</code></td>
+<td>sleeping while atomic (e.g. in the spinlock/softirq paths)</td>
+</tr>
+<tr>
+<td><code>PROVE_RCU</code></td>
+<td>RCU misuse</td>
+</tr>
+<tr>
+<td><code>DEBUG_KMEMLEAK</code></td>
+<td>unreferenced allocations (skb / ring / buffer leaks)</td>
+</tr>
+<tr>
+<td><code>DEBUG_OBJECTS</code> (+<code>_FREE</code>)</td>
+<td>use of freed / wrong-state objects (timers, etc.)</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="4-build-install-reboot">4. Build, install, reboot</h3>
+<pre><code class="language-bash">make -j&quot;$(nproc)&quot;                  # slow (KASAN build is large)
+sudo make modules_install install  # installs the kernel + rebuilds initramfs
+sudo update-grub                   # add it to the menu
+sudo reboot                        # boot the new kernel (select it if not default)
+</code></pre>
+<p>If kmemleak is not set to auto-scan, add <code>kmemleak=on</code> to the kernel cmdline
+(same <code>GRUB_CMDLINE_LINUX_DEFAULT</code> edit as Stage 0).</p>
+<h3 id="5-rebuild-the-module-against-the-debug-kernel-run">5. Rebuild the module against the debug kernel + run</h3>
+<pre><code class="language-bash">uname -r                           # confirm the debug kernel is running
+cd ~/vnic/driver &amp;&amp; make           # builds against the new /lib/modules/.../build
+cd .. &amp;&amp; sudo bash tests/run-all.sh
+</code></pre>
+<h3 id="what-changes-vs-a-stock-run">What changes vs a stock run</h3>
+<ul>
+<li><strong>kmemleak</strong>: <code>/sys/kernel/debug/kmemleak</code> now exists, so the suite's
+  <code>kml_check</code> (run at the end of each test, after <code>kml_clear</code> at the start)
+  actually scans; an unreferenced skb / ring buffer fails the test.</li>
+<li><strong>lockdep / KASAN / atomic-sleep</strong>: a violation prints a splat to <code>dmesg</code>,
+  which <code>dmesg_clean</code> (run after every step) catches and fails.</li>
+<li>Everything is much slower. If a test times out or the storm/soak loops take
+  too long, shrink them with <code>ITERS=...</code> (e.g. <code>ITERS=10 sudo -E bash
+  tests/03-concurrency.sh</code>).</li>
+</ul>
+<p>A fully green <code>run-all.sh</code> under this kernel is the Phase 5 sign-off.</p>
+<p class="footnote">Generated from <code>debug-kernel.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

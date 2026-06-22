@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tests/ - VN1000 automated tests (Level 1 &amp; Level 2)</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>tests/ - VN1000 automated tests (Level 1 &amp; Level 2)</h1>
+<div class="meta"></div>
+</header>
+<h1 id="tests-vn1000-automated-tests-level-1-level-2">tests/ - VN1000 automated tests (Level 1 &amp; Level 2)</h1>
+<p>Concurrency / edge / lifecycle tests for the Phase 5 hardening gate. They drive
+the live netdev (internal loopback), so they run <strong>in the QEMU guest as root</strong>,
+after the module is built. The harness follows the level: the default targets
+Level 1 (<code>vnic-l1.ko</code> -&gt; <code>vnic_loop0</code>); point <code>MODULE=</code> at <code>vnic-l2.ko</code> to run
+the same suite on Level 2 (<code>vnic0</code>, needs the self-built QEMU with <code>-device vnic</code>).</p>
+<pre><code class="language-bash"># in the guest:
+cd driver &amp;&amp; make                 # build vnic-l1.ko (+ vnic-l2.ko via: make l2)
+sudo bash tests/run-all.sh        # Level 1 (default): vnic-l1.ko / vnic_loop0
+sudo bash tests/03-concurrency.sh # or one test on its own
+
+# Level 2 (the netdev name + iface are auto-derived from the module):
+sudo env MODULE=&quot;$PWD/driver/vnic-l2.ko&quot; bash tests/run-all.sh
+</code></pre>
+<p><code>run-all.sh</code> tees the whole run to a timestamped log under <code>results/</code>
+(<code>results/tests-&lt;YYYYmmdd-HHMMSS&gt;.log</code>, gitignored) and prints the path at the
+end; override with <code>LOG=/path.log</code>. A single test prints to the terminal only -
+redirect it yourself (<code>sudo bash tests/05-edge.sh 2&gt;&amp;1 | tee results/edge.log</code>).</p>
+<p>Each script is self-contained (loads the module, runs, unloads) and exits
+non-zero on any failure, so <code>run-all.sh</code> is CI-gateable. Prereqs: <code>iperf3</code>
+(its server auto-starts at boot in this guest), and <code>jq</code> <strong>or</strong> <code>python3</code> for
+the iperf JSON checks (Retr / lost). Missing optional tools <code>SKIP</code>, never fail.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Script</th>
+<th>Group</th>
+<th>What it stresses</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>01-smoke.sh</code></td>
+<td>A</td>
+<td>load -&gt; ping (lossless) -&gt; iperf3 TCP (<strong>low Retr</strong> + TCP-MIB; 0 device drops gate) -&gt; stats (0 drop/err) -&gt; unload</td>
+</tr>
+<tr>
+<td><code>02-lifecycle.sh</code></td>
+<td>B</td>
+<td>insmod/rmmod + up/down cycles -&gt; init/exit, ring alloc/free, rx_post/drain leaks</td>
+</tr>
+<tr>
+<td><code>03-concurrency.sh</code></td>
+<td>C</td>
+<td>parallel iperf3 (xmit vs clean; <strong>0 device drops</strong> gate, Retr reported); <strong>down/up storm under flood</strong>; <strong>rmmod under live traffic</strong></td>
+</tr>
+<tr>
+<td><code>04-ringfull.sh</code></td>
+<td>D</td>
+<td>iperf3 UDP <code>-b 0</code> backpressure / stop-wake; pktgen + tiny-ring are SKIP stubs</td>
+</tr>
+<tr>
+<td><code>05-edge.sh</code></td>
+<td>E,H</td>
+<td>packet-size edges (runt..near-MTU), <strong>fragmented 65000B</strong>, MTU raise without splat; rmmod-while-up; double insmod; ping-while-down</td>
+</tr>
+<tr>
+<td><code>06-faultinject.sh</code></td>
+<td>F</td>
+<td>RX alloc-failure paths via the <code>rx_alloc_fail</code> knob: F1 refill recycle + <code>rx_dropped</code>, F2 open <code>-ENOMEM</code>, F3 failed <code>change_mtu</code> re-init then <code>down</code> must not hang (the <code>priv-&gt;up</code> guard)</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>run-all.sh</code> runs 01-06 (the loopback datapath). <strong><code>07-tap.sh</code> is separate</strong> - it is the Level 2
+<strong>tap</strong> smoke test (real host peer, no IP-swap): ping the host, iperf3 both ways, optional external
+reach. It needs a <em>different</em> QEMU launch (<code>VNIC_TAP=...</code>, <code>loopback=off</code>) plus a host-side tap +
+<code>iperf3 -s</code>, so it is run on its own and SKIPs any missing prereq:</p>
+<pre><code class="language-bash"># in the guest, under a tap-mode QEMU (see docs/qemu-build.md section 8):
+sudo env MODULE=&quot;$PWD/driver/vnic-l2.ko&quot; bash tests/07-tap.sh
+</code></pre>
+<h2 id="knobs">Knobs</h2>
+<ul>
+<li><code>MODULE=/path/to/vnic-l1.ko</code> (default <code>../driver/vnic-l1.ko</code>; use <code>.../vnic-l2.ko</code> for Level 2)</li>
+<li><code>IFACE</code> / <code>LOCAL_IP</code> / <code>PEER_IP</code> default <strong>from the level</strong> and are overridable:
+  L1 -&gt; <code>vnic_loop0</code> on <code>192.168.10.1/24</code> (peer <code>.10.2</code>); L2 -&gt; <code>vnic0</code> on <code>192.168.11.1/24</code>
+  (peer <code>.11.2</code>). Distinct subnets so both levels can be set up and tested at the same time.</li>
+<li><code>ITERS=N</code> to lengthen the cycle/storm tests</li>
+</ul>
+<h2 id="both-drivers-at-once">Both drivers at once</h2>
+<p>The two <code>.ko</code>s and netdevs are distinct (<code>vnic-l1.ko</code>/<code>vnic_loop0</code>, <code>vnic-l2.ko</code>/<code>vnic0</code>), and the
+harness auto-picks a separate subnet per level, so they can be loaded together and tested
+independently (each test only loads/unloads <strong>its own</strong> module):</p>
+<pre><code class="language-bash"># Level 1 (always available; in-kernel engine)
+sudo bash tests/run-all.sh
+# Level 2 (needs the self-built QEMU + -device vnic; loopback mode)
+sudo env MODULE=&quot;$PWD/driver/vnic-l2.ko&quot; bash tests/run-all.sh
+</code></pre>
+<p>Run them back-to-back, or concurrently in two shells - they use different interfaces/subnets so
+there is no L3 clash. (The single auto-started <code>iperf3</code> server is shared, so concurrent TCP tests
+serialise on it; <code>lib.sh</code> already retries on "server busy".)</p>
+<h2 id="the-real-acceptance-gate">The real acceptance gate</h2>
+<p>For "passes concurrency / edge tests" (Phase 5 Output), run the suite on a guest
+kernel built with <strong>lockdep + KASAN + kmemleak</strong> (and <code>CONFIG_FAULT_INJECTION</code> +
+<code>FAILSLAB</code> for group F). The scripts already scan <code>dmesg</code> for BUG/WARN/KASAN
+after every step and scan <code>kmemleak</code> where present; on a debug kernel those
+checks are what actually catch races / use-after-free / leaks.</p>
+<p class="footnote">Generated from <code>README.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

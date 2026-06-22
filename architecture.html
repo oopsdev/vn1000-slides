@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linux NIC Simulation - System Architecture</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Linux NIC Simulation - System Architecture</h1>
+<div class="meta"><span>2026-06-18</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="linux-nic-simulation-system-architecture">Linux NIC Simulation - System Architecture</h1>
+<h2 id="1-goal-and-scope">1. Goal and scope</h2>
+<p>Simulate a NIC and its Linux driver in software, ending up as a real NIC inside QEMU. The goal
+is to build out the core concepts of a PCIe device driver - queue, DMA, completion, interrupt,
+NAPI, and netdev integration - in a phased, demonstrable way.</p>
+<p>Core mental model: <strong>the driver <em>uses</em> the hardware, the device <em>plays</em> the hardware, and the
+two mirror each other across the MMIO / DMA / IRQ boundary.</strong> Every driver action has a matching
+device reaction.</p>
+<h2 id="2-system-layering">2. System layering</h2>
+<pre><code class="language-mermaid">flowchart TB
+  app[&quot;User app / ping&quot;]
+  stack[&quot;Linux net stack&quot;]
+  drv[&quot;vnic driver&quot;]
+  eng[&quot;L1 device engine&quot;]
+  dev[&quot;L2 QEMU PCI device&quot;]
+  be[&quot;L2 netdev backend&quot;]
+  host[&quot;Host network&quot;]
+
+  app --&gt; stack
+  stack --&gt; drv
+  drv --&gt;|L1 shared ring| eng
+  drv --&gt;|L2 MMIO DMA MSI| dev
+  dev --&gt; be
+  be --&gt; host
+</code></pre>
+<p>Four layers, do not conflate them:</p>
+<ol>
+<li><strong>Guest vnic driver</strong> - the <code>.ko</code> this project writes, driving the virtual NIC. &lt;- the real driver</li>
+<li><strong>Device model</strong> - Level 1 is an engine kthread inside the same module; Level 2 is the QEMU PCI device. &lt;- plays the hardware</li>
+<li><strong>QEMU netdev backend</strong> - tap / user, moves packets to the host. Off-the-shelf.</li>
+<li><strong>Host's real NIC driver</strong> - unrelated to this project.</li>
+</ol>
+<p><strong>Level 1 is the focus of this project's learning goal.</strong> It builds the <em>entire</em> driver working
+flow - netdev registration, the TX/RX descriptor rings, NAPI, DMA-like buffer handling, a simulated
+completion/interrupt, and an internal loopback - as a <strong>pure kernel module with no PCI bus and no
+QEMU</strong>. The engine kthread plays both the "device" and the "wire": it consumes each transmitted
+frame and loops it back as a receive (swapping MAC + IPv4 addresses), so one host exercises the full
+TX -&gt; RX path. The local address A and the fictional peer B are the same machine; the IP swap makes
+a frame sent to B return as a receive from B. Level 2 then swaps the in-kernel engine for a real
+QEMU PCI device (real MMIO / DMA / MSI) <strong>without touching the driver core</strong>. Section 6 details the
+Level 1 datapath, section 7 the Level 2 datapath.</p>
+<h3 id="21-the-hal-seam-layering-the-driver-so-most-of-it-is-reused-across-levels">2.1 The HAL seam: layering the driver so most of it is reused across levels</h3>
+<p><strong>Intent.</strong> The plan is <em>one</em> driver that grows progressively more real - Level 1 (kernel-only fake
+engine) -&gt; Level 2 (QEMU PCI device, real MMIO/DMA/MSI) -&gt; Level 3 (FPGA, bonus). The learning goal is
+to understand the driver working flow, <strong>not to rewrite it per level</strong>. So the design isolates
+everything hardware-specific behind a single seam - the <strong>HAL</strong> (hardware-access layer,
+<a href="../driver/hal/vnic_hal.h"><code>driver/hal/vnic_hal.h</code></a>) - and writes the part worth learning (netdev,
+rings, the <code>DD</code> handshake, NAPI) <strong>once</strong>, reused unchanged at every level (decision <strong>D-12</strong>).</p>
+<p><strong>How the split was decided.</strong> Sort everything the driver does by one question: <em>does it change when
+the "device" goes from a fake in-kernel engine to a real PCI device?</em></p>
+<ul>
+<li><strong>No -&gt; <code>driver/core/</code> (level-independent).</strong> <code>net_device_ops</code> (open/stop/xmit/stats/change_mtu),
+  ring management and the software cursors, the <code>DD</code> ownership handshake and its barriers, the NAPI
+  poll, TX/RX cleanup. This logic only ever <em>reads/writes a register</em> or <em>hands a buffer to the
+  device</em> - both abstract operations - so it does not care how either is actually done.</li>
+<li><strong>Yes -&gt; <code>driver/hal/vnic_hal_l{1,2}.c</code> (level-specific).</strong> How a register access happens (a fake
+  array vs <code>readl</code>/<code>writel</code>), how a buffer is made device-visible (a pointer vs <code>dma_map_single</code>), how
+  ring memory is obtained (<code>kcalloc</code> vs <code>dma_alloc_coherent</code>), how a completion is delivered (a tasklet
+  vs a real MSI), and bring-up/teardown.</li>
+</ul>
+<p>The seam is drawn at exactly the <strong>smallest set of operations through which the core touches the
+device</strong> - nothing else crosses it, so the backend stays thin and the core stays whole.</p>
+<p><img alt="VN1000 driver layering - two module entries feed one shared core; the core reaches the device only through the HAL interface, with a table of the HAL function groups and how the Level 1 and Level 2 backends implement each" src="diagrams/hal-layering.svg"></p>
+<p><strong>The interface (12 functions, five groups)</strong> - the figure above shows this as a table; in text,
+<a href="../driver/hal/vnic_hal.h"><code>driver/hal/vnic_hal.h</code></a>:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Group</th>
+<th>HAL functions</th>
+<th>Level 1 backend</th>
+<th>Level 2 backend</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Register access</td>
+<td><code>vnic_hal_rd32</code> / <code>vnic_hal_wr32</code></td>
+<td>read/write a fake register array; <code>wr32(TDT/RDT)</code> wakes the engine kthread</td>
+<td><code>readl</code> / <code>writel</code> on BAR0</td>
+</tr>
+<tr>
+<td>Ring memory</td>
+<td><code>vnic_hal_ring_alloc</code> / <code>vnic_hal_ring_free</code></td>
+<td><code>kcalloc</code> (<code>desc_dma</code> unused)</td>
+<td><code>dma_alloc_coherent</code> (sets <code>desc_dma</code>)</td>
+</tr>
+<tr>
+<td>Buffer mapping</td>
+<td><code>vnic_hal_map</code> / <code>vnic_hal_unmap</code> / <code>vnic_hal_mapping_error</code></td>
+<td>token = the kernel pointer (never fails)</td>
+<td>token = a <code>dma_map_single</code> bus address (can fail)</td>
+</tr>
+<tr>
+<td>Interrupt</td>
+<td><code>vnic_hal_irq_request</code> / <code>vnic_hal_irq_free</code></td>
+<td>start/stop the simulated-MSI tasklet</td>
+<td><code>pci_alloc_irq_vectors</code> + <code>request_irq</code></td>
+</tr>
+<tr>
+<td>Lifecycle</td>
+<td><code>vnic_hal_init</code> / <code>vnic_hal_exit</code> / <code>vnic_hal_quiesce</code></td>
+<td>alloc fake regs + start engine kthread; quiesce = wait out the kthread</td>
+<td>enable PCI + ioremap BAR0 + set DMA mask; quiesce = <code>synchronize_irq</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Two deliberate choices keep this surface tiny:</p>
+<ul>
+<li><strong>No separate doorbell or mask functions.</strong> Ringing <code>TDT</code>/<code>RDT</code> and masking via <code>IMS</code>/<code>IMC</code> are
+  <em>just</em> <code>vnic_hal_wr32()</code> of those offsets - the register write <em>is</em> the doorbell - so the datapath
+  needs no extra HAL verbs.</li>
+<li><strong>The device token is opaque.</strong> <code>vnic_hal_map()</code> returns a <code>u64</code> the core stores in <code>vn_desc.addr</code>
+  and later passes back to <code>vnic_hal_unmap()</code>; the core <strong>never dereferences it</strong>. That single rule is
+  what lets the token be a raw pointer on L1 and a DMA address on L2 without the datapath knowing the
+  difference (the real <code>skb</code> is kept in <code>ring-&gt;bufs[]</code> for completion). See <code>vnic_hal.h</code> and D-12.</li>
+</ul>
+<p><strong>The payoff.</strong> Because the seam is exactly right, <strong>all of <code>core/</code> is byte-for-byte identical across
+levels</strong> - <code>vnic_start_xmit</code>, <code>vnic_tx_clean</code>, <code>vnic_rx_clean</code>, <code>vnic_poll</code>, the ring code,
+<code>vnic_netdev_ops</code>. What differs per level is only the two <code>hal/vnic_hal_l{1,2}.c</code> files (the same 12
+functions implemented two ways) plus a thin <code>level{1,2}/</code> entry (L1 hand-builds the netdev in
+<code>module_init</code>; L2 is a <code>module_pci_driver</code> whose <code>vnic_probe</code> does it - section 2's lifecycle).
+Selection is <strong>compile-time</strong> (<code>Makefile LEVEL=1|2</code> links exactly one backend); a runtime ops table
+was rejected because a single module only ever needs one level (<strong>D-12</strong>).</p>
+<h2 id="3-device-driver-boundary-principle">3. Device / driver boundary principle</h2>
+<p>Even though Level 1 lives in the same kernel module, the "device engine" is cleanly isolated and
+<strong>driven through the fake-register interface</strong> (e.g. writing <code>DOORBELL</code> triggers the engine, not a
+direct function call). This makes the move to QEMU in Level 2 a "relocation", not a rewrite, and
+leaves the driver-side code almost untouched.</p>
+<p>The shared spec header <code>include/vnic_regs.h</code> defines the register offsets and descriptor layout;
+both the driver and the qemu-device include the same one.</p>
+<h2 id="4-register-and-descriptor-spec">4. Register and descriptor spec</h2>
+<p>The register map, bit definitions and descriptor format are <strong>authoritatively defined in
+<a href="vn1000-datasheet.html">vn1000-datasheet.md</a></strong> (Intel-style MMIO BAR0); <code>include/vnic_regs.h</code> is
+derived from it. Only a summary here, to avoid the two docs drifting apart:</p>
+<ul>
+<li>identity / control: <code>ID</code> / <code>VERSION</code> / <code>CAP</code> / <code>CTRL</code> / <code>STATUS</code> / <code>MAC_LO</code> / <code>MAC_HI</code> / <code>MAXFRM</code></li>
+<li>TX ring: <code>TDBAL</code> / <code>TDBAH</code> / <code>TDLEN</code> / <code>TDH</code> / <code>TDT</code> (writing <code>TDT</code> is the doorbell)</li>
+<li>RX ring: <code>RDBAL</code> / <code>RDBAH</code> / <code>RDLEN</code> / <code>RDH</code> / <code>RDT</code></li>
+<li>interrupt: <code>ICR</code> (RC) / <code>ICS</code> / <code>IMS</code> (RW1S) / <code>IMC</code> (RW1C) / <code>ITR</code></li>
+<li>statistics: <code>STAT_*</code></li>
+</ul>
+<p>Compared with Linux e1000e: <code>TDBAL/TDH/TDT</code>, <code>RDBAL/RDH/RDT</code>, <code>ICR/IMS/IMC</code>.</p>
+<h2 id="5-descriptor-format-virtio-style-no-chaining-for-now">5. Descriptor format (virtio style, no chaining for now)</h2>
+<pre><code class="language-c">struct vn_desc {            /* shared 16-byte TX/RX layout; full bit defs in the datasheet */
+    u64 addr;   /* buffer DMA / guest physical address */
+    u32 len;    /* TX: packet length; RX: bytes received */
+    u16 flags;  /* TX: command (EOP/RS); RX: result (EOP/ERR) */
+    u16 status; /* device-written: DD (descriptor done) */
+};
+</code></pre>
+<p>Bit definitions for flags / status are in <a href="vn1000-datasheet.html">vn1000-datasheet.md</a> section 5.</p>
+<p>Ring head / tail semantics (Intel-style; authoritative detail in the datasheet):</p>
+<ul>
+<li>The <strong>driver owns the tail</strong> (<code>TDT</code>/<code>RDT</code>) and advances it to hand descriptors to the device
+  (writing the tail is the doorbell); the <strong>device owns the head</strong> (<code>TDH</code>/<code>RDH</code>) and advances it as
+  it processes. The device works on the descriptors in <code>[head, tail)</code>; <code>head == tail</code> means it has
+  nothing to do (TX empty / RX has no free buffers).</li>
+<li><strong>TX</strong>: the driver is the <strong>producer</strong> (fills frames, advances <code>TDT</code>); the device is the
+  <strong>consumer</strong> (transmits, advances <code>TDH</code>).</li>
+<li><strong>RX</strong>: the driver <strong>produces empty buffers</strong> (posts them, advances <code>RDT</code>); the device <strong>fills
+  them</strong> (writes received data, advances <code>RDH</code>).</li>
+<li>Per-descriptor ownership is carried by the <strong><code>DD</code> bit</strong> in <code>status</code> (<code>status == 0</code> = device-owned,
+  to process; <code>DD</code> = driver-owned, done). This is what the driver and engine actually test; <code>head</code> /
+  <code>tail</code> are the cursors.</li>
+</ul>
+<h2 id="6-level-1-datapath-in-kernel-engine-internal-loopback">6. Level 1 datapath (in-kernel engine, internal loopback)</h2>
+<p>Level 1 has no PCI bus and no wire. The engine kthread plays both the device and the wire: it
+consumes each transmitted frame and <strong>loops it back</strong> into the RX ring (swapping the Ethernet MAC
+and IPv4 src/dst), so one host drives the full TX + RX + NAPI flow. TX and RX are therefore coupled
+- one engine pass does both - so the engine is described first (6.1), then the TX (6.2) and RX (6.3)
+halves it drives.</p>
+<h3 id="61-level-1-engine-loopback-backpressure">6.1 Level 1 engine (loopback + backpressure)</h3>
+<p>The engine is a kthread. It <strong>sleeps</strong> in <code>wait_event_interruptible(&amp;h-&gt;wq, ...)</code> and is woken by a
+doorbell - it is not a busy loop and uses no CPU when idle. One run walks the pending TX descriptors
+and, per frame, loops it into RX or stalls when RX is full:</p>
+<pre><code class="language-mermaid">flowchart TB
+  wake[&quot;woken (TDT / RDT)&quot;]
+  loop[&quot;next TX desc&quot;]
+  full{&quot;RX slot free?&quot;}
+  deliver[&quot;loopback into RX, RX DD&quot;]
+  txdone[&quot;mark TX DD&quot;]
+  stall[&quot;stall (backpressure)&quot;]
+  sched[&quot;napi_schedule&quot;]
+  wake --&gt; loop
+  loop --&gt;|more| full
+  loop --&gt;|none| sched
+  full --&gt;|yes| deliver
+  deliver --&gt; txdone
+  txdone --&gt; loop
+  full --&gt;|no| stall
+  stall --&gt; sched
+</code></pre>
+<ul>
+<li><strong>Wakeup condition</strong>: the wake comes from <code>wake_up_interruptible(&amp;h-&gt;wq)</code> inside <code>vnic_hal_wr32()</code>. The
+  <strong>TX doorbell (<code>TDT</code>) always wakes</strong> the engine (new frames to consume); the <strong>RX refill doorbell
+  (<code>RDT</code>) wakes it only when <code>tx_stalled</code></strong> is set (a backpressure resume). So an <code>RDT</code> write during
+  normal operation is silent, and only resumes a stalled engine.</li>
+<li><strong>Deliver</strong>: copy the frame into the RX slot at <code>RDH</code>, swap MAC + IPv4, set RX <code>DD</code>, advance <code>RDH</code>;
+  then mark the TX descriptor <code>DD</code> and advance <code>TDH</code>.</li>
+<li><strong>Backpressure (D-19)</strong>: if the RX slot at <code>RDH</code> is still <code>DD</code> (the driver has not drained it), the
+  engine <strong>stalls</strong> - stops consuming TX, leaves the descriptor un-<code>DD</code>. The TX ring then fills and
+  <code>netif_stop_queue</code> throttles the sender (TCP slows) instead of dropping and retransmitting.</li>
+<li><strong>Resume</strong>: the <code>napi_schedule</code> after every run guarantees a poll drains RX; <code>rx_clean</code> refilling
+  RX rings the <code>RDT</code> doorbell, which wakes the stalled engine. A poll always follows a stall, so it
+  cannot deadlock. Measured best on both axes - see lessons-learned L-02.</li>
+</ul>
+<h3 id="62-level-1-tx-flow">6.2 Level 1 TX flow</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+  participant S as Net stack
+  participant D as vnic driver
+  participant E as L1 engine
+  Note over D: `setup - **netif_napi_add()** registers vnic_poll, **napi_enable()** in open`
+  S-&gt;&gt;D: ndo_start_xmit skb
+  D-&gt;&gt;D: skb_linearize, ring-full check, fill TX desc (addr = skb-data token)
+  D-&gt;&gt;E: write TDT doorbell - wakes the engine kthread
+  E-&gt;&gt;E: read TDH..TDT, loopback each frame into RX (see 6.1)
+  E-&gt;&gt;D: `mark TX DD, **napi_schedule()**`
+  D-&gt;&gt;D: `**vnic_poll()** -&gt; tx_clean - **napi_consume_skb()**, wake queue`
+  D-&gt;&gt;D: `**napi_complete_done()** when RX work lt budget`
+</code></pre>
+<ul>
+<li>TX is <strong>zero-copy</strong> at Level 1: the descriptor <code>addr</code> is just the <code>skb-&gt;data</code> pointer (the token),
+  no DMA mapping. <code>skb_linearize()</code> makes the frame contiguous so the engine can copy it in one go.</li>
+<li>Ring-full applies backpressure (<code>netif_stop_queue</code>); the queue is woken from <code>tx_clean</code>. A full RX
+  ring also stalls TX - see 6.1.</li>
+</ul>
+<h3 id="63-level-1-rx-flow">6.3 Level 1 RX flow</h3>
+<p>RX buffers are <strong>pre-posted</strong> - one skb per RX descriptor, allocated in <code>ndo_open</code> (Model A, D-18) -
+because the device needs somewhere to write before a frame arrives.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+  participant E as L1 engine
+  participant D as vnic driver
+  participant S as Net stack
+  Note over D,E: RX skbs pre-posted, one per desc (Model A, D-18)
+  E-&gt;&gt;E: loopback frame into pre-posted RX buffer, swap MAC + IPv4, set RX DD
+  E-&gt;&gt;D: `**napi_schedule()**`
+  D-&gt;&gt;D: `**vnic_poll()** -&gt; rx_clean (up to budget)`
+  D-&gt;&gt;D: skb already posted - skb_put(len) + eth_type_trans (dst MAC = ours -&gt; PACKET_HOST)
+  D-&gt;&gt;S: `**napi_gro_receive()** - delivered locally`
+  D-&gt;&gt;E: alloc fresh skb, refill desc, ring RDT (also resumes a stalled engine)
+  Note over D: `**napi_complete_done()** when work lt budget`
+</code></pre>
+<ul>
+<li>The loopback swaps the <strong>Ethernet MAC</strong> (dst becomes our own address, so <code>eth_type_trans</code> marks it
+  <code>PACKET_HOST</code> and the stack delivers it locally) and the <strong>IPv4 src/dst</strong> (so it looks like it came
+  from peer B). Swapping only reorders checksummed fields, so the IP and TCP/UDP checksums stay valid
+  (ports/payload untouched). See design-decisions D-05.</li>
+<li>On completion the skb is already populated, so the poll just <code>skb_put</code> + <code>eth_type_trans</code>, then
+  allocates a fresh skb to refill the slot.</li>
+</ul>
+<h2 id="7-level-2-datapath-qemu-pci-device">7. Level 2 datapath (QEMU PCI device)</h2>
+<p>Level 2 (implemented, Phases 8-12) keeps the <strong>same driver core</strong>; only the HAL backend changes - real
+MMIO instead of fake registers, streaming DMA (<code>dma_alloc_coherent</code> rings + <code>dma_map_single</code> buffers)
+instead of a pointer token, a real MSI instead of the engine's <code>napi_schedule</code>, and the QEMU device
+instead of the in-kernel engine. The default device mode is the internal IP-swap <strong>loopback</strong> (D-25/
+D-30, what the test suite uses); <code>loopback=off</code> + a <code>-netdev tap</code> reaches a genuine remote host. The
+RX buffer model (pre-posted skb, Model A, D-18) and the NAPI half are identical to Level 1. The
+Phase 12 performance knobs - TX doorbell batching (D-32) and ITR interrupt coalescing (D-33) - tune
+this same path.</p>
+<h3 id="71-level-2-tx-flow">7.1 Level 2 TX flow</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+  participant S as Net stack
+  participant D as vnic driver
+  participant E as QEMU device
+  participant H as Host network
+  S-&gt;&gt;D: ndo_start_xmit skb
+  D-&gt;&gt;D: dma_map_single, fill TX desc (addr = DMA address)
+  D-&gt;&gt;E: write TDT doorbell (real MMIO)
+  E-&gt;&gt;E: pci_dma_read the packet from guest memory
+  E-&gt;&gt;H: qemu_send_packet to the backend (tap / user)
+  E-&gt;&gt;D: `raise MSI -&gt; ISR -&gt; **napi_schedule()**`
+  D-&gt;&gt;D: `**vnic_poll()** -&gt; tx_clean - dma_unmap, **napi_consume_skb()**`
+</code></pre>
+<h3 id="72-level-2-rx-flow">7.2 Level 2 RX flow</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+  participant H as Host network
+  participant E as QEMU device
+  participant D as vnic driver
+  participant S as Net stack
+  H-&gt;&gt;E: packet arrives at the backend
+  E-&gt;&gt;E: pci_dma_write into a pre-posted RX buffer, set RX DD
+  E-&gt;&gt;D: `raise MSI -&gt; ISR masks IRQ (IMC) -&gt; **napi_schedule()**`
+  D-&gt;&gt;D: `**vnic_poll()** -&gt; rx_clean (up to budget)`
+  D-&gt;&gt;D: skb_put + eth_type_trans
+  D-&gt;&gt;S: `**napi_gro_receive()**`
+  D-&gt;&gt;E: `refill RX desc + RDT, **napi_complete_done()** -&gt; re-enable MSI (IMS)`
+</code></pre>
+<p>The unchanged-vs-changed split across Level 1 and Level 2 is summarised in section 10.</p>
+<h3 id="73-annotated-datapath-diagrams-the-real-nic-model-level-2">7.3 Annotated datapath diagrams (the real-NIC model = Level 2)</h3>
+<p>The TX and RX diagrams below are the <strong>generic real-NIC datapath</strong> - descriptor ring + DMA + MSI +
+NAPI + the ownership (<code>DD</code>) handshake across NIC / Host RAM / CPU driver. <strong>This is exactly the
+Level 2 model</strong> (Level 1 emulates the same shape in software). The table maps the diagrams' generic
+labels to VN1000's registers / functions / files.</p>
+<p><img alt="Linux NIC driver - TX packet transmission path" src="diagrams/tx-path.svg"></p>
+<p><img alt="Linux NIC driver - RX packet reception path" src="diagrams/rx-path.svg"></p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Diagram label (generic NIC)</th>
+<th>VN1000 Level 2</th>
+<th>Level 1 analogue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NIC registers CSR (Tail <code>TDT</code> / Head <code>TDH</code>)</td>
+<td><code>VN_REG_TDT</code>/<code>TDH</code> in BAR0, via <code>readl</code>/<code>writel</code></td>
+<td>fake <code>regs[]</code> array</td>
+</tr>
+<tr>
+<td>write <code>TDT</code>/<code>RDT</code> doorbell</td>
+<td><code>vnic_hal_wr32(TDT/RDT)</code> = a real MMIO write (a VM-exit)</td>
+<td>a <code>wr32</code> that wakes the engine kthread</td>
+</tr>
+<tr>
+<td>Tx/Rx descriptor (addr/len/status)</td>
+<td><code>struct vn_desc</code> (16 B, <code>include/vnic_regs.h</code>)</td>
+<td>same struct</td>
+</tr>
+<tr>
+<td>ownership: NIC-owned vs Driver-owned</td>
+<td>the <code>DD</code> bit (<code>VN_DESC_DD</code>) + <code>dma_wmb</code>/<code>dma_rmb</code> (D-21)</td>
+<td>same, with <code>smp_wmb</code>/<code>smp_rmb</code></td>
+</tr>
+<tr>
+<td>NIC DMA Controller reads/writes RAM</td>
+<td><code>pci_dma_read</code>/<code>pci_dma_write</code> in <code>qemu-device/vnic.c</code></td>
+<td>the engine's <code>memcpy</code> (same address space)</td>
+</tr>
+<tr>
+<td>DMA-mapped buffer / ring</td>
+<td><code>dma_map_single</code> + <code>dma_alloc_coherent</code> (<code>hal/vnic_hal_l2.c</code>)</td>
+<td>the buffer pointer <em>is</em> the token</td>
+</tr>
+<tr>
+<td>MSI-X interrupt</td>
+<td>a <strong>single</strong> MSI (<code>msi_init</code>/<code>msi_notify</code>, D-24); ISR <code>vnic_l2_isr</code></td>
+<td>the simulated-MSI tasklet (D-20)</td>
+</tr>
+<tr>
+<td>"TX-done MSI-X (coalesced)"</td>
+<td>ITR moderation - <code>VN_REG_ITR</code> + a QEMU timer (D-33)</td>
+<td>n/a (tasklet fires per cause)</td>
+</tr>
+<tr>
+<td>doorbell (one per packet in the figure)</td>
+<td>batched over an <code>xmit_more</code> burst (D-32)</td>
+<td>n/a (engine drains <code>TDH..TDT</code>)</td>
+</tr>
+<tr>
+<td>NAPI polling thread / <code>napi_poll</code></td>
+<td><code>vnic_poll</code> (shared <code>core/</code>)</td>
+<td>same <code>vnic_poll</code></td>
+</tr>
+<tr>
+<td>net_device init / alloc + map ring</td>
+<td><code>vnic_probe</code> + <code>vnic_hal_init</code> (enable PCI, ioremap BAR0, coherent rings)</td>
+<td><code>vnic_l1_init</code> + <code>vnic_hal_init</code> (kthread)</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>The figures show <strong>MSI-X</strong> and a <em>per-packet</em> doorbell (the general real-NIC case); VN1000 uses a
+single MSI (D-24, MSI-X is backlog A3), batches the doorbell (D-32) and adds ITR coalescing (D-33)
+- the same datapath with the project's specific choices noted above. These also serve as the
+concrete picture behind the conceptual datapath in section 1.</p>
+</blockquote>
+<h2 id="8-interrupt-and-polling-model">8. Interrupt and polling model</h2>
+<ul>
+<li>the top half does the minimum: mask that cause + <code>napi_schedule()</code></li>
+<li>the bottom half / NAPI poll does the work: up to <code>POLL_BUDGET</code> (64) descriptors per call</li>
+<li>the baseline is already an interrupt + polling hybrid (interrupt arrives -&gt; <code>IMC</code> mask and poll
+  -&gt; <code>IMS</code> re-enable); a forced fixed-mode comparison is an advanced item (TODO A2)</li>
+<li>interrupt moderation: cut interrupt overhead at high packet rates, trading latency for throughput</li>
+</ul>
+<h3 id="81-how-vnic_poll-gets-called-napi-trigger-chain">8.1 How vnic_poll gets called (NAPI trigger chain)</h3>
+<p><code>vnic_poll</code> is never called directly. It runs only after something calls <code>napi_schedule()</code>,
+which hands the device off to the <code>NET_RX_SOFTIRQ</code> machinery:</p>
+<pre><code class="language-mermaid">flowchart TB
+  trig[&quot;Trigger source&quot;]
+  sched[&quot;napi_schedule()&quot;]
+  soft[&quot;net_rx_action()&quot;]
+  poll[&quot;vnic_poll()&quot;]
+  work[&quot;clean TX, receive RX&quot;]
+  done[&quot;napi_complete_done()&quot;]
+
+  trig --&gt; sched
+  sched --&gt;|softirq| soft
+  soft --&gt; poll
+  poll --&gt; work
+  work --&gt;|work lt budget| done
+  done --&gt;|wait| trig
+</code></pre>
+<p>Reading the chain (details kept here so the boxes stay short):</p>
+<ul>
+<li><strong>Trigger source</strong> - whatever calls <code>napi_schedule()</code>. It is <strong>not</strong> part of NAPI and differs by
+  level (see the table below): on <strong>Level 1</strong> it is software with no real interrupt - the engine
+  kthread (Phase 2), later a simulated MSI handler (Phase 4); on <strong>Level 2</strong> it is the real MSI
+  hardirq handler registered with <code>request_irq()</code>, exactly like a physical NIC.</li>
+<li><strong><code>napi_schedule()</code></strong> sets the NAPI scheduled (<code>STATE_SCHED</code>), adds it to the per-CPU poll list,
+  raises <code>NET_RX_SOFTIRQ</code>, and returns immediately (the top half stays short).</li>
+<li><strong><code>net_rx_action()</code></strong> is the softirq handler; it calls the registered <code>vnic_poll()</code>.</li>
+<li><strong><code>vnic_poll()</code></strong> runs in softirq context and processes up to <code>budget</code> (per-NAPI weight,
+  default 64) per call: it cleans TX completions first (not counted against budget), then
+  (Phase 3+) receives RX bounded by budget.</li>
+<li><strong>The wrap-up rule</strong> (what <code>budget</code> is for): the poll returns <code>work_done</code> = the number of RX
+  packets processed.</li>
+<li><code>work_done &lt; budget</code> -&gt; RX is drained -&gt; call <strong><code>napi_complete_done()</code></strong> to end the poll and
+    re-arm the interrupt (<code>IMS</code>), then wait for the next trigger.</li>
+<li><code>work_done == budget</code> -&gt; there may be more -&gt; do <strong>not</strong> complete, just <code>return budget</code>; the
+    NAPI stays on the poll list and <code>net_rx_action()</code> polls it again. This is how NAPI backs off
+    interrupts and switches to pure polling under load.</li>
+<li><strong>Why budget exists</strong>: poll runs in softirq and would otherwise monopolise the CPU under a flood.
+  Two caps apply - the per-NAPI weight (one poll call) and the per-CPU <code>netdev_budget</code> (300) /
+  <code>netdev_budget_usecs</code> (2 ms) that bound a whole <code>net_rx_action</code> round across all NAPIs - keeping
+  device polling fair and softirq latency bounded.</li>
+</ul>
+<p><code>napi_enable()</code> (in <code>ndo_open</code>) only makes the device eligible to be scheduled - it does not
+itself call poll. With no trigger source, <code>vnic_poll</code> stays idle. The trigger source by stage:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Trigger source (what calls napi_schedule)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Phase 1 (L1)</td>
+<td>nothing</td>
+<td>no engine, no interrupt - <code>vnic_poll</code> is effectively never run</td>
+</tr>
+<tr>
+<td>Phase 2 (L1)</td>
+<td>the in-kernel engine kthread, after marking TX descriptors DD</td>
+<td>software, no real IRQ; interim completion signal; <code>vnic_poll</code> cleans TX</td>
+</tr>
+<tr>
+<td>Phase 3 (L1)</td>
+<td>the same engine kthread, after looping each frame into RX (and completing TX)</td>
+<td><code>vnic_poll</code> now cleans TX <strong>and</strong> receives RX; a stalled engine is resumed via the <code>RDT</code> refill doorbell (backpressure, D-19)</td>
+</tr>
+<tr>
+<td>Phase 4 (L1)</td>
+<td>a simulated MSI handler (<strong>tasklet</strong>, softirq): read <code>ICR</code> -&gt; <code>IMC</code> mask -&gt; <code>napi_schedule</code></td>
+<td>still software, but now with real interrupt-register (ICR/IMS/IMC) semantics - see 8.2, D-20</td>
+</tr>
+<tr>
+<td>Level 2</td>
+<td>the real MSI hardirq handler registered with <code>request_irq()</code></td>
+<td>a genuine hardware interrupt - the production path on a real NIC</td>
+</tr>
+</tbody>
+</table></div>
+<p>Because <code>vnic_poll</code> runs in softirq context it must not sleep: the ring lock is taken with plain
+<code>spin_lock()</code> (not <code>_bh</code>, already in softirq), and skbs are freed with <code>napi_consume_skb()</code>.</p>
+<h3 id="82-completion-signalling-phase-3-vs-phase-4">8.2 Completion signalling - Phase 3 vs Phase 4</h3>
+<p><strong>Phase 3</strong> took a shortcut: the engine called <code>napi_schedule()</code> <strong>directly</strong> after a run. There
+were no interrupt registers in the path - simple, but it did not model how a real device signals the
+CPU, and the <code>ICR</code>/<code>ICS</code>/<code>IMS</code>/<code>IMC</code> registers existed but were unused.</p>
+<p><strong>Phase 4</strong> is the current behaviour: the real interrupt protocol plus a <strong>simulated MSI</strong>. The
+engine (still a kthread - it is the <em>device</em>) no longer pokes NAPI; it sets an interrupt cause and
+"fires the MSI", and a separate handler does the ack/mask/schedule. The handler runs as a
+<strong>tasklet</strong> (softirq context - cannot sleep, runs deferred, separate from the engine), the closest
+software analogue to a hardware interrupt's handler. (Not a workqueue/kthread, which would run in
+process context; see design-decisions D-20.)</p>
+<pre><code class="language-mermaid">sequenceDiagram
+  participant E as engine (device, kthread)
+  participant I as MSI handler (tasklet)
+  participant P as vnic_poll (softirq)
+  E-&gt;&gt;E: work done - set cause via ICS (ICR bit)
+  E-&gt;&gt;I: fire MSI - only if not masked (IMS)
+  I-&gt;&gt;I: read ICR (read-to-clear), mask cause via IMC
+  I-&gt;&gt;P: napi_schedule
+  P-&gt;&gt;P: clean TX, receive RX (up to budget)
+  P-&gt;&gt;E: napi_complete_done, re-enable cause via IMS
+</code></pre>
+<p>Why the <code>IMS</code>/<code>IMC</code> mask matters: while the poll is draining, the cause stays <strong>masked</strong>, so engine
+completions accumulate in <code>ICR</code> without re-firing the MSI; the poll re-enables <code>IMS</code> only when it
+completes. That is exactly the real NIC interrupt + polling hybrid (and the basis of NAPI backing
+off interrupts under load). At Level 2 this tasklet is replaced by the real MSI hardirq handler
+registered with <code>request_irq()</code>; the <code>vnic_poll</code> half is unchanged.</p>
+<p><strong>How the tasklet is actually triggered.</strong> There is no real interrupt line; the "MSI is raised" by
+calling <code>tasklet_schedule()</code>. The single fire rule lives in the Level 1 <code>vnic_hal_wr32()</code>:</p>
+<blockquote>
+<p>on a write to <code>ICS</code> (raise a cause) or to <code>IMS</code> (unmask a cause), if <code>(ICR &amp; IMS) != 0</code> then
+<code>tasklet_schedule(&amp;msi)</code>.</p>
+</blockquote>
+<p>So the tasklet has exactly <strong>two trigger sites</strong>, both inside <code>vnic_hal_wr32()</code> under the <code>irq_lock</code>:</p>
+<ol>
+<li><strong>engine raises a cause</strong> - <code>vnic_hal_wr32(ICS, TXDONE|RXAVAIL)</code> at the end of an engine run. If that
+   cause is unmasked (<code>IMS</code> set), the MSI fires immediately. If it is masked (a poll is in progress),
+   the bit just stays pending in <code>ICR</code>.</li>
+<li><strong>poll re-arms</strong> - <code>vnic_hal_wr32(IMS, TXDONE|RXAVAIL)</code> in <code>vnic_poll</code> after <code>napi_complete_done</code>. If a
+   cause went pending in <code>ICR</code> while masked, unmasking it here re-fires the MSI, so the device gets
+   polled again. This closes the classic NAPI race (work that arrived during the poll is not lost).</li>
+</ol>
+<p><code>ICR</code> is <strong>read-to-clear</strong>: the tasklet's <code>vnic_hal_rd32(ICR)</code> returns the pending causes and clears them
+in one step, so each cause is handled once. All four of <code>ICR</code> set, <code>ICR</code> read-clear, <code>IMS</code> set and
+<code>IMS</code> clear take <code>irq_lock</code>, because the engine (kthread) and the tasklet/poll (softirq) race on
+them. Resuming a <em>stalled</em> engine is a separate path (the <code>RDT</code> doorbell wakes the kthread) and does
+not go through the MSI.</p>
+<h2 id="9-locking-model">9. Locking model</h2>
+<ul>
+<li>the <strong>TX ring</strong> uses <code>tx_ring.lock</code>: producer <code>ndo_start_xmit</code> (process ctx) vs consumer
+  <code>vnic_tx_clean</code> (NAPI softirq) are not serialised by the stack, so the lock guards them; xmit
+  takes it with <code>spin_lock_bh()</code> to also fence the local softirq, <code>vnic_tx_clean</code> with plain
+  <code>spin_lock()</code> (already in softirq). The queue stop (xmit) and wake (tx_clean) decisions both run
+  under it, so there is no missed wakeup.</li>
+<li>the <strong>RX ring</strong> takes <strong>no driver lock</strong>: <code>vnic_rx_clean</code> is its only accessor and NAPI serialises
+  polls; the device is the RX producer, so <code>rx_ring.next_to_use</code> is unused. (see <strong>D-23</strong>)</li>
+<li>driver submission and device-engine consumption form a producer / consumer relationship; the
+  <code>DD</code>-bit ownership handshake is ordered by <code>dma_wmb()</code>/<code>dma_rmb()</code> (D-21), not by these locks</li>
+<li>no sleeping in atomic context (interrupt / holding a spinlock): mind <code>GFP_ATOMIC</code> vs <code>GFP_KERNEL</code></li>
+</ul>
+<h2 id="10-level-1-level-2-evolution">10. Level 1 -&gt; Level 2 evolution</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Level 1 (kernel-only engine)</th>
+<th>Level 2 (QEMU PCI device)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Upper interface</td>
+<td>netdev <code>vnic_loop0</code> (<code>ndo_start_xmit</code> / <code>netif_receive_skb</code>)</td>
+<td>netdev <code>vnic0</code> (same driver; distinct name so both can be loaded at once)</td>
+</tr>
+<tr>
+<td>Data unit</td>
+<td><code>struct sk_buff</code></td>
+<td><code>struct sk_buff</code></td>
+</tr>
+<tr>
+<td>Registers</td>
+<td>in-module variables (fake registers)</td>
+<td>real MMIO (<code>pci_iomap</code> + <code>readl/writel</code>)</td>
+</tr>
+<tr>
+<td>DMA</td>
+<td><code>kmalloc</code> simulation</td>
+<td><code>dma_alloc_coherent</code> / <code>dma_map_single</code></td>
+</tr>
+<tr>
+<td>Interrupt</td>
+<td>workqueue / kthread simulation</td>
+<td>MSI (<code>pci_alloc_irq_vectors</code> + <code>request_irq</code>)</td>
+</tr>
+<tr>
+<td>Device</td>
+<td>engine kthread</td>
+<td>QEMU device model (<code>qemu_send_packet</code> / <code>receive</code>)</td>
+</tr>
+<tr>
+<td>Packet egress</td>
+<td>engine IP-swap loopback (internal loopback)</td>
+<td>QEMU backend -&gt; host (pingable)</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Unchanged across both</strong>: ring / descriptor / DMA-buffer abstraction / NAPI logic / <code>include/vnic_regs.h</code>.</p>
+<h2 id="11-netdev-integration-shared-by-level-1-and-level-2">11. netdev integration (shared by Level 1 and Level 2)</h2>
+<p>Implement <code>net_device_ops</code>: <code>ndo_open</code> / <code>ndo_stop</code> / <code>ndo_start_xmit</code> / <code>ndo_get_stats64</code>. Create
+the netdev with <code>alloc_etherdev</code> + <code>register_netdev</code>; register <code>vnic_poll</code> with <code>netif_napi_add</code>.
+Level 1 and Level 2 share the same netdev driver; the only difference is whether an engine or QEMU
+sits behind the rings. The two name their netdev differently - Level 1 <code>vnic_loop0</code>, Level 2 <code>vnic0</code>
+- so both drivers can be loaded in one guest at the same time.</p>
+<p>Packet egress (how to ping / test TCP/UDP):</p>
+<ul>
+<li><strong>Level 1 internal loopback</strong>: the engine loops a transmitted frame back into its own RX ring
+  with <strong>src/dst IP swapped (ports kept)</strong>. Assign <code>vnic_loop0</code> a local IP A; the fictional peer B is on
+  the same subnet (non-local). <code>ping B</code>, or server on 0.0.0.0 + client to B (iperf), tests
+  ICMP / TCP / UDP - swapping the IP only (not the ports) keeps every checksum valid.</li>
+<li><strong>Level 2 real ping to host</strong>: <code>ndo_start_xmit</code> -&gt; TX ring -&gt; QEMU device -&gt; <code>qemu_send_packet</code>
+  -&gt; backend (tap/user) -&gt; host; the return path goes MSI -&gt; <code>vnic_poll</code> -&gt; <code>netif_receive_skb</code>.</li>
+</ul>
+<p>Compared with e1000e: <code>ndo_start_xmit = e1000_xmit_frame</code>, poll = <code>e1000e_poll</code>,
+RX = <code>e1000_clean_rx_irq</code>.</p>
+<h2 id="12-reference-mapping">12. Reference mapping</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Main reference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Register map</td>
+<td>e1000e / 82574</td>
+</tr>
+<tr>
+<td>Descriptor format</td>
+<td>virtio_ring + ixgbe descriptor concepts</td>
+</tr>
+<tr>
+<td>TX/RX datapath</td>
+<td>e1000e first, ixgbe second</td>
+</tr>
+<tr>
+<td>Interrupt / polling</td>
+<td>ixgbe NAPI + DPDK PMD</td>
+</tr>
+<tr>
+<td>QEMU PCI device</td>
+<td>virtio-net / virtio_ring, the QEMU edu device skeleton</td>
+</tr>
+</tbody>
+</table></div>
+<p class="footnote">Generated from <code>architecture.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

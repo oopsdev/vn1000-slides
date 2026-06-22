@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation Index - VN1000 / Linux NIC Simulation</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Documentation Index - VN1000 / Linux NIC Simulation</h1>
+<div class="meta"><span>2026-06-16</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="documentation-index">Documentation index</h1>
+<p>A guide to the <code>docs/</code> set: what each file is, and the order to read them in. The project's goal is
+to <strong>understand the Linux NIC driver working flow</strong> end to end, so the docs split into a <em>learning
+path</em> (read top to bottom), <em>build/run/debug SOPs</em>, and <em>reference assets</em>.</p>
+<p>New here? Open <strong><a href="nic-driver-walkthrough.html">nic-driver-walkthrough.md</a></strong> first, or the slide deck.</p>
+<h2 id="1-learning-path-read-in-this-order">1. Learning path (read in this order)</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Document</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong><a href="nic-driver-walkthrough.html">nic-driver-walkthrough.md</a></strong></td>
+<td><strong>START HERE.</strong> The narrative tour: the mental model, the driver lifecycle (init/probe/open/close/remove), TX and RX end to end, the three levels + the one HAL seam, the hard parts (each mapped to a decision / lesson / background topic), and a repo map. Embeds the TX/RX path diagrams.</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong><a href="index.html">slides/vnic-slides.html</a></strong></td>
+<td>Self-contained teaching slide deck (arrows / buttons / <code>F</code> fullscreen / page jump / PDF export). TCP/IP flow -&gt; PCIe NIC anatomy + sample datasheet -&gt; the Linux driver framework -&gt; the QEMU device model -&gt; the project goal -&gt; dev/test setup -&gt; the performance benchmark. <strong>View rendered: <a href="https://oopsdev.github.io/vn1000-slides/">https://oopsdev.github.io/vn1000-slides/</a></strong> (GitHub Pages mirror; this repo is private, so the source HTML here only renders when opened locally). The public mirror is <strong>auto-deployed by CI</strong> on every push that touches the deck or its diagrams - just edit &amp; push; details in <a href="slides-readme.html">slides/README.md</a>.</td>
+</tr>
+<tr>
+<td>3</td>
+<td><a href="architecture.html">architecture.md</a></td>
+<td>System design: layering, the TX/RX flow diagrams, the interrupt/polling model, locking, and the Level 1 -&gt; Level 2 evolution. The "what <em>this</em> driver does".</td>
+</tr>
+<tr>
+<td>4</td>
+<td><a href="vn1000-datasheet.html">vn1000-datasheet.md</a></td>
+<td>The <strong>authoritative</strong> device hardware spec: PCI config space, the BAR0 register map, the descriptor format, the TX/RX ring buffers + the <code>DD</code> control flow, and the theory of operation. <code>include/vnic_regs.h</code> is derived from it.</td>
+</tr>
+<tr>
+<td>5</td>
+<td><a href="background-knowledge.html">background-knowledge.md</a></td>
+<td>The <strong>Linux kernel mechanisms</strong> behind the design (topics 1-11): the datapath, NAPI, deferred execution, memory barriers, MMIO, TUN/TAP, throughput, descriptor placement, the netdev lifecycle, interrupt registers, and DMA mappings. The "general kernel concepts".</td>
+</tr>
+<tr>
+<td>6</td>
+<td><a href="design-decisions.html">design-decisions.md</a></td>
+<td>The decision log (D-01..D-33): for each choice, the decision / why / what was rejected.</td>
+</tr>
+<tr>
+<td>7</td>
+<td><a href="lessons-learned.html">lessons-learned.md</a></td>
+<td>Empirical findings from testing &amp; tuning (L-01..L-12); raw data lives under <a href="../results/">results/</a>.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="2-build-run-debug-sops">2. Build / run / debug (SOPs)</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Document</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="dev-setup.html">dev-setup.md</a></td>
+<td>Environment setup SOP - WSL2 + an Ubuntu QEMU guest for kernel-module development.</td>
+</tr>
+<tr>
+<td><a href="qemu-build.html">qemu-build.md</a></td>
+<td>SOP to build a QEMU (pinned to the guest's version) with the VN1000 device, boot the guest under it, and set up the host tap / NAT.</td>
+</tr>
+<tr>
+<td><a href="qemu-device-model.html">qemu-device-model.md</a></td>
+<td>Level 2 background - how QEMU emulates the PCIe device (QOM / MMIO / DMA / MSI callbacks) and how the guest driver maps onto it.</td>
+</tr>
+<tr>
+<td><a href="debug-kernel.html">debug-kernel.md</a></td>
+<td>SOP to run the test suite under KASAN / lockdep / kmemleak (the acceptance gate).</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="3-reference-assets">3. Reference &amp; assets</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="diagrams/">diagrams/</a></td>
+<td>The figures (SVG): <code>tx-path</code> / <code>rx-path</code> (driver datapath), <code>tcp-tx-encap</code> / <code>tcp-rx-decap</code> (TCP/IP encapsulation), <code>host-address-space</code> (CPU / RAM / MMIO / DMA). Single-sourced - embedded by the docs and the slides.</td>
+</tr>
+<tr>
+<td><a href="teaching-plan.html">teaching-plan.md</a></td>
+<td><strong>Weekly teaching plan</strong> - a 13-week summer schedule (Tue 08:00-09:00 UTC+8, full-time students) mapping the phases + slides onto one milestone per week: Level 1 by W4, Level 2 by W7, then the advanced backlog. Rendered (with a clickable week TOC): <a href="teaching-plan.html">slides/teaching-plan.html</a> (public: <a href="https://oopsdev.github.io/vn1000-slides/teaching-plan.html">https://oopsdev.github.io/vn1000-slides/teaching-plan.html</a>). The whole doc set is also rendered to HTML under <code>docs/slides/</code> and mirrored publicly by <code>scripts/gen-docs-site.py</code> - e.g. <a href="https://oopsdev.github.io/vn1000-slides/docs-index.html">https://oopsdev.github.io/vn1000-slides/docs-index.html</a>.</td>
+</tr>
+<tr>
+<td><a href="README.html">../README.md</a></td>
+<td>Project overview, layout, and how to build / run.</td>
+</tr>
+<tr>
+<td><a href="TODO.html">../TODO.md</a></td>
+<td>Phased plan + the top-of-file Status (what is done, what remains).</td>
+</tr>
+<tr>
+<td><a href="CHANGELOG.html">../CHANGELOG.md</a></td>
+<td>Version change log.</td>
+</tr>
+<tr>
+<td><a href="../tests/">../tests/</a></td>
+<td>The test suite (01-06 loopback + 07-tap).</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>Convention: <code>background-knowledge.md</code> topic numbers and <code>design-decisions.md</code> D-xx / <code>lessons-learned.md</code>
+L-xx are <strong>stable IDs</strong> cross-referenced across docs and code comments - new entries are appended,
+not renumbered.</p>
+</blockquote>
+<p class="footnote">Generated from <code>index.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>

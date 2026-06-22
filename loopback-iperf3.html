@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Level 1 internal-loopback iperf3 measurements</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Level 1 internal-loopback iperf3 measurements</h1>
+<div class="meta"><span>2026-06-10</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="level-1-loopback-iperf3-tcp">Level 1 loopback - iperf3 TCP</h1>
+<p>Throughput of the Level 1 internal loopback (the engine swaps src/dst IP+MAC and
+feeds each TX frame back into the RX ring). <strong>Both the iperf3 client and server
+run on the same guest</strong>, so the number reflects client + server + engine + NAPI
+poll all sharing the same CPU(s) over a software loopback - it is not a NIC
+line-rate figure. The interesting metric here is <strong>Retr</strong> (TCP retransmissions),
+which exposes in-driver packet drops.</p>
+<h2 id="environment">Environment</h2>
+<ul>
+<li>WSL2 + QEMU Ubuntu 24.04 guest (kernel 6.8), Level 1 driver <code>vnic-l1.ko</code></li>
+<li>single TX/RX queue, single NAPI, no GRO, no interrupt coalescing</li>
+<li>TX ring depth: 256</li>
+<li>accel (KVM/TCG), vCPUs, CPU model: <em>to fill (<code>lscpu</code>, <code>nproc</code>, check <code>/dev/kvm</code>)</em></li>
+</ul>
+<h2 id="method">Method</h2>
+<pre><code class="language-bash">sudo insmod vnic-l1.ko
+sudo bash scripts/setup-vnic.sh        # vnic0 = 192.168.10.1/24, peer B = .2
+iperf3 -s &amp;
+iperf3 -c 192.168.10.2 -t 5
+ip -s link show vnic0                  # RX/TX packets + dropped
+</code></pre>
+<h2 id="results">Results</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>RX ring</th>
+<th>RX-full policy</th>
+<th>Completion</th>
+<th>Throughput</th>
+<th>Retr</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>256</td>
+<td>drop</td>
+<td>engine <code>napi_schedule</code></td>
+<td>4.41 Gbit/s</td>
+<td>745</td>
+<td>overflow retransmits; cwnd capped by loss</td>
+</tr>
+<tr>
+<td>4096</td>
+<td>drop</td>
+<td>engine <code>napi_schedule</code></td>
+<td>3.62 Gbit/s</td>
+<td>0</td>
+<td>no drops; cache thrash (~6 MB working set)</td>
+</tr>
+<tr>
+<td>256</td>
+<td><strong>backpressure</strong></td>
+<td>engine <code>napi_schedule</code> (Phase 3)</td>
+<td>6.03 Gbit/s</td>
+<td>0</td>
+<td>no drops + cache-friendly (commit 49dcd48)</td>
+</tr>
+<tr>
+<td>256</td>
+<td><strong>backpressure</strong></td>
+<td><strong>tasklet MSI (Phase 4)</strong></td>
+<td><strong>6.33 Gbit/s</strong></td>
+<td><strong>0</strong></td>
+<td>full ICR/IMS protocol; no regression vs Phase 3 (commit 11544ed)</td>
+</tr>
+</tbody>
+</table></div>
+<p>For the Phase 4 backpressure run, <code>ip -s link show vnic0</code> confirmed the loopback is lossless:
+<strong>TX packets == RX packets (2,762,908 each), 0 dropped, 0 errors</strong> both directions - every
+transmitted frame looped back and nothing overflowed. (Per-cause counters like <code>STAT_RXDROP</code> are
+still worth exposing via <code>ethtool -S</code> / debugfs in Phase 6.)</p>
+<h2 id="raw-output">Raw output</h2>
+<h3 id="rx-ring-256-baseline">RX ring = 256 (baseline)</h3>
+<pre><code>$ iperf3 -c 192.168.10.2 -t 5
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec   622 MBytes  5.21 Gbits/sec  259    436 KBytes
+[  5]   1.00-2.00   sec   404 MBytes  3.39 Gbits/sec   76    471 KBytes
+[  5]   2.00-3.00   sec   422 MBytes  3.54 Gbits/sec   80    403 KBytes
+[  5]   3.00-4.00   sec   600 MBytes  5.04 Gbits/sec  205    382 KBytes
+[  5]   4.00-5.00   sec   582 MBytes  4.87 Gbits/sec  125    450 KBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   0.00-5.00   sec  2.57 GBytes  4.41 Gbits/sec  745             sender
+[  5]   0.00-5.00   sec  2.57 GBytes  4.41 Gbits/sec                  receiver
+</code></pre>
+<h3 id="rx-ring-4096">RX ring = 4096</h3>
+<pre><code>$ iperf3 -c 192.168.10.2 -t 5
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec   414 MBytes  3.47 Gbits/sec    0   3.82 MBytes
+[  5]   1.00-2.00   sec   432 MBytes  3.62 Gbits/sec    0   3.82 MBytes
+[  5]   2.00-3.00   sec   431 MBytes  3.63 Gbits/sec    0   4.01 MBytes
+[  5]   3.00-4.00   sec   493 MBytes  4.13 Gbits/sec    0   4.01 MBytes
+[  5]   4.00-5.01   sec   390 MBytes  3.25 Gbits/sec    0   4.01 MBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   0.00-5.01   sec  2.11 GBytes  3.62 Gbits/sec    0             sender
+[  5]   0.00-5.01   sec  2.11 GBytes  3.62 Gbits/sec                  receiver
+</code></pre>
+<h3 id="rx-ring-256-engine-backpressure-no-drop">RX ring = 256, engine backpressure (no drop)</h3>
+<pre><code>$ iperf3 -c 192.168.10.2 -t 5
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec   839 MBytes  7.03 Gbits/sec    0   4.12 MBytes
+[  5]   1.00-2.00   sec   658 MBytes  5.51 Gbits/sec    0   4.12 MBytes
+[  5]   2.00-3.00   sec   711 MBytes  5.98 Gbits/sec    0   4.12 MBytes
+[  5]   3.00-4.00   sec   697 MBytes  5.84 Gbits/sec    0   4.12 MBytes
+[  5]   4.00-5.00   sec   689 MBytes  5.77 Gbits/sec    0   4.12 MBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   0.00-5.00   sec  3.51 GBytes  6.03 Gbits/sec    0             sender
+[  5]   0.00-5.01   sec  3.51 GBytes  6.03 Gbits/sec                  receiver
+</code></pre>
+<h3 id="rx-ring-256-backpressure-tasklet-msi-phase-4">RX ring = 256, backpressure, tasklet MSI (Phase 4)</h3>
+<pre><code>$ iperf3 -c 192.168.10.2 -t 5
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec   876 MBytes  7.33 Gbits/sec    0   4.17 MBytes
+[  5]   1.00-2.00   sec   799 MBytes  6.71 Gbits/sec    0   4.17 MBytes
+[  5]   2.00-3.00   sec   620 MBytes  5.21 Gbits/sec    0   4.17 MBytes
+[  5]   3.00-4.00   sec   703 MBytes  5.90 Gbits/sec    0   4.17 MBytes
+[  5]   4.00-5.00   sec   776 MBytes  6.49 Gbits/sec    0   4.17 MBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   0.00-5.00   sec  3.69 GBytes  6.33 Gbits/sec    0             sender
+[  5]   0.00-5.01   sec  3.69 GBytes  6.32 Gbits/sec                  receiver
+
+$ ip -s link show vnic0   # after the run
+    RX:  bytes packets errors dropped  missed   mcast
+    4141178719 2762908      0       0       0       0
+    TX:  bytes packets errors dropped carrier collsns
+    4141178719 2762908      0       0       0       0
+</code></pre>
+<h2 id="analysis">Analysis</h2>
+<ul>
+<li><strong>745 retransmissions over a software loopback with no real wire</strong> meant the
+  driver dropped frames. Order is preserved (the engine produces RX in TX order
+  and the poll consumes in order), so the cause was loss, not reordering.</li>
+<li><strong>Confirmed</strong>: deepening the RX ring 256 -&gt; 4096 took Retr from 745 to <strong>0</strong>.
+  The retransmits were RX-ring overflow: the loopback engine (producer) outran
+  the single NAPI <code>vnic_poll</code> (consumer), the 256-entry ring filled and further
+  loopback frames were dropped (<code>STAT_RXDROP</code>); TCP recovered by retransmitting.
+  With losses gone, cwnd grew from ~0.47 MB (capped by loss) to ~4 MB.</li>
+<li><strong>But goodput genuinely dropped (receiver 2.57 -&gt; 2.11 GB; 4.41 -&gt; 3.62
+  Gbit/s)</strong> - this is real, not just variance (the 4096 run was steady at
+  3.25-4.13). Leading hypothesis: <strong>cache footprint / buffer reuse frequency</strong>.
+  The loopback is CPU-bound (iperf client + server + engine <code>memcpy</code> + NAPI poll
+  on the same vCPUs); with a 256-deep ring each RX buffer is reused every 256
+  packets and stays hot in cache (~0.4 MB working set), whereas a 4096-deep ring
+  spreads ~6 MB of buffers that are reused only every 4096 packets, so the
+  engine's <code>memcpy</code> and the poll's header reads miss cache far more often.</li>
+<li><strong>Backpressure wins both axes</strong> (RX 256, stall instead of drop): 6.03 Gbit/s,
+  0 retransmits - faster than <em>both</em> drop-based runs. It removes drops (so cwnd
+  grows to ~4 MB, no retransmit overhead) <em>and</em> keeps the small cache-friendly
+  ring (~0.4 MB working set, unlike the 4096 ring's ~6 MB thrash). So the answer
+  was not "size the ring bigger" but "do not drop": convert overflow into flow
+  control (<code>netif_stop_queue</code>) and keep the ring small. Adopted as the default
+  (design-decision D-19).</li>
+<li><strong>Takeaway - ring depth is a trade-off, not "bigger is better"</strong>: too small +
+  drop -&gt; overflow retransmits; too large -&gt; cache thrash. Backpressure sidesteps
+  the trade-off by never dropping, letting us keep the small (fast) ring. A real
+  driver also leans on interrupt coalescing, GRO, and multiple queues.</li>
+</ul>
+<blockquote>
+<p>This is informal data toward Phase 7 (stress + profiling). It is not a real
+NIC benchmark - both endpoints and the "wire" are the same kernel.</p>
+</blockquote>
+<p class="footnote">Generated from <code>loopback-iperf3.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
+</div>
+</body>
+</html>
