@@ -113,6 +113,21 @@ EOF
 # 1.4 Pack into a cloud-init seed disk
 cloud-localds seed.img user-data meta-data
 </code></pre>
+<blockquote>
+<p><strong>How the cloud image recognises <code>seed.img</code> (the NoCloud "signature").</strong> There is no magic byte in
+the file - cloud-init's <strong>NoCloud</strong> datasource looks for a filesystem whose <strong>volume label is
+<code>cidata</code></strong> (case-insensitive) with <strong><code>meta-data</code></strong> (and <code>user-data</code>) at its root; the presence of
+<code>meta-data</code> on a <code>cidata</code>-labelled disk is what marks it as a valid seed. <code>cloud-localds</code> builds
+exactly that: an <strong>ISO9660</strong> image (default; <code>--vfat</code> for FAT) <strong>labelled <code>cidata</code></strong> containing the
+two files. (cloud-init can also be pointed explicitly via the kernel cmdline <code>ds=nocloud</code>, but here
+the labelled disk is auto-detected.) Verify on the host:
+<code>bash
+blkid seed.img          # -&gt; LABEL="cidata" TYPE="iso9660"
+mkdir -p /tmp/sm &amp;&amp; sudo mount -o loop,ro seed.img /tmp/sm &amp;&amp; ls /tmp/sm   # meta-data  user-data
+sudo umount /tmp/sm</code>
+Whether it then <em>re-provisions</em> depends on <code>meta-data</code>'s <strong><code>instance-id</code></strong> (pinned to <code>vnic-guest</code>),
+not on the label - see the <code>instance-id</code> note in <strong>§3. First boot + login</strong> below.</p>
+</blockquote>
 <hr>
 <h2 id="2-boot-script">2. Boot script</h2>
 <p>The boot script is the repo's <a href="../scripts/run-qemu.sh"><code>scripts/run-qemu.sh</code></a> - <strong>use it as-is; do
