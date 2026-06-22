@@ -453,6 +453,7 @@
   <!-- 12 DMA -->
   <section class="slide">
     <h2>3.6 &middot; Driver DMA</h2>
+    <p class="sub" style="margin:.1em 0 .55em"><b>Why map at all?</b> The device DMAs to <b>bus addresses</b>, not kernel pointers - an <b>IOMMU</b> (if present) translates them, and on non-cache-coherent CPUs the caches and the device's view can diverge. The <code>dma_*</code> API returns a <code>dma_addr_t</code>, installs any IOMMU entry, and handles cache coherency / bounce buffers - so the same driver stays <b>portable</b>.</p>
     <div class="two">
       <div>
         <h3>Two kinds of mapping</h3>
@@ -468,6 +469,16 @@
           <li>Bus-master must be enabled; an IOMMU (if present) translates these.</li>
           <li>Always check <code>dma_mapping_error()</code>; keep the original <code>skb</code> separately to free it (the token is opaque).</li>
         </ul>
+      </div>
+    </div>
+    <div class="two" style="margin-top:.55em">
+      <div class="node lvl1">
+        <b>Bounce buffer (SWIOTLB)</b>
+        <div class="t">When the device <i>cannot reach</i> a buffer (a narrow <code>dma_mask</code>, no IOMMU to remap, or a confidential VM), the kernel hands it a <b>copy</b> from a small low, device-addressable pool. <code>DMA_TO_DEVICE</code> copies in <b>at map</b>; <code>DMA_FROM_DEVICE</code> copies back <b>at unmap</b>. Transparent to the driver - a fallback, not the norm (the cost is that copy).</div>
+      </div>
+      <div class="node lvl2">
+        <b>Why unmap before reading an RX buffer</b>
+        <div class="t">Between map and unmap the buffer is the <b>device's</b> - the CPU must not touch it. The copy-back (and cache sync) happens <b>at unmap</b>, so the driver must <code>dma_unmap</code> an RX buffer <b>before</b> it reads the frame - otherwise it sees a stale cache line or the un-copied original, not the bounce copy. VN1000's RX clean unmaps the old buffer <b>before</b> delivering it.</div>
       </div>
     </div>
   </section>
