@@ -306,6 +306,7 @@
           <div class="node"><b>BAR0 = MMIO registers (CSR)</b><div class="t">the control surface: identity, control/status, ring base/head/tail, interrupt cause/mask</div></div>
           <div class="node"><b>Descriptor rings (in host RAM)</b><div class="t">TX + RX arrays of {addr,len,flags,status}; the device DMA-reads/writes them</div></div>
           <div class="node"><b>DMA engine</b><div class="t">reads descriptors + packet buffers, writes RX data + completion status, by bus address</div></div>
+          <div class="node"><b>MAC + PHY (transceiver)</b><div class="t">the wire side: the MAC does L2 framing/FCS, the PHY (PCS/PMA/SerDes) drives copper/fiber - see 1.5</div></div>
           <div class="node"><b>MSI / MSI-X</b><div class="t">completion interrupt = a memory write to the CPU's APIC</div></div>
         </div>
       </div>
