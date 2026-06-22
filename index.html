@@ -49,6 +49,12 @@
   .card.shrink h3{font-size:clamp(16px,1.65vw,21px); margin:.3em 0 .3em}
   .card.shrink p,.card.shrink li{font-size:clamp(13px,1.32vw,17px); line-height:1.45}
   .card.shrink ul{margin:.25em 0 .35em 1.1em} .card.shrink li{margin:.16em 0}
+  /* compact: shrink a dense slide's body text so it clears the nav buttons (e.g. 3.6) */
+  .slide.compact .sub{font-size:clamp(12.5px,1.28vw,16px); margin:.1em 0 .45em; line-height:1.4}
+  .slide.compact h3{font-size:clamp(15px,1.5vw,18.5px); margin:.4em 0 .2em}
+  .slide.compact p,.slide.compact li{font-size:clamp(12px,1.25vw,15.5px); line-height:1.4}
+  .slide.compact li{margin:.12em 0}
+  .slide.compact .node{padding:.4em .7em} .slide.compact .node .t{font-size:.8em; line-height:1.36}
   .center{align-items:center; text-align:center; justify-content:center}
   .imgwrap{display:flex; justify-content:center; align-items:center; flex:1; min-height:0}
   .imgwrap img{max-width:100%; max-height:72vh; border-radius:10px; background:#fff;
@@ -451,7 +457,7 @@
   </section>
 
   <!-- 12 DMA -->
-  <section class="slide">
+  <section class="slide compact">
     <h2>3.6 &middot; Driver DMA</h2>
     <p class="sub" style="margin:.1em 0 .55em"><b>Why map at all?</b> The device DMAs to <b>bus addresses</b>, not kernel pointers - an <b>IOMMU</b> (if present) translates them, and on non-cache-coherent CPUs the caches and the device's view can diverge. The <code>dma_*</code> API returns a <code>dma_addr_t</code>, installs any IOMMU entry, and handles cache coherency / bounce buffers - so the same driver stays <b>portable</b>.</p>
     <div class="two">
