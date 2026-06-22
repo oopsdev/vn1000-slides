@@ -206,6 +206,7 @@
           <li><b>IP addresses stay the same</b> end to end.</li>
           <li><b>TTL is decremented</b> (and the IP checksum updated).</li>
           <li>The <b>L2 header is rewritten</b>: new src MAC = this router's egress MAC, <b class="kg">new dst MAC = the next hop's MAC</b> (resolved by ARP).</li>
+          <li>If the <b>next link's MTU is smaller</b> than the packet, the hop must <b>fragment</b> it (or drop + signal) <span class="t">- see below</span>.</li>
         </ul>
         <div class="card"><span class="t">So: one IP journey, many Ethernet frames - the dst MAC is rewritten at every hop, the IP is not.</span></div>
       </div>
