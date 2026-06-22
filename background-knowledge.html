@@ -1768,6 +1768,7 @@ spurious late tail, not loss.</p>
 (topic 1) passes around <strong>by pointer</strong>. On TX the stack builds it and hands it to the driver's
 <code>ndo_start_xmit</code>; on RX the driver builds it and hands it up with <code>napi_gro_receive</code>. One skb is one
 packet (a GSO super-skb stands in for many - topic 7.8).</p>
+<p><img alt="sk_buff layout: the head/data/tail/end pointers frame a single linear data buffer (headroom, the Eth/IP/TCP headers, the linear payload, tailroom); the mac/network/transport_header offsets point at each header; and skb_shinfo frags point at payload pages, which are the data_len." src="diagrams/skb-layout.svg"></p>
 <h3 id="141-two-parts-metadata--data">14.1 Two parts: metadata + data</h3>
 <p>An skb is a <strong>control struct</strong> (<code>struct sk_buff</code>: total length, the layer-header offsets, the owning
 socket, checksum/offload flags, the routing <code>dst</code>, ...) <strong>plus</strong> the packet bytes. The bytes are not

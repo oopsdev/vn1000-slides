@@ -425,27 +425,10 @@
   </section>
 
   <!-- 7b the sk_buff primer -->
-  <section class="slide cozy">
+  <section class="slide">
     <h2>3.1.1 &middot; The <code>sk_buff</code> (skb) - the kernel's packet buffer</h2>
-    <div class="two">
-      <div>
-        <h3>What an skb is</h3>
-        <ul>
-          <li>The kernel's representation of <b>one packet</b> - a metadata struct + the packet bytes - passed <b>by pointer</b> between the stack, the driver, and the device path (one skb per packet; a GSO super-skb carries many).</li>
-          <li><b>Headers by pointer, not copy</b>: a data area with <code>head/data/tail/end</code>; <code>skb_reserve</code> / <code>skb_push</code> / <code>skb_pull</code> / <code>skb_put</code> grow or shrink it as each layer <b>adds</b> (TX) or <b>strips</b> (RX) its header.</li>
-          <li><b>Layer offsets</b>: <code>skb-&gt;{mac,network,transport}_header</code> mark L2/L3/L4 once parsed; <code>eth_type_trans</code> pulls the Ethernet header and sets <code>skb-&gt;protocol</code>.</li>
-        </ul>
-      </div>
-      <div>
-        <h3>Fragments &amp; how this driver uses it</h3>
-        <ul>
-          <li><b>Non-linear (SG)</b>: a large skb = a linear head + page <b>fragments</b> (<code>skb_shinfo()-&gt;frags</code>) - how SG / TSO / GRO avoid one huge contiguous copy.</li>
-          <li><b>TX</b>: <code>ndo_start_xmit</code> gets the skb, <code>dma_map</code>s <code>skb-&gt;data</code>, fills a descriptor; freed on completion with <code>napi_consume_skb</code>.</li>
-          <li><b>RX</b>: the driver allocates an skb, <code>skb_put(len)</code> + <code>eth_type_trans</code>, then <code>napi_gro_receive</code> hands it up the stack.</li>
-          <li><span class="t">VN1000 L1 <code>skb_linearize</code>s for the engine's linear copy; the real skb lives in <code>ring-&gt;bufs[]</code> (the descriptor token is opaque).</span></li>
-        </ul>
-      </div>
-    </div>
+    <div class="svgwrap"><img class="diagram" style="max-height:58vh" src="diagrams/skb-layout.svg" alt="sk_buff layout: the struct's head/data/tail/end pointers frame a single linear data buffer holding headroom, the Eth/IP/TCP headers, the linear payload and tailroom; the mac/network/transport_header offsets point at each header; skb_shinfo frags point at payload pages, which are the data_len"></div>
+    <p class="cap">One packet, passed <b>by pointer</b>: <code>head/data/tail/end</code> frame a single linear buffer; layers add/strip headers by moving <code>data</code> (<code>skb_push/pull/put</code>), not by copying. Extra payload sits in <b>page frags</b> (<code>skb_shinfo-&gt;frags</code> = <code>data_len</code>); <code>skb_linearize</code> copies those into the linear area - the copy <b>SG/TSO</b> avoid. Details: background-knowledge topic 14.</p>
   </section>
 
   <!-- 8 TX flow diagram -->
@@ -591,7 +574,7 @@
   </section>
 
   <!-- 13 ISR + NAPI -->
-  <section class="slide">
+  <section class="slide cozy">
     <h2>3.7 &middot; Driver ISR &amp; NAPI</h2>
     <div class="two">
       <div>

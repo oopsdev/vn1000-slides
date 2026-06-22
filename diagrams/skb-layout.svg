@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- sk_buff memory layout: the control struct's head/data/tail/end pointers into the linear data
+     buffer (headroom | Eth/IP/TCP headers | linear payload | tailroom), the layer-header offsets,
+     and the non-linear page fragments (skb_shinfo->frags = data_len). Standalone; dark bg baked in. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 590" width="1180" height="590"
+     font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img"
+     aria-label="sk_buff layout: the struct's head/data/tail/end pointers frame the single linear data buffer holding headroom, the Eth/IP/TCP headers, the linear payload, and tailroom; the mac/network/transport_header offsets point at each header; skb_shinfo frags point at payload pages, which are the data_len; skb->len equals the linear part plus data_len">
+  <defs>
+    <marker id="sc" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#7dd3fc"/></marker>
+    <marker id="se" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#34d399"/></marker>
+    <marker id="sa" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#fbbf24"/></marker>
+  </defs>
+  <rect x="0" y="0" width="1180" height="590" fill="#0f172a"/>
+
+  <!-- ===== the control struct ===== -->
+  <rect x="30" y="150" width="190" height="240" rx="8" fill="#243449" stroke="#475569"/>
+  <text x="125" y="175" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">struct sk_buff</text>
+  <text x="44" y="194" fill="#9ca3af" font-size="10.5">the control struct (metadata)</text>
+  <g font-family="monospace" font-size="12.5">
+    <text x="44" y="222" fill="#e2e8f0">len</text><text x="206" y="222" text-anchor="end" fill="#9ca3af" font-size="11">total bytes</text>
+    <text x="44" y="246" fill="#e2e8f0">data_len</text><text x="206" y="246" text-anchor="end" fill="#9ca3af" font-size="11">paged bytes</text>
+    <line x1="44" y1="258" x2="206" y2="258" stroke="#334155"/>
+    <text x="44" y="280" fill="#7dd3fc">head</text><text x="44" y="302" fill="#7dd3fc">data</text>
+    <text x="44" y="324" fill="#7dd3fc">tail</text><text x="44" y="346" fill="#7dd3fc">end</text>
+    <text x="120" y="313" fill="#9ca3af" font-size="10.5" text-anchor="middle">4 pointers</text>
+    <text x="44" y="374" fill="#34d399" font-size="11">{mac,network,transport}_header</text>
+  </g>
+  <text x="245" y="120" fill="#94a3b8" font-size="11">point into &#8595;</text>
+
+  <!-- ===== the single linear data buffer (head .. end) ===== -->
+  <text x="710" y="64" text-anchor="middle" fill="#cbd5e1" font-size="13" font-weight="700">Linear data buffer - one allocation (head .. end)</text>
+  <g text-anchor="middle" font-weight="700" font-size="12">
+    <rect x="300" y="100" width="90"  height="62" rx="3" fill="#334155"/><text x="345" y="137" fill="#9fb3c8" font-weight="400" font-size="11">headroom</text>
+    <rect x="390" y="100" width="82"  height="62" rx="3" fill="#9c7a57"/><text x="431" y="137" fill="#fff">Eth</text>
+    <rect x="472" y="100" width="76"  height="62" rx="3" fill="#c0504d"/><text x="510" y="137" fill="#fff">IP</text>
+    <rect x="548" y="100" width="92"  height="62" rx="3" fill="#7c6aad"/><text x="594" y="137" fill="#fff">TCP</text>
+    <rect x="640" y="100" width="312" height="62" rx="3" fill="#e0a55e"/><text x="796" y="137" fill="#3a2a12">payload (linear)</text>
+    <rect x="952" y="100" width="168" height="62" rx="3" fill="#334155"/><text x="1036" y="137" fill="#9fb3c8" font-weight="400" font-size="11">tailroom</text>
+  </g>
+
+  <!-- head / data / tail / end ticks above the bar (same cyan as the struct fields) -->
+  <g fill="#7dd3fc" font-size="12" font-weight="700" font-family="monospace" text-anchor="middle">
+    <line x1="300" y1="100" x2="300" y2="84" stroke="#7dd3fc" stroke-width="2"/><text x="300" y="78">head</text>
+    <line x1="390" y1="100" x2="390" y2="84" stroke="#7dd3fc" stroke-width="2"/><text x="390" y="78">data</text>
+    <line x1="952" y1="100" x2="952" y2="84" stroke="#7dd3fc" stroke-width="2"/><text x="952" y="78">tail</text>
+    <line x1="1120" y1="100" x2="1120" y2="84" stroke="#7dd3fc" stroke-width="2"/><text x="1120" y="78">end</text>
+  </g>
+
+  <!-- layer-header offsets: green ticks up into each header + one label -->
+  <g stroke="#34d399" stroke-width="2">
+    <line x1="431" y1="178" x2="431" y2="164" marker-end="url(#se)"/>
+    <line x1="510" y1="178" x2="510" y2="164" marker-end="url(#se)"/>
+    <line x1="594" y1="178" x2="594" y2="164" marker-end="url(#se)"/>
+  </g>
+  <text x="512" y="196" text-anchor="middle" fill="#34d399" font-size="11" font-family="monospace">skb-&gt;{mac,network,transport}_header  =  offset to each header</text>
+
+  <!-- headroom / linear-data spans (annotations under the bar) -->
+  <g fill="#94a3b8" font-size="10.5" text-anchor="middle">
+    <text x="345" y="228">skb_reserve()</text>
+    <text x="796" y="228">grows with skb_put() (RX) ; headers via skb_push/pull (TX/RX)</text>
+  </g>
+
+  <!-- ===== non-linear: page fragments (data_len) ===== -->
+  <text x="60" y="448" fill="#cbd5e1" font-size="13" font-weight="700">Non-linear: the rest of the payload lives in pages</text>
+  <rect x="300" y="430" width="230" height="120" rx="8" fill="#243449" stroke="#fbbf24" stroke-dasharray="6 4"/>
+  <text x="415" y="453" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="700">skb_shinfo(skb)</text>
+  <text x="415" y="470" text-anchor="middle" fill="#9ca3af" font-size="10">(stored at skb-&gt;end)</text>
+  <g font-family="monospace" font-size="11.5">
+    <rect x="316" y="482" width="198" height="26" rx="4" fill="#2b3b52" stroke="#475569"/><text x="324" y="499" fill="#e2e8f0">frags[0] {page, off, len}</text>
+    <rect x="316" y="514" width="198" height="26" rx="4" fill="#2b3b52" stroke="#475569"/><text x="324" y="531" fill="#e2e8f0">frags[1] {page, off, len}</text>
+  </g>
+  <!-- frags -> pages -->
+  <g>
+    <rect x="650" y="478" width="220" height="34" rx="5" fill="#3a2a12" stroke="#e0a55e"/><text x="760" y="500" text-anchor="middle" fill="#e0a55e" font-size="12" font-weight="700">page - payload bytes</text>
+    <rect x="650" y="520" width="220" height="34" rx="5" fill="#3a2a12" stroke="#e0a55e"/><text x="760" y="542" text-anchor="middle" fill="#e0a55e" font-size="12" font-weight="700">page - payload bytes</text>
+    <line x1="514" y1="495" x2="650" y2="495" stroke="#fbbf24" stroke-width="2" marker-end="url(#sa)"/>
+    <line x1="514" y1="527" x2="650" y2="537" stroke="#fbbf24" stroke-width="2" marker-end="url(#sa)"/>
+  </g>
+  <!-- the linear payload continues into the pages -->
+  <path d="M796,162 V200 H210 V470" fill="none" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="900" y="470" text-anchor="middle" fill="#94a3b8" font-size="11"><tspan fill="#fbbf24" font-weight="700">data_len</tspan> = &#931; frags  -  skb-&gt;len = linear (data..tail) + data_len</text>
+  <text x="900" y="520" text-anchor="middle" fill="#cbd5e1" font-size="11.5"><tspan font-weight="700">skb_linearize()</tspan> copies the frags into the linear area</text>
+  <text x="900" y="538" text-anchor="middle" fill="#94a3b8" font-size="11">(a memcpy; SG/TSO map frags as descriptors instead)</text>
+</svg>
