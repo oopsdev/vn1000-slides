@@ -244,10 +244,10 @@
       <div>
         <h3>What the NIC (hardware) does</h3>
         <ul>
-          <li>A PCIe device that moves <b>frames</b> between the wire and host memory.</li>
-          <li><b>TX</b>: serialise a buffer onto the link; <b>RX</b>: receive a frame off the link and <b>DMA</b> it into host RAM.</li>
-          <li>A bus-master <b>DMA engine</b> reads/writes the descriptor rings + packet buffers itself (by bus address); raises an <b>MSI</b> interrupt on completion.</li>
-          <li>Control surface = <b>BAR0/MMIO registers</b> + the rings; the <b>PHY/transceiver</b> drives the medium (plus MAC filtering and, on real NICs, checksum/offloads).</li>
+          <li>A PCIe device that moves <b>frames</b> between the wire and host memory; its control surface is <b>BAR0/MMIO registers</b> + the descriptor rings.</li>
+          <li><b>TX</b>: send a buffer onto the link; <b>RX</b>: receive a frame off the link and <b>DMA</b> it into host RAM (MAC filtering; real NICs add checksum/offloads).</li>
+          <li>A bus-master <b>DMA engine</b> reads/writes the rings + packet buffers itself (by bus address) and raises an <b>MSI</b> interrupt on completion.</li>
+          <li><b>PHY + SerDes</b> (L1, the wire): the <b>SerDes</b> <i>serialises</i> the MAC's parallel data into a high-speed <b>serial bitstream</b> on the medium - and <i>deserialises</i> it on RX; the <b>PHY</b> adds line coding, clock recovery, and link / auto-negotiation. The <b>MAC</b> (digital framing + addressing) sits just above it.</li>
         </ul>
       </div>
       <div>
