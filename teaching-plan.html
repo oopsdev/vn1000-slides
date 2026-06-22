@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teaching Plan - VN1000 / Linux NIC Simulation (weekly)</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--box:#243449;--ink:#e2e8f0;--muted:#94a3b8;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--line:#334155}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:clamp(14px,1.05vw,17px)}
+.wrap{max-width:980px;margin:0 auto;padding:2.4em 1.4em 5em}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:1em;margin-bottom:1.6em}
+header.doc h1{margin:.1em 0 .25em;color:#fff;font-size:clamp(24px,3.2vw,38px);line-height:1.15}
+header.doc .meta{color:var(--muted);font-size:.9em}
+header.doc .meta span{margin-right:1.2em}
+h1,h2,h3,h4{color:#fff;line-height:1.25}
+h2{color:var(--accent);font-size:clamp(20px,2.3vw,28px);margin:1.8em 0 .5em;
+  border-bottom:1px solid var(--line);padding-bottom:.25em}
+h3{color:var(--accent2);font-size:clamp(16px,1.7vw,21px);margin:1.4em 0 .35em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+p,li{font-size:1em}
+ul,ol{margin:.4em 0 .8em 1.3em}
+li{margin:.25em 0}
+strong,b{color:#fff}
+code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.06em .35em;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.9em;color:#cbd5e1}
+pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
+pre code{border:0;padding:0;background:none}
+blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
+  background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
+blockquote code{font-size:.86em}
+.tablewrap{overflow-x:auto;margin:.9em 0}
+table{border-collapse:collapse;width:100%;font-size:clamp(12.5px,1.18vw,15px)}
+th,td{border:1px solid var(--line);padding:.45em .65em;text-align:left;vertical-align:top}
+th{background:#0b1220;color:var(--accent);white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.footnote{color:var(--muted);font-size:.82em;margin-top:3em;border-top:1px solid var(--line);
+  padding-top:1em}
+@media print{body{background:#fff;color:#111}.wrap{max-width:none}
+  a{color:#06c}h2{color:#06c}h3{color:#080}th{background:#eee;color:#06c}
+  code,pre,blockquote{background:#f4f4f4}tr:nth-child(even) td{background:#fafafa}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+<h1>Teaching Plan - VN1000 / Linux NIC Simulation (weekly)</h1>
+<div class="meta"><span>2026-06-22</span><span>v0.1.0</span><span>NikeChen</span></div>
+</header>
+<h1 id="weekly-teaching-plan">Weekly teaching plan</h1>
+<p>A 13-week, milestone-per-week schedule for teaching this project to students over the <strong>summer</strong>, from
+<strong>2026-06-23</strong> to <strong>2026-09-15</strong> (mid-September). Students are on <strong>summer vacation and work on the
+project full-time</strong>, so each weekly milestone is sized to <strong>one full-time week</strong> of effort, and the
+schedule is deliberately tight.</p>
+<ul>
+<li><strong>Weekly meeting:</strong> every <strong>Tuesday 08:00-09:00 (Taiwan time, UTC+8)</strong> - 1 hour, synchronous.</li>
+<li><strong>Cadence:</strong> the meeting is a <strong>checkpoint + lecture + goal-set</strong>, not the lab itself. Students build
+  full-time <strong>between</strong> meetings; each meeting (1) reviews last week's deliverable, (2) teaches the
+  week's concept from the slides, (3) hands out the next lab.</li>
+<li><strong>Shape:</strong> the <strong>core driver is finished by W8</strong> - Level 1 by <strong>W4</strong>, Level 2 (real tap NIC) by
+  <strong>W7</strong>, performance + demo by <strong>W8</strong>. The summer's remaining time (<strong>W9-W13</strong>) is spent on the
+  <strong>advanced backlog (A1-A6)</strong> as real curriculum, finishing with an integration + report week.</li>
+<li>Finishing a milestone early just means starting the next one early - the plan is front-to-back work,
+  not a fixed weekly drip.</li>
+</ul>
+<blockquote>
+<p>Section numbers are slides in <a href="index.html">slides/vnic-slides.html</a>
+(rendered: <a href="https://oopsdev.github.io/vn1000-slides/">https://oopsdev.github.io/vn1000-slides/</a>); "bg N" = a topic in
+<a href="../background-knowledge.md">background-knowledge.md</a>; "D-xx" / "L-xx" = entries in
+<a href="../design-decisions.md">design-decisions.md</a> / <a href="../lessons-learned.md">lessons-learned.md</a>; "Phase N" /
+"A-N" = <a href="../../TODO.md">../TODO.md</a>.</p>
+</blockquote>
+<h2 id="schedule-at-a-glance">Schedule at a glance</h2>
+<p>This table is the <strong>table of contents</strong> - click a week to jump to its detail below.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Wk</th>
+<th>Tue (UTC+8)</th>
+<th>Milestone</th>
+<th>Lecture (slides)</th>
+<th>Lab between meetings</th>
+<th>Checkpoint / deliverable</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#w1">W1</a></td>
+<td>06-23</td>
+<td>Recap + anatomy + <strong>env + skeleton</strong></td>
+<td>1.1-1.4, 2.1-2.4, 5.1</td>
+<td>Phase 0 + Phase 1</td>
+<td><code>vnic0</code> in <code>ip link</code>; hello module + guest ready</td>
+</tr>
+<tr>
+<td><a href="#w2">W2</a></td>
+<td>06-30</td>
+<td><strong>TX + RX datapath</strong></td>
+<td>3.1, 3.2.x, 3.3.x, 5.2</td>
+<td>Phase 2 + Phase 3</td>
+<td><code>ping</code> works via internal loopback</td>
+</tr>
+<tr>
+<td><a href="#w3">W3</a></td>
+<td>07-07</td>
+<td><strong>Interrupts + hardening</strong></td>
+<td>3.5, 3.7 (bg 2,4,10)</td>
+<td>Phase 4 + Phase 5.1/5.2</td>
+<td>iperf lossless; lock/lifecycle audit</td>
+</tr>
+<tr>
+<td><a href="#w4">W4</a></td>
+<td>07-14</td>
+<td><strong>Level 1 complete</strong> - MTU, tests, gate</td>
+<td>3.6, 3.8 (bg 11,12)</td>
+<td>Phase 5.3 + <code>tests/</code> + KASAN gate</td>
+<td>suite 01-06 green under KASAN; <strong>L1 done</strong></td>
+</tr>
+<tr>
+<td><a href="#w5">W5</a></td>
+<td>07-21</td>
+<td>L2 device model + MMIO + MSI</td>
+<td>4, 5.3, 5.4</td>
+<td>Phase 8 (device + L2 probe)</td>
+<td><code>lspci</code> shows it; MSI self-test passes</td>
+</tr>
+<tr>
+<td><a href="#w6">W6</a></td>
+<td>07-28</td>
+<td>L2 DMA datapath</td>
+<td>5.4 (bg 5,10,11)</td>
+<td>Phase 9 (DMA loopback)</td>
+<td><code>tests/</code> suite passes <strong>on L2</strong></td>
+</tr>
+<tr>
+<td><a href="#w7">W7</a></td>
+<td>08-04</td>
+<td><strong>Level 2 complete</strong> - real tap NIC</td>
+<td>5.5 (bg 6)</td>
+<td>Phase 10/11 (tap backend)</td>
+<td>ping host&lt;-&gt;guest + tcpdump; <strong>L2 done</strong></td>
+</tr>
+<tr>
+<td><a href="#w8">W8</a></td>
+<td>08-11</td>
+<td>Performance + demo</td>
+<td>7, 8 (L-10/11/12, D-32/33)</td>
+<td>Phase 12 (sweeps + demo)</td>
+<td>benchmark table; demo recorded</td>
+</tr>
+<tr>
+<td><a href="#w9">W9</a></td>
+<td>08-18</td>
+<td><strong>A6</strong> - stateless offloads</td>
+<td>3.9 (bg 7.7-7.9)</td>
+<td>checksum + TSO/GSO; LRO/GRO</td>
+<td><code>ethtool -k</code> offloads; TSO path works</td>
+</tr>
+<tr>
+<td><a href="#w10">W10</a></td>
+<td>08-25</td>
+<td><strong>A3</strong> - MSI-X / multi-queue / RSS</td>
+<td>(bg 2,10)</td>
+<td>MSI-X vectors + N TX/RX queues + RSS</td>
+<td>multi-queue traffic spread across CPUs</td>
+</tr>
+<tr>
+<td><a href="#w11">W11</a></td>
+<td>09-01</td>
+<td><strong>A2 + A1</strong> - INT/POLL/ADAPTIVE + IAM</td>
+<td>(bg 2,3,10)</td>
+<td>MODE register + IAM register</td>
+<td>three-mode benchmark; atomic ack+mask</td>
+</tr>
+<tr>
+<td><a href="#w12">W12</a></td>
+<td>09-08</td>
+<td><strong>A4 + A5</strong> - jumbo multi-desc + page_pool</td>
+<td>(bg 1,8)</td>
+<td>multi-descriptor RX + build_skb/page_pool</td>
+<td>scatter RX; batched refill; copy-break</td>
+</tr>
+<tr>
+<td><a href="#w13">W13</a></td>
+<td>09-15</td>
+<td>Integration + retrospective + report</td>
+<td>(whole deck)</td>
+<td>harden, document, write-up</td>
+<td>final demo + written report; <strong>buffer</strong></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="week-by-week-detail">Week-by-week detail</h2>
+<h3 id="w1">W1 - 06-23 - Recap, anatomy, environment, and the skeleton</h3>
+<ul>
+<li><strong>Meeting:</strong> course intro; the TCP/IP packet journey + the driver's stack&lt;-&gt;hardware role (1.1-1.4);
+  PCIe NIC anatomy + the VN1000 datasheet (2.1-2.4); the project goal (5.1).</li>
+<li><strong>Concepts:</strong> slides 1.1-1.4, 2.1-2.4, 5.1; <a href="../vn1000-datasheet.md">vn1000-datasheet.md</a>; bg 8.</li>
+<li><strong>Lab (-&gt; W2):</strong> Phase 0 (WSL2 + QEMU guest, hello module - <a href="../dev-setup.md">dev-setup.md</a>) <strong>and</strong>
+  Phase 1 (repo layout, <code>vnic_regs.h</code>, fake registers, <code>alloc_etherdev</code> + <code>register_netdev</code>,
+  <code>net_device_ops</code>).</li>
+<li><strong>Checkpoint:</strong> guest boots over SSH; hello module loads; <code>vnic0</code> appears in <code>ip link</code>.</li>
+</ul>
+<h3 id="w2">W2 - 06-30 - The TX and RX datapath</h3>
+<ul>
+<li><strong>Meeting:</strong> the driver framework + HAL seam (D-12); TX end to end (skb -&gt; descriptor -&gt; <code>TDT</code>
+  doorbell -&gt; completion; DD ownership + NTU/NTC); RX with pre-posted skbs (Model A, D-18), the
+  internal IP-swap loopback, <code>napi_gro_receive</code>, refill.</li>
+<li><strong>Concepts:</strong> slides 3.1, 3.2.1/3.2.2, 3.3.1/3.3.2, 5.2; bg 1.</li>
+<li><strong>Lab (-&gt; W3):</strong> Phase 2 (TX path) + Phase 3 (RX path + NAPI + loopback).</li>
+<li><strong>Checkpoint:</strong> <code>ping &lt;peer&gt;</code> works through the loopback; TX/RX stats rise.</li>
+</ul>
+<h3 id="w3">W3 - 07-07 - Interrupts, NAPI completion, and hardening</h3>
+<ul>
+<li><strong>Meeting:</strong> the interrupt registers + top/bottom-half split; <strong>NAPI</strong> schedule/complete/re-arm;
+  <strong>memory barriers</strong> + the DD handshake; ring concurrency (<code>spin_lock_bh</code>, the stop/wake invariant).</li>
+<li><strong>Concepts:</strong> slides 3.5, 3.7; bg 2 (NAPI), bg 4 (barriers), bg 10 (interrupt registers); D-20/21/23.</li>
+<li><strong>Lab (-&gt; W4):</strong> Phase 4 (tasklet-simulated MSI, <code>ICR/ICS/IMS/IMC</code>) + Phase 5.1/5.2 (lock discipline,
+  DMA map-error D-22, the leak/UAF/teardown walk).</li>
+<li><strong>Checkpoint:</strong> iperf lossless (0 Retr) over the MSI path (L-03); lock/lifecycle audit done.</li>
+</ul>
+<h3 id="w4">W4 - 07-14 - Level 1 complete: MTU, tests, and the acceptance gate</h3>
+<ul>
+<li><strong>Meeting:</strong> <strong>DMA mappings</strong> (coherent vs streaming, <code>dma_mapping_error</code>, bounce buffer,
+  unmap-before-read - bg 11); <code>ndo_change_mtu</code>; teardown ordering (bg 12); the <strong>KASAN + lockdep +
+  kmemleak</strong> gate.</li>
+<li><strong>Concepts:</strong> slides 3.6, 3.8; bg 11, bg 12; <a href="../debug-kernel.md">debug-kernel.md</a>.</li>
+<li><strong>Lab (-&gt; W5):</strong> Phase 5.3 (MTU) + run <code>tests/</code> (01-06) + the KASAN/lockdep/kmemleak gate; read the
+  L2 intro ahead.</li>
+<li><strong>Milestone:</strong> <strong>Level 1 is functionally complete and verified.</strong></li>
+</ul>
+<h3 id="w5">W5 - 07-21 - Level 2: the QEMU device model, MMIO and MSI</h3>
+<ul>
+<li><strong>Meeting:</strong> how QEMU emulates the PCIe device - QOM <code>TypeInfo</code>, <code>PCIDevice</code>, <code>MemoryRegionOps</code>
+  (MMIO), <code>msi_init</code>/<code>msi_notify</code>; building it into a pinned QEMU (D-27).</li>
+<li><strong>Concepts:</strong> slides 4, 5.3, 5.4; <a href="../qemu-device-model.md">qemu-device-model.md</a>,
+  <a href="../qemu-build.md">qemu-build.md</a>; bg 5.</li>
+<li><strong>Lab (-&gt; W6):</strong> Phase 8 - the device skeleton + the L2 probe (<code>pci_register_driver</code>, <code>pci_iomap</code>,
+  <code>dma_set_mask</code>, <code>pci_alloc_irq_vectors</code>, <code>request_irq</code>).</li>
+<li><strong>Checkpoint:</strong> <code>lspci</code> shows <code>1234:11e9</code>; MMIO read-back; <strong>MSI self-test passes</strong>.</li>
+</ul>
+<h3 id="w6">W6 - 07-28 - Level 2: the DMA datapath</h3>
+<ul>
+<li><strong>Meeting:</strong> the real DMA datapath - <code>dma_alloc_coherent</code> (ring) + <code>dma_map_single</code> (buffers); the
+  device walking TDH..TDT with <code>pci_dma_read/write</code>; <strong>portable DMA</strong> (unmap before deliver, D-26).</li>
+<li><strong>Concepts:</strong> slide 5.4; bg 10, bg 11 applied; D-25/26.</li>
+<li><strong>Lab (-&gt; W7):</strong> Phase 9 - run <code>tests/run-all.sh</code> <strong>on L2</strong> over real MMIO/DMA/MSI.</li>
+<li><strong>Checkpoint:</strong> the Level 1 suite passes on L2 via device loopback (L-07).</li>
+</ul>
+<h3 id="w7">W7 - 08-04 - Level 2 complete: the real tap backend</h3>
+<ul>
+<li><strong>Meeting:</strong> the <code>tap</code> backend - <code>qemu_new_nic</code>, <code>qemu_send_packet</code>, <code>can_receive</code>/<code>receive</code>;
+  host&lt;-&gt;guest connectivity; TUN/TAP background.</li>
+<li><strong>Concepts:</strong> slide 5.5; bg 6 (TUN/TAP); D-30.</li>
+<li><strong>Lab (-&gt; W8):</strong> Phase 10/11 - tap setup + the <code>VNIC_TAP=</code> run variant; verify ping + <code>tcpdump</code>.</li>
+<li><strong>Milestone:</strong> <strong>Level 2 is complete - <code>vnic0</code> is a real pingable NIC</strong> (L-08).</li>
+</ul>
+<h3 id="w8">W8 - 08-11 - Performance and the demo</h3>
+<ul>
+<li><strong>Meeting:</strong> real DMA vs L1 memcpy; <strong>TX doorbell moderation</strong> (D-32, ~4.5x); <strong>device ITR</strong> (D-33,
+  ~60x fewer interrupts); the <strong>MTU sweep</strong>; per-packet vs per-byte cost + VM-exits.</li>
+<li><strong>Concepts:</strong> slides 7, 8; bg 7; L-10/11/12.</li>
+<li><strong>Lab (-&gt; W9):</strong> Phase 12 - <code>scripts/{itr,perf}-sweep.sh</code>; record the demo (ping + <code>tcpdump</code> +
+  benchmark).</li>
+<li><strong>Checkpoint:</strong> benchmark table produced; demo recorded. <strong>Core project complete.</strong></li>
+</ul>
+<h3 id="w9">W9 - 08-18 - A6: stateless offloads</h3>
+<ul>
+<li><strong>Meeting:</strong> checksum offload (<code>NETIF_F_HW_CSUM</code>), <strong>TSO/GSO</strong> (segment) and <strong>LRO/GRO</strong> (coalesce);
+  why checksum is foundational and unlocks TSO.</li>
+<li><strong>Concepts:</strong> slide 3.9; bg 7.7-7.9; TODO A6.</li>
+<li><strong>Lab (-&gt; W10):</strong> advertise + implement checksum offload, then TSO + SG (device-side segmentation);
+  confirm GRO is already active.</li>
+<li><strong>Checkpoint:</strong> <code>ethtool -k vnic0</code> shows the offloads; the TSO path moves a GSO super-skb correctly.</li>
+</ul>
+<h3 id="w10">W10 - 08-25 - A3: MSI-X, multi-queue, and RSS</h3>
+<ul>
+<li><strong>Meeting:</strong> single MSI -&gt; <strong>MSI-X</strong> multi-vector; multiple TX/RX queues; <strong>RSS</strong> (hashing flows to
+  queues/CPUs).</li>
+<li><strong>Concepts:</strong> bg 2, bg 10; TODO A3.</li>
+<li><strong>Lab (-&gt; W11):</strong> MSI-X vectors + N TX/RX rings + per-queue NAPI; an RSS hash to steer flows.</li>
+<li><strong>Checkpoint:</strong> multi-queue traffic spreads across CPUs (<code>/proc/interrupts</code>, <code>ethtool -S</code>).</li>
+</ul>
+<h3 id="w11">W11 - 09-01 - A2 + A1: mode comparison and Interrupt Auto-Mask</h3>
+<ul>
+<li><strong>Meeting:</strong> forced INT / POLL / ADAPTIVE modes (the interrupt-vs-polling trade-off); <strong>IAM</strong> - read
+  <code>ICR</code> auto-masks the cause (atomic ack + mask), removing the ICR-&gt;IMC race.</li>
+<li><strong>Concepts:</strong> bg 2, bg 3, bg 10; TODO A2, A1.</li>
+<li><strong>Lab (-&gt; W12):</strong> a <code>MODE</code> register + the three-mode benchmark; an <code>IAM</code> register + the simplified ISR.</li>
+<li><strong>Checkpoint:</strong> a three-mode throughput/CPU/latency table; the IAM ack+mask works.</li>
+</ul>
+<h3 id="w12">W12 - 09-08 - A4 + A5: jumbo multi-descriptor RX and page_pool</h3>
+<ul>
+<li><strong>Meeting:</strong> splitting <code>MAXFRM</code> into buffer-size vs max-frame + <code>LPE</code>; one frame spanning multiple
+  RX descriptors; RX buffer <strong>Model B</strong> (<code>page_pool</code> / <code>build_skb</code> / copy-break) + <strong>batched refill</strong>.</li>
+<li><strong>Concepts:</strong> bg 1, bg 8; TODO A4, A5.</li>
+<li><strong>Lab (-&gt; W13):</strong> multi-descriptor (scatter) RX with reassembly; <code>build_skb</code> on pooled pages + a
+  batched <code>RDT</code> refill cursor; copy-break for small frames.</li>
+<li><strong>Checkpoint:</strong> scatter RX reassembles jumbo frames; refill is batched; copy-break recycles buffers.</li>
+</ul>
+<h3 id="w13">W13 - 09-15 - Integration, retrospective, and report</h3>
+<ul>
+<li><strong>Meeting:</strong> put it together; review the design-decision and lessons logs end to end; what a
+  production NIC adds beyond this.</li>
+<li><strong>Lab:</strong> harden, document, and write up the project; final demo.</li>
+<li><strong>Checkpoint:</strong> final demo + a written report/presentation. <strong>Buffer week</strong> for any slipped work.</li>
+</ul>
+<h2 id="if-the-pace-slips">If the pace slips</h2>
+<p>The hard deliverables are <strong>L1 (W4)</strong> and <strong>L2 + tap (W7)</strong>; performance + demo (W8) close out the
+core. If the build weeks (W1-W8) slip, absorb it in the <strong>advanced weeks (W9-W13)</strong> - those are
+independent backlog items and any one can be dropped or shortened. W13 is an explicit buffer. If the
+class is ahead, deepen an advanced item (e.g. real RSS hashing, or a full page_pool recycle path)
+rather than adding scope to the core.</p>
+<p class="footnote">Generated from <code>teaching-plan.md</code> by <code>scripts/gen-doc-html.py</code>.</p>
+</div>
+</body>
+</html>
