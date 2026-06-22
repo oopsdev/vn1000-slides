@@ -232,7 +232,7 @@
   <section class="slide">
     <h2>1.3 &middot; RX flow (HTTP response) - decapsulation up the stack</h2>
     <div class="svgwrap">
-    <img class="diagram" src="diagrams/tcp-rx-decap.svg" alt="RX decapsulation up the stack">
+    <img class="diagram" style="max-height:52vh" src="diagrams/tcp-rx-decap.svg" alt="RX decapsulation up the stack">
     </div>
     <div class="node lvl1" style="margin-top:.3em"><span class="t"><b>Coalesced &ne; original.</b> TCP is a <b>byte stream</b>: only the ordered <b>bytes</b> are recovered end to end, <b>not</b> the sender's boundaries. RX coalescing (GRO) merges a <b>variable</b> number of arriving segments, so a reassembled chunk need not match any segment the sender split off (nor a sender <code>write()</code>), and a receiver <code>read()</code> may return any slice - only the byte sequence is guaranteed.</span></div>
   </section>
