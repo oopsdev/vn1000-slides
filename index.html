@@ -292,6 +292,7 @@
         </ul>
       </div>
     </div>
+    <div class="node lvl1" style="margin-top:.45em"><span class="t"><b>Two drivers in Linux.</b> The <b>MAC / controller driver</b> (rings, DMA, IRQ, netdev - <b>what this project builds</b>) is separate from the <b>PHY driver</b> (<code>phylib</code> / <code>phylink</code>), which manages the PHY over the <b>MDIO/MDC</b> bus - link up/down, auto-negotiation, speed/duplex - and feeds the MAC link events. <b>VN1000 is MAC-driver-focused</b>: it emulates the controller and abstracts the PHY (no MDIO/phylib; link assumed up).</span></div>
   </section>
 
   <!-- 5 PCIe NIC anatomy -->
