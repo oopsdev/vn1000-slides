@@ -76,6 +76,7 @@
   .steps h3{font-size:clamp(15px,1.55vw,19px); margin:.2em 0 .35em}
   .steps ul{margin:.2em 0 .3em 1.0em}
   .steps li{font-size:clamp(12px,1.3vw,16px); line-height:1.45; margin:.2em 0}
+  .steps.tight9 li{font-size:clamp(11px,1.2vw,14.5px); line-height:1.4} .steps.tight9 h3{font-size:clamp(14px,1.45vw,18px)}
   .svgwrap{flex:0 1 auto; display:flex; align-items:flex-start; justify-content:center; min-height:0; margin-top:.2em}
   .diagram{max-width:100%; max-height:62vh; height:auto}
   .cap{color:var(--muted); font-size:.86em; text-align:center; margin-top:.5em}
@@ -627,14 +628,14 @@
     <h2>3.9 &middot; TX/RX offloads &mdash; TSO/GSO (segment) &middot; LRO/GRO (coalesce)</h2>
     <div class="two" style="grid-template-columns:1.9fr 1fr; align-items:center">
       <div class="imgwrap"><img src="diagrams/tso-gro.svg" alt="TX segmentation (TSO/GSO) turns one large super-skb into many MSS-sized wire frames; RX coalescing (GRO/LRO) merges many MSS frames back into one large skb; GSO/GRO in software, TSO/LRO in the device; with per-layer headers, MSS and MTU"></div>
-      <div class="steps">
+      <div class="steps tight9">
         <h3>Off the per-packet hot path</h3>
         <ul>
           <li><b>TX (segment)</b>: one ~64 KB super-skb &rarr; N&times;MSS frames. <b>GSO</b> splits in <b>software</b> (just before the driver); <b>TSO</b> hands the device one skb (SG, few desc, <b>1 doorbell</b>) and the <b>device</b> splits.</li>
           <li><b>RX (coalesce)</b>: N&times;MSS frames &rarr; one skb. <b>GRO</b> merges in the <b>NAPI poll</b> (software); <b>LRO</b> merges in the <b>device</b>.</li>
           <li><b>MSS</b> = MTU &minus; IP &minus; TCP = 1460; frames stay &le; MTU &mdash; jumbo's win <i>without</i> jumbo on the wire.</li>
           <li>Needs <b>checksum offload</b> (the device must (re)checksum each segment).</li>
-          <li><b>VN1000</b>: <b>GRO on</b> (<code>napi_gro_receive</code>); TSO / LRO / checksum = <b>backlog A6</b> (the TX engine would become a segmenter). <span class="t">The SG vs no-SG TX path (1 vs 1+nr_frags descriptors, the avoided copy) is sketched in background-knowledge 14.7.</span></li>
+          <li><b>VN1000</b>: <b>GRO on</b> (<code>napi_gro_receive</code>); TSO / LRO / checksum = <b>backlog A6</b> (the TX engine would become a segmenter). <span class="t">SG vs no-SG TX sketched in background-knowledge 14.7.</span></li>
         </ul>
       </div>
     </div>
