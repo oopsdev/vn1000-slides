@@ -753,9 +753,9 @@
       <div>
         <h3>2 &middot; Boot script</h3>
         <ul>
-          <li>Use the repo's <code>scripts/run-qemu.sh</code> <b>as-is</b> - symlink it into the image dir, don't hand-copy (a divergent copy silently ignores the Level 2 <code>QEMU=</code> / <code>VNIC_DEVICE=</code> vars and the device never appears in <code>lspci</code>).</li>
-          <li>Boots a <code>q35</code> guest on the serial console (<code>-nographic</code>) with the <b>gdbstub</b> open (<code>-s</code>, :1234; add <code>-S</code> to freeze at boot).</li>
-          <li>Env knobs: <code>VMDIR=</code> (image dir), <code>QEMU=</code> (binary path), <code>VNIC_DEVICE=1</code> (append <code>-device vnic</code>).</li>
+          <li>Use the repo's <code>scripts/run-qemu.sh</code> <b>as-is</b> (symlink it; don't hand-copy - a divergent copy ignores the L2 <code>QEMU=</code> / <code>VNIC_DEVICE=</code> vars).</li>
+          <li>Boots a <code>q35</code> guest on the serial console with the <b>gdbstub</b> open (<code>-s</code>, :1234; <code>-S</code> freezes at boot).</li>
+          <li>Env: <code>VMDIR=</code> (image dir), <code>QEMU=</code> (binary), <code>VNIC_DEVICE=1</code> (append <code>-device vnic</code>).</li>
         </ul>
       </div>
       <div>
@@ -763,7 +763,7 @@
         <ul>
           <li><code>./run-qemu.sh</code> &rarr; on the <b>first</b> boot cloud-init creates the user, installs packages, and grows the rootfs (a few min).</li>
           <li>Serial login <code>dev</code>/<code>dev</code> (leave the console: <b>Ctrl-A</b> then <b>X</b>), or from another terminal <code>ssh -p 2222 dev@localhost</code>.</li>
-          <li>The fixed <code>instance-id</code> + persisted <code>/var/lib/cloud</code> mean later boots skip the one-time work. Make boots a clean no-op: <code>sudo touch /etc/cloud/cloud-init.disabled</code> (do <i>not</i> <code>cloud-init clean</code>).</li>
+          <li>Fixed <code>instance-id</code> + persisted <code>/var/lib/cloud</code> &rarr; later boots skip the one-time work; <code>sudo touch /etc/cloud/cloud-init.disabled</code> makes them a no-op.</li>
         </ul>
       </div>
     </div>
@@ -784,8 +784,8 @@
       <div>
         <h3>Level 2: a self-built QEMU</h3>
         <ul>
-          <li>No stable out-of-tree device ABI &rarr; the device (<code>qemu-device/vnic.c</code>) is compiled <b>into</b> a QEMU source tree (<code>hw/net/</code> + a meson/Kconfig hook), pinned to the guest's QEMU version (D-27).</li>
-          <li><code>QEMU=... VNIC_DEVICE=1 run-qemu.sh</code> boots the guest under it; the device then shows up in <code>lspci</code>.</li>
+          <li>No stable out-of-tree device ABI &rarr; the device (<code>qemu-device/vnic.c</code>) is compiled <b>into</b> a QEMU tree (<code>hw/net/</code> + meson/Kconfig), pinned to the guest's QEMU version (D-27).</li>
+          <li><code>QEMU=... VNIC_DEVICE=1 run-qemu.sh</code> boots under it; the device shows in <code>lspci</code>.</li>
           <li>SOP: <code>qemu-build.md</code>.</li>
         </ul>
       </div>
