@@ -55,6 +55,7 @@
   .slide.compact p,.slide.compact li{font-size:clamp(12px,1.25vw,15.5px); line-height:1.4}
   .slide.compact li{margin:.12em 0}
   .slide.compact .node{padding:.4em .7em} .slide.compact .node .t{font-size:.8em; line-height:1.36}
+  .slide.compact table{font-size:clamp(10.5px,1.12vw,14px)} .slide.compact th,.slide.compact td{padding:.22em .5em}
   .center{align-items:center; text-align:center; justify-content:center}
   .imgwrap{display:flex; justify-content:center; align-items:center; flex:1; min-height:0}
   .imgwrap img{max-width:100%; max-height:72vh; border-radius:10px; background:#fff;
@@ -781,6 +782,28 @@
     </table>
     <h3>The lens: per-packet vs per-byte</h3>
     <p>Doorbell-batching, ITR and MTU all attack the <b>per-packet fixed cost</b> (descriptor, DMA-map, skb, stack, the MMIO exit). Checksum is <b>per-byte</b> - only an offload removes it. Coalescing buys throughput/CPU at the cost of latency; polling buys latency at the cost of CPU.</p>
+  </section>
+
+  <!-- 19b course schedule -->
+  <section class="slide compact">
+    <h2>9 &middot; Weekly course schedule (summer) &mdash; Tue 08:00-09:00 UTC+8</h2>
+    <table>
+      <tr><th>Wk</th><th>Tue</th><th>Milestone</th><th>Lab / phase</th></tr>
+      <tr><td>1</td><td>06-23</td><td>Recap + NIC anatomy + env + skeleton</td><td>Phase 0 + 1</td></tr>
+      <tr><td>2</td><td>06-30</td><td>TX + RX datapath</td><td>Phase 2 + 3</td></tr>
+      <tr><td>3</td><td>07-07</td><td>Interrupts, NAPI &amp; hardening</td><td>Phase 4 + 5.1/5.2</td></tr>
+      <tr><td>4</td><td>07-14</td><td><b>Level 1 complete</b> &mdash; MTU, tests, KASAN gate</td><td>Phase 5.3 + tests</td></tr>
+      <tr><td>5</td><td>07-21</td><td>L2 QEMU device model + MMIO + MSI</td><td>Phase 8</td></tr>
+      <tr><td>6</td><td>07-28</td><td>L2 DMA datapath</td><td>Phase 9</td></tr>
+      <tr><td>7</td><td>08-04</td><td><b>Level 2 complete</b> &mdash; real tap NIC</td><td>Phase 10/11</td></tr>
+      <tr><td>8</td><td>08-11</td><td>Performance + demo <span class="t">(core done)</span></td><td>Phase 12</td></tr>
+      <tr><td>9</td><td>08-18</td><td>A6 &mdash; stateless offloads (checksum / TSO / GRO)</td><td>backlog A6</td></tr>
+      <tr><td>10</td><td>08-25</td><td>A3 &mdash; MSI-X / multi-queue / RSS</td><td>backlog A3</td></tr>
+      <tr><td>11</td><td>09-01</td><td>A2 + A1 &mdash; INT/POLL/ADAPTIVE + IAM</td><td>backlog A2/A1</td></tr>
+      <tr><td>12</td><td>09-08</td><td>A4 + A5 &mdash; jumbo multi-desc RX + page_pool</td><td>backlog A4/A5</td></tr>
+      <tr><td>13</td><td>09-15</td><td>Integration + retrospective + report</td><td>buffer</td></tr>
+    </table>
+    <p class="cap">Full-time summer students - one full-time week per milestone. Core front-loaded (L1 by W4, L2 by W7); W9-W13 are the advanced backlog. Details: <code>docs/teaching-plan.md</code>.</p>
   </section>
 
   <!-- 20 closing -->
