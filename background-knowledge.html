@@ -1827,6 +1827,106 @@ building a paged one and linearizing it later? Because:
   in-kernel engine also <code>skb_linearize</code>s defensively for its linear loopback copy. SG/TSO (to skip the
   copy) is <strong>backlog A6</strong>.</li>
 </ul>
+<h3 id="147-tx-with-vs-without-netif_f_sg-a-sketch">14.7 TX with vs without <code>NETIF_F_SG</code> (a sketch)</h3>
+<p><code>ndo_start_xmit</code> is where the SG decision shows up. <strong>Without</strong> SG the stack already linearized, so the
+skb is one contiguous buffer - one <code>dma_map</code>, one descriptor (simple, but the copy was paid upstream).
+<strong>With</strong> SG the driver maps the linear head <strong>plus each page fragment</strong> as its own descriptor and
+copies nothing.</p>
+<pre><code class="language-c">/* (A) No NETIF_F_SG - the skb is already linear (the stack linearized it):
+ *     one mapping, one descriptor. This is the VN1000 model. */
+static netdev_tx_t xmit_no_sg(struct sk_buff *skb, struct net_device *ndev)
+{
+    struct device *dd = ndev-&gt;dev.parent;
+    dma_addr_t dma;
+
+    dma = dma_map_single(dd, skb-&gt;data, skb-&gt;len, DMA_TO_DEVICE);
+    if (dma_mapping_error(dd, dma))
+        goto drop;
+
+    fill_desc(&amp;tx[ntu], dma, skb-&gt;len, /*eop=*/true);  /* a single descriptor */
+    bufs[ntu] = skb;                                   /* free it on completion */
+    dma_wmb();                                          /* payload before DD */
+    desc_give_to_device(&amp;tx[ntu]);
+    ntu = ring_next(ntu);
+    writel(ntu, base + TDT);                            /* doorbell */
+    return NETDEV_TX_OK;
+drop:
+    dev_kfree_skb_any(skb);
+    ndev-&gt;stats.tx_dropped++;
+    return NETDEV_TX_OK;
+}
+</code></pre>
+<pre><code class="language-c">/* (B) NETIF_F_SG declared - map the linear head, then one descriptor per page
+ *     fragment; EOP only on the last. No linearize, no copy. */
+static netdev_tx_t xmit_sg(struct sk_buff *skb, struct net_device *ndev)
+{
+    struct device *dd = ndev-&gt;dev.parent;
+    unsigned int headlen = skb_headlen(skb);      /* the linear part's length */
+    int nr = skb_shinfo(skb)-&gt;nr_frags, f, first = ntu;
+    dma_addr_t dma;
+
+    /* 1. the linear head: the Eth/IP/TCP headers (+ any linear payload) */
+    dma = dma_map_single(dd, skb-&gt;data, headlen, DMA_TO_DEVICE);
+    if (dma_mapping_error(dd, dma))
+        goto drop;
+    fill_desc(&amp;tx[ntu], dma, headlen, /*eop=*/nr == 0);
+    ntu = ring_next(ntu);
+
+    /* 2. one descriptor per page fragment (the paged payload) */
+    for (f = 0; f &lt; nr; f++) {
+        const skb_frag_t *fr = &amp;skb_shinfo(skb)-&gt;frags[f];
+
+        dma = skb_frag_dma_map(dd, fr, 0, skb_frag_size(fr), DMA_TO_DEVICE);
+        if (dma_mapping_error(dd, dma))
+            goto unwind;          /* unmap the descriptors filled so far */
+        fill_desc(&amp;tx[ntu], dma, skb_frag_size(fr),
+              /*eop=*/ f == nr - 1);            /* EOP on the LAST frag */
+        ntu = ring_next(ntu);
+    }
+
+    bufs[ntu_prev(ntu)] = skb;        /* free once the EOP descriptor completes */
+    dma_wmb();
+    desc_give_chain_to_device(first, ntu);
+    writel(ntu, base + TDT);
+    return NETDEV_TX_OK;
+    /* drop/unwind: dma_unmap the head + frags already mapped, free skb */
+}
+</code></pre>
+<p><strong>On completion</strong> the difference echoes: the no-SG path reaps one descriptor and frees the skb; the SG
+path walks the chain to the <strong>EOP</strong> descriptor, <code>dma_unmap_single</code> the head and <code>dma_unmap_page</code> each
+frag (from a per-descriptor stashed addr/len), then <code>napi_consume_skb</code> once. So:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>no <code>NETIF_F_SG</code></th>
+<th><code>NETIF_F_SG</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>descriptors / packet</td>
+<td><strong>1</strong></td>
+<td><strong>1 + <code>nr_frags</code></strong> (EOP on last)</td>
+</tr>
+<tr>
+<td>copy</td>
+<td>the stack's <code>skb_linearize</code> (per packet)</td>
+<td><strong>none</strong> (zero-copy)</td>
+</tr>
+<tr>
+<td>driver bookkeeping</td>
+<td>trivial</td>
+<td>per-descriptor unmap; ring space for a chain</td>
+</tr>
+<tr>
+<td>pairs with</td>
+<td>-</td>
+<td><strong>TSO</strong> (needs checksum offload too)</td>
+</tr>
+</tbody>
+</table></div>
+<p>VN1000 takes path (A); path (B) is what backlog <strong>A6</strong> (SG/TSO) would add.</p>
 <p class="footnote">Generated from <code>background-knowledge.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
 </div>
 </body>
