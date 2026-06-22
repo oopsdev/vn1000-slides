@@ -61,6 +61,7 @@
   .slide.cozy h3{font-size:clamp(16px,1.65vw,20px); margin:.55em 0 .25em}
   .slide.cozy p,.slide.cozy li{font-size:clamp(13px,1.4vw,17.5px); line-height:1.45}
   .slide.cozy li{margin:.18em 0}
+  .slide.cozy .node{padding:.42em .75em} .slide.cozy .node .t{font-size:.82em; line-height:1.38}
   .center{align-items:center; text-align:center; justify-content:center}
   .imgwrap{display:flex; justify-content:center; align-items:center; flex:1; min-height:0}
   .imgwrap img{max-width:100%; max-height:72vh; border-radius:10px; background:#fff;
@@ -169,9 +170,9 @@
   <section class="slide">
     <h2>Agenda</h2>
     <ol>
-      <li><b>Recap</b> - the TCP/IP networking flow we build on (an HTTP example): socket &amp; ports, segmentation, checksum, IP routing &amp; forwarding, fragmentation, ARP, Ethernet (TX &amp; RX)</li>
+      <li><b>Recap</b> - the TCP/IP networking flow we build on (an HTTP example): socket &amp; ports, segmentation, checksum, IP routing &amp; forwarding, fragmentation, ARP, Ethernet (TX &amp; RX) - then <b>what a NIC &amp; its driver do</b>, down to the MAC / PHY (SerDes)</li>
       <li>The PCIe NIC: anatomy &amp; a sample datasheet</li>
-      <li>Linux PCIe NIC driver framework - TX/RX flow, init, MMIO &amp; barriers, probe, DMA, ISR, cleanup, offloads</li>
+      <li>Linux PCIe NIC driver framework - the skb, TX/RX flow, init, MMIO &amp; barriers, probe, DMA, ISR, cleanup, offloads</li>
       <li>The QEMU PCIe NIC device model</li>
       <li>The vNIC project goal (Level 1 &amp; Level 2) - and design considerations: the HAL seam &amp; the three dataflow models</li>
       <li>Development environment setup</li>
@@ -297,7 +298,7 @@
   </section>
 
   <!-- 5 PCIe NIC anatomy -->
-  <section class="slide">
+  <section class="slide cozy">
     <h2>2.1 &middot; Anatomy of a PCIe NIC</h2>
     <div class="two">
       <div>
@@ -418,7 +419,31 @@
           <li><b>TX / RX</b> - the steady-state datapath (next slides).</li>
           <li><b>Stop / Remove</b> - disable, quiesce, free, unregister.</li>
         </ul>
-        <p class="sub">The next slides walk each piece: TX, RX, init/probe, MMIO &amp; barriers, DMA, ISR, cleanup.</p>
+        <p class="sub">The next slides walk each piece: the skb, TX, RX, init/probe, MMIO &amp; barriers, DMA, ISR, cleanup.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7b the sk_buff primer -->
+  <section class="slide cozy">
+    <h2>3.1.1 &middot; The <code>sk_buff</code> (skb) - the kernel's packet buffer</h2>
+    <div class="two">
+      <div>
+        <h3>What an skb is</h3>
+        <ul>
+          <li>The kernel's representation of <b>one packet</b> - a metadata struct + the packet bytes - passed <b>by pointer</b> between the stack, the driver, and the device path (one skb per packet; a GSO super-skb carries many).</li>
+          <li><b>Headers by pointer, not copy</b>: a data area with <code>head/data/tail/end</code>; <code>skb_reserve</code> / <code>skb_push</code> / <code>skb_pull</code> / <code>skb_put</code> grow or shrink it as each layer <b>adds</b> (TX) or <b>strips</b> (RX) its header.</li>
+          <li><b>Layer offsets</b>: <code>skb-&gt;{mac,network,transport}_header</code> mark L2/L3/L4 once parsed; <code>eth_type_trans</code> pulls the Ethernet header and sets <code>skb-&gt;protocol</code>.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Fragments &amp; how this driver uses it</h3>
+        <ul>
+          <li><b>Non-linear (SG)</b>: a large skb = a linear head + page <b>fragments</b> (<code>skb_shinfo()-&gt;frags</code>) - how SG / TSO / GRO avoid one huge contiguous copy.</li>
+          <li><b>TX</b>: <code>ndo_start_xmit</code> gets the skb, <code>dma_map</code>s <code>skb-&gt;data</code>, fills a descriptor; freed on completion with <code>napi_consume_skb</code>.</li>
+          <li><b>RX</b>: the driver allocates an skb, <code>skb_put(len)</code> + <code>eth_type_trans</code>, then <code>napi_gro_receive</code> hands it up the stack.</li>
+          <li><span class="t">VN1000 L1 <code>skb_linearize</code>s for the engine's linear copy; the real skb lives in <code>ring-&gt;bufs[]</code> (the descriptor token is opaque).</span></li>
+        </ul>
       </div>
     </div>
   </section>
