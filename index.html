@@ -263,6 +263,37 @@
     <p class="cap">In short: the <b>card</b> moves frames by DMA + MSI; the <b>driver</b> turns that into a Linux <code>net_device</code>. This is exactly what the rest of the deck builds, for the (virtual) VN1000.</p>
   </section>
 
+  <!-- 4d PHY internals: MAC / PCS / PMA / SerDes -->
+  <section class="slide cozy">
+    <h2>1.5 &middot; Down to the wire - MAC / PCS / PMA and the MII family</h2>
+    <div class="flow h" style="justify-content:center; gap:.35em; margin:.4em 0 .25em">
+      <div class="node"><b>MAC</b><div class="t">L2 - framing, addressing, FCS</div></div>
+      <span class="arr h">&harr;</span>
+      <div class="node lvl2"><b>PCS</b><div class="t">line coding, block sync, scramble</div></div>
+      <span class="arr h">&harr;</span>
+      <div class="node lvl2"><b>PMA + SerDes</b><div class="t">serialise / deserialise, clock recovery</div></div>
+      <span class="arr h">&harr;</span>
+      <div class="node lvl2"><b>PMD / medium</b><div class="t">copper / fiber - analog</div></div>
+    </div>
+    <p class="cap" style="margin:.1em 0 .55em">The <b>MAC&harr;PCS</b> link is the <b>MII-family</b> interface; <b>PCS + PMA + PMD = the PHY</b> (L1), while the <b>MAC</b> is the digital L2 side.</p>
+    <div class="two">
+      <div>
+        <h3>MAC&harr;PHY interface - the MII family</h3>
+        <ul>
+          <li><b>MII</b> (100M) &middot; <b>GMII / RGMII</b> (1G, parallel) &middot; <b>SGMII</b> (1G, <i>serial</i> over one SerDes lane) &middot; <b>XGMII</b> (10G, 32-bit parallel) &middot; serial variants <b>XFI / SFI</b> (10G), 25G+ lanes.</li>
+          <li>"Parallel" MIIs (xGMII) are short on-chip / on-board buses; "serial" ones (SGMII, XFI) ride a <b>SerDes</b> lane to an external PHY - fewer pins, longer reach.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>PCS &middot; PMA / SerDes</h3>
+        <ul>
+          <li><b>PCS</b> (coding): maps octets to/from a coded line stream - <b>8b/10b</b> (1G) or <b>64b/66b</b> (10G+) - with block sync, scrambling, and auto-negotiation signalling.</li>
+          <li><b>PMA + SerDes</b>: <b>serialise</b> the coded parallel words into one high-speed <b>serial bitstream</b> (and deserialise on RX) with <b>clock recovery</b>; the <b>PMD</b> drives the actual electrical/optical medium.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <!-- 5 PCIe NIC anatomy -->
   <section class="slide">
     <h2>2.1 &middot; Anatomy of a PCIe NIC</h2>
