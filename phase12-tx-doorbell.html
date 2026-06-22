@@ -54,7 +54,7 @@ hr{border:0;border-top:1px solid var(--line);margin:2em 0}
 <h1>Phase 12 (a) - TX doorbell moderation A/B</h1>
 <div class="meta"></div>
 </header>
-<h1 id="phase-12-a-tx-doorbell-moderation-ab">Phase 12 (a) - TX doorbell moderation A/B</h1>
+<h1 id="phase-12-a---tx-doorbell-moderation-ab">Phase 12 (a) - TX doorbell moderation A/B</h1>
 <p>Does batching the TX doorbell over an <code>xmit_more</code> burst (D-32) beat the per-packet doorbell? Measured
 guest -&gt; host with <code>iperf3</code> over the tap, toggling <code>tx_coalesce</code> at runtime (same session, nothing
 else changes). See <a href="lessons-learned.html">lessons-learned L-10</a>.</p>
@@ -62,7 +62,7 @@ else changes). See <a href="lessons-learned.html">lessons-learned L-10</a>.</p>
 <li><strong>Date</strong>: 2026-06-15. Change: <code>394b2d5</code>. QEMU 6.2 + KVM, tap mode, <code>vnic-l2.ko</code>.</li>
 <li>Toggle: <code>echo {1,0} &gt; /sys/module/vnic_l2/parameters/tx_coalesce</code>.</li>
 </ul>
-<h2 id="off-per-packet-doorbell-old-behaviour">off - per-packet doorbell (old behaviour)</h2>
+<h2 id="off---per-packet-doorbell-old-behaviour">off - per-packet doorbell (old behaviour)</h2>
 <pre><code>$ echo 0 | sudo tee /sys/module/vnic_l2/parameters/tx_coalesce
 $ iperf3 -c 192.168.20.1 -t 10
 [ ID] Interval           Transfer     Bitrate         Retr  Cwnd
@@ -80,7 +80,7 @@ $ iperf3 -c 192.168.20.1 -t 10
 [  5]   0.00-10.00  sec   493 MBytes   414 Mbits/sec    0             sender
 [  5]   0.00-10.03  sec   493 MBytes   412 Mbits/sec                  receiver
 </code></pre>
-<h2 id="on-batch-the-doorbell-over-the-xmit_more-burst-default">on - batch the doorbell over the xmit_more burst (default)</h2>
+<h2 id="on---batch-the-doorbell-over-the-xmit_more-burst-default">on - batch the doorbell over the xmit_more burst (default)</h2>
 <pre><code>$ echo 1 | sudo tee /sys/module/vnic_l2/parameters/tx_coalesce
 $ iperf3 -c 192.168.20.1 -t 10
 [ ID] Interval           Transfer     Bitrate         Retr  Cwnd
@@ -124,7 +124,7 @@ $ iperf3 -c 192.168.20.1 -t 10
 (~350-414 Mbit/s), so the gain is attributable to removing the per-packet <code>writel(TDT)</code> MMIO VM-exit
 (D-32 / background-knowledge topic 7.2). It closes most of the L-09 TX/RX gap: TX 0.35 -&gt; 1.86 Gbit/s
 vs RX ~3.77 Gbit/s (RX was already NAPI-batched).</p>
-<h2 id="tcp-congestion-window-cwnd-the-side-effect-that-confirms-the-cause">TCP congestion window (cwnd) - the side effect that confirms the cause</h2>
+<h2 id="tcp-congestion-window-cwnd---the-side-effect-that-confirms-the-cause">TCP congestion window (cwnd) - the side effect that confirms the cause</h2>
 <p>The per-second <code>Cwnd</code> column moved very differently between the two runs (both <strong>0 Retr</strong>, so this is
 not loss-driven):</p>
 <div class="tablewrap"><table>

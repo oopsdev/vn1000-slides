@@ -54,7 +54,7 @@ hr{border:0;border-top:1px solid var(--line);margin:2em 0}
 <h1>Linux NIC Simulation - System Architecture</h1>
 <div class="meta"><span>2026-06-18</span><span>v0.1.0</span><span>NikeChen</span></div>
 </header>
-<h1 id="linux-nic-simulation-system-architecture">Linux NIC Simulation - System Architecture</h1>
+<h1 id="linux-nic-simulation---system-architecture">Linux NIC Simulation - System Architecture</h1>
 <h2 id="1-goal-and-scope">1. Goal and scope</h2>
 <p>Simulate a NIC and its Linux driver in software, ending up as a real NIC inside QEMU. The goal
 is to build out the core concepts of a PCIe device driver - queue, DMA, completion, interrupt,
@@ -178,7 +178,7 @@ functions implemented two ways) plus a thin <code>level{1,2}/</code> entry (L1 h
 <code>module_init</code>; L2 is a <code>module_pci_driver</code> whose <code>vnic_probe</code> does it - section 2's lifecycle).
 Selection is <strong>compile-time</strong> (<code>Makefile LEVEL=1|2</code> links exactly one backend); a runtime ops table
 was rejected because a single module only ever needs one level (<strong>D-12</strong>).</p>
-<h2 id="3-device-driver-boundary-principle">3. Device / driver boundary principle</h2>
+<h2 id="3-device--driver-boundary-principle">3. Device / driver boundary principle</h2>
 <p>Even though Level 1 lives in the same kernel module, the "device engine" is cleanly isolated and
 <strong>driven through the fake-register interface</strong> (e.g. writing <code>DOORBELL</code> triggers the engine, not a
 direct function call). This makes the move to QEMU in Level 2 a "relocation", not a rewrite, and
@@ -226,7 +226,7 @@ consumes each transmitted frame and <strong>loops it back</strong> into the RX r
 and IPv4 src/dst), so one host drives the full TX + RX + NAPI flow. TX and RX are therefore coupled
 - one engine pass does both - so the engine is described first (6.1), then the TX (6.2) and RX (6.3)
 halves it drives.</p>
-<h3 id="61-level-1-engine-loopback-backpressure">6.1 Level 1 engine (loopback + backpressure)</h3>
+<h3 id="61-level-1-engine-loopback--backpressure">6.1 Level 1 engine (loopback + backpressure)</h3>
 <p>The engine is a kthread. It <strong>sleeps</strong> in <code>wait_event_interruptible(&amp;h-&gt;wq, ...)</code> and is woken by a
 doorbell - it is not a busy loop and uses no CPU when idle. One run walks the pending TX descriptors
 and, per frame, loops it into RX or stalls when RX is full:</p>
@@ -343,7 +343,7 @@ this same path.</p>
   D-&gt;&gt;E: `refill RX desc + RDT, **napi_complete_done()** -&gt; re-enable MSI (IMS)`
 </code></pre>
 <p>The unchanged-vs-changed split across Level 1 and Level 2 is summarised in section 10.</p>
-<h3 id="73-annotated-datapath-diagrams-the-real-nic-model-level-2">7.3 Annotated datapath diagrams (the real-NIC model = Level 2)</h3>
+<h3 id="73-annotated-datapath-diagrams-the-real-nic-model--level-2">7.3 Annotated datapath diagrams (the real-NIC model = Level 2)</h3>
 <p>The TX and RX diagrams below are the <strong>generic real-NIC datapath</strong> - descriptor ring + DMA + MSI +
 NAPI + the ownership (<code>DD</code>) handshake across NIC / Host RAM / CPU driver. <strong>This is exactly the
 Level 2 model</strong> (Level 1 emulates the same shape in software). The table maps the diagrams' generic
@@ -512,7 +512,7 @@ itself call poll. With no trigger source, <code>vnic_poll</code> stays idle. The
 </table></div>
 <p>Because <code>vnic_poll</code> runs in softirq context it must not sleep: the ring lock is taken with plain
 <code>spin_lock()</code> (not <code>_bh</code>, already in softirq), and skbs are freed with <code>napi_consume_skb()</code>.</p>
-<h3 id="82-completion-signalling-phase-3-vs-phase-4">8.2 Completion signalling - Phase 3 vs Phase 4</h3>
+<h3 id="82-completion-signalling---phase-3-vs-phase-4">8.2 Completion signalling - Phase 3 vs Phase 4</h3>
 <p><strong>Phase 3</strong> took a shortcut: the engine called <code>napi_schedule()</code> <strong>directly</strong> after a run. There
 were no interrupt registers in the path - simple, but it did not model how a real device signals the
 CPU, and the <code>ICR</code>/<code>ICS</code>/<code>IMS</code>/<code>IMC</code> registers existed but were unused.</p>
@@ -571,7 +571,7 @@ not go through the MSI.</p>
   <code>DD</code>-bit ownership handshake is ordered by <code>dma_wmb()</code>/<code>dma_rmb()</code> (D-21), not by these locks</li>
 <li>no sleeping in atomic context (interrupt / holding a spinlock): mind <code>GFP_ATOMIC</code> vs <code>GFP_KERNEL</code></li>
 </ul>
-<h2 id="10-level-1-level-2-evolution">10. Level 1 -&gt; Level 2 evolution</h2>
+<h2 id="10-level-1---level-2-evolution">10. Level 1 -&gt; Level 2 evolution</h2>
 <div class="tablewrap"><table>
 <thead>
 <tr>

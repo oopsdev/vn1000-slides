@@ -54,7 +54,7 @@ hr{border:0;border-top:1px solid var(--line);margin:2em 0}
 <h1>TODO / Phased Plan</h1>
 <div class="meta"></div>
 </header>
-<h1 id="todo-phased-plan">TODO / Phased Plan</h1>
+<h1 id="todo--phased-plan">TODO / Phased Plan</h1>
 <p>Path: <strong>Level 1 (kernel-only netdev) -&gt; Level 2 (QEMU PCI device + netdev)</strong>.
 Version control: commit after each phase and tag milestones (e.g. <code>v0.1-phase1</code>). Keep the
 docs (README / architecture / CHANGELOG) in sync with the code.</p>
@@ -77,7 +77,7 @@ performance analysis (L-10/11/12), and the docs/diagrams/slides. What is genuine
 - Smaller: <code>ethtool_ops</code> (<code>ethtool -S</code>), <code>perf</code>/<code>ftrace</code> hot-path profiling, fixed MAC for <code>vnic0</code>,
   64-bit <code>STAT_*BYTES</code>, ITR latency-cost sweep, index wrap <code>% -&gt; &amp;</code></p>
 <hr>
-<h2 id="phase-0-environment-option-b-qemu-guest-for-kernel-development">Phase 0 - Environment (Option B: QEMU guest for kernel development)</h2>
+<h2 id="phase-0---environment-option-b-qemu-guest-for-kernel-development">Phase 0 - Environment (Option B: QEMU guest for kernel development)</h2>
 <blockquote>
 <p>Decision <strong>B</strong>: run QEMU + an Ubuntu guest under WSL2, and do <strong>all kernel-module
 development inside the guest</strong>.
@@ -114,8 +114,8 @@ panic only kills the guest; Level 2 needs a QEMU guest anyway.</p>
 <li><strong>Note</strong>: Phase 0 uses <strong>stock QEMU</strong>; Level 2 (Phase 8+) switches to a <strong>self-built QEMU with the VN1000 device</strong></li>
 </ul>
 <hr>
-<h2 id="level-1-kernel-only-netdev-single-vnic0-real-nic-structure">Level 1 - Kernel-only netdev (single <code>vnic0</code>, real-NIC structure)</h2>
-<h3 id="phase-1-skeleton-shared-spec-netdev-registration">Phase 1 - skeleton + shared spec + netdev registration</h3>
+<h2 id="level-1---kernel-only-netdev-single-vnic0-real-nic-structure">Level 1 - Kernel-only netdev (single <code>vnic0</code>, real-NIC structure)</h2>
+<h3 id="phase-1---skeleton--shared-spec--netdev-registration">Phase 1 - skeleton + shared spec + netdev registration</h3>
 <ul>
 <li>[x] Create the repo layout (driver / qemu-device / include / tools / tests / scripts / results)</li>
 <li>[x] <code>include/vnic_regs.h</code>: register offsets + <code>struct vn_desc</code> (<strong>shared by driver and the future qemu-device</strong>)</li>
@@ -123,7 +123,7 @@ panic only kills the guest; Level 2 needs a QEMU guest anyway.</p>
 <li>[x] <code>alloc_etherdev</code> + <code>register_netdev</code> -&gt; <code>vnic0</code> in <code>ip link</code>; <code>net_device_ops</code> (<code>ndo_open</code> / <code>ndo_stop</code> / <code>ndo_start_xmit</code>)</li>
 <li><strong>Output</strong>: verified on an Ubuntu 24.04 guest -- <code>vnic0</code> registers, up/down, <code>ip -d link</code> correct (MAC/mtu/qdisc)</li>
 </ul>
-<h3 id="phase-2-tx-path">Phase 2 - TX path</h3>
+<h3 id="phase-2---tx-path">Phase 2 - TX path</h3>
 <ul>
 <li>[x] <code>struct vnic_ring</code> (desc / bufs / size / head / tail / spinlock) -- allocated by <code>vnic_hal_ring_alloc</code> (L1: kcalloc; <code>desc_dma</code> unused)</li>
 <li>[x] <code>ndo_start_xmit</code>: skb -&gt; fill TX desc -&gt; write <code>TDT</code> (doorbell) -&gt; engine kthread consumes, marks DONE</li>
@@ -131,7 +131,7 @@ panic only kills the guest; Level 2 needs a QEMU guest anyway.</p>
 <li>[x] TX stats (<code>ndo_get_stats64</code>: tx_packets / tx_bytes read from device <code>STAT_TX*</code>)</li>
 <li><strong>Output</strong>: verified on guest -- packets sent via the ring path, TX stats increase (validated together with Phase 3 ping)</li>
 </ul>
-<h3 id="phase-3-rx-path-napi-internal-loopback">Phase 3 - RX path + NAPI + internal loopback</h3>
+<h3 id="phase-3---rx-path--napi--internal-loopback">Phase 3 - RX path + NAPI + internal loopback</h3>
 <ul>
 <li>[x] RX ring + <strong>pre-posted skb per descriptor</strong> (Model A, D-18): skbs posted in <code>vnic_open</code> (<code>vnic_rx_post</code>), buffer addr in each RX desc, <code>RDH</code>/<code>RDT</code> set</li>
 <li>[x] engine loops the frame back into the RX ring; copies into the pre-posted RX buffer and <strong>swaps Ethernet MAC + IPv4 src/dst</strong> (dst MAC becomes vnic0's own -&gt; <code>PACKET_HOST</code>, src becomes peer B); <code>vnic_l1_loopback()</code> in <code>hal/vnic_hal_l1.c</code></li>
@@ -142,19 +142,19 @@ panic only kills the guest; Level 2 needs a QEMU guest anyway.</p>
 <li><strong>Output</strong>: verified on guest -- <code>ping 192.168.10.2</code> works through the internal loopback; full TX/RX datapath</li>
 <li>Note: also added <code>vnic_hal_quiesce()</code> (HAL) so <code>vnic_stop</code> waits out an in-flight engine run before freeing buffers; <code>ndo_start_xmit</code> now <code>skb_linearize()</code>s for the engine's linear copy</li>
 </ul>
-<h3 id="phase-4-simulated-interrupt-napi-completion">Phase 4 - simulated interrupt + NAPI completion</h3>
+<h3 id="phase-4---simulated-interrupt--napi-completion">Phase 4 - simulated interrupt + NAPI completion</h3>
 <ul>
 <li>[x] <strong>tasklet</strong>-simulated MSI (D-20, not workqueue); <code>ICR</code>/<code>ICS</code>/<code>IMS</code>/<code>IMC</code> fake-register semantics with side effects in <code>vnic_hal_rd32</code>/<code>vnic_hal_wr32</code> (ICR read-to-clear, ICS raise, IMS/IMC mask), <code>irq_lock</code>-protected</li>
 <li>[x] ISR (tasklet): read <code>ICR</code> -&gt; <code>IMC</code> mask -&gt; <code>napi_schedule</code>; engine raises cause via <code>ICS</code> instead of calling <code>napi_schedule</code>; <code>vnic_poll</code> re-arms <code>IMS</code> on <code>napi_complete_done</code> (re-fires if a cause went pending while masked); <code>vnic_hal_irq_request/free</code> wire the tasklet in open/stop</li>
 <li><strong>Output</strong>: verified on guest -- iperf 6.33 Gbit/s, 0 Retr via the tasklet/MSI path; <code>ip -s link</code> shows TX packets == RX packets, 0 dropped/errors (lossless). See lessons-learned L-03</li>
 </ul>
-<h3 id="phase-5-error-edge-handling-locking-mtu">Phase 5 - error / edge handling + locking + MTU</h3>
+<h3 id="phase-5---error--edge-handling--locking--mtu">Phase 5 - error / edge handling + locking + MTU</h3>
 <blockquote>
 <p>Phases 2-4 built a working datapath; Phase 5 <strong>hardens</strong> it (concurrency / edge / lifecycle
 correctness + tests), it does not rebuild it. 5.1 / 5.2 are detailed below; 5.3 (MTU) is still a
 summary.</p>
 </blockquote>
-<h4 id="51-ring-fullempty-dd-ownership-indices-spinlock-concurrency-audit-lock-in">5.1 - ring full/empty, DD ownership, indices, spinlock concurrency (audit + lock-in)</h4>
+<h4 id="51---ring-fullempty-dd-ownership-indices-spinlock-concurrency-audit--lock-in">5.1 - ring full/empty, DD ownership, indices, spinlock concurrency (audit + lock-in)</h4>
 <ul>
 <li>[x] documented the lock discipline + recorded <strong>D-23</strong>: TX ring lock guards <code>ndo_start_xmit</code>
       (process) vs <code>vnic_tx_clean</code> (NAPI softirq), xmit uses <code>spin_lock_bh</code> to fence the local
@@ -170,7 +170,7 @@ summary.</p>
       the primary path); rationale recorded in D-23</li>
 <li>[ ] (optional, deferred) index wrap <code>% count</code> -&gt; <code>&amp; (count - 1)</code> (count is a power of two)</li>
 </ul>
-<h4 id="52-skb-buffer-lifecycle-map-free-napi_consume_skb">5.2 - skb / buffer lifecycle (map / free, napi_consume_skb)</h4>
+<h4 id="52---skb--buffer-lifecycle-map--free-napi_consume_skb">5.2 - skb / buffer lifecycle (map / free, napi_consume_skb)</h4>
 <ul>
 <li>[x] <strong>DMA map-error handling</strong> (the real gap; required for L2): <code>vnic_hal_mapping_error()</code>
       predicate (mirrors <code>dma_mapping_error()</code>); <code>ndo_start_xmit</code> -&gt; <code>tx_dropped</code> + free + does
@@ -190,7 +190,7 @@ summary.</p>
       <code>get_stats64</code>) - the two count <em>disjoint</em> events (device-side no-buffer/oversize drop that never
       reached the driver vs driver-side refill-failure drop of a delivered frame); summing is correct</li>
 </ul>
-<h4 id="53-mtu-change">5.3 - MTU change</h4>
+<h4 id="53---mtu-change">5.3 - MTU change</h4>
 <ul>
 <li>[x] <code>ndo_change_mtu</code> (datasheet 6.7, D-10): set <code>netdev-&gt;{min,max}_mtu</code> = 68..9000; RX buffer size
       is now per-device (<code>priv-&gt;rx_buf_size = MTU + VN_FRAME_OVERHEAD</code>); <code>vnic_open</code>/<code>vnic_stop</code>
@@ -213,14 +213,14 @@ summary.</p>
       module param (D3) remain follow-ups</li>
 <li><strong>Output</strong>: stable datapath that passes concurrency / edge tests</li>
 </ul>
-<h3 id="phase-6-tcpudp-functional-verification-observability">Phase 6 - TCP/UDP functional verification + observability</h3>
+<h3 id="phase-6---tcpudp-functional-verification--observability">Phase 6 - TCP/UDP functional verification + observability</h3>
 <ul>
 <li>[x] server on <code>0.0.0.0</code>, client to the fictional peer B: <code>iperf</code> for TCP/UDP (confirms IP-swap keeps connections / checksums valid) - done across Phases 4/9/10/12 (TCP 0 Retr, UDP 0 lost)</li>
 <li>[~] stats: <code>ip -s link</code> + device <code>STAT_*</code> registers (via <code>ndo_get_stats64</code>) used throughout; <strong>no <code>ethtool -S</code></strong> (no <code>ethtool_ops</code> yet - candidate backlog item)</li>
 <li>[ ] (optional) <code>tools/</code>: AF_PACKET datapath test / helpers</li>
 <li><strong>Output</strong>: ICMP + TCP/UDP both testable; stats observable - <strong>met</strong> (via the tests/ suite)</li>
 </ul>
-<h3 id="phase-7-stress-profiling">Phase 7 - stress + profiling</h3>
+<h3 id="phase-7---stress--profiling">Phase 7 - stress + profiling</h3>
 <ul>
 <li>[x] <code>tests/</code>: basic / tx / rx / ring_full / stress / iperf scripts - <code>tests/run-all.sh</code> (01-06)</li>
 <li>[x] benchmark: various packet sizes (64 / 1500 / 9000); <code>ping</code> / <code>iperf</code> traffic - 05-edge sizes + Phase 12 MTU sweep (L-12)</li>
@@ -229,7 +229,7 @@ summary.</p>
 <li><strong>Output</strong>: benchmark report done; L1 milestone folded into tag <code>v0.1-phase5</code> / <code>v0.1-phase9</code> (no separate <code>v0.x-level1</code> tag)</li>
 </ul>
 <hr>
-<h2 id="level-2-qemu-pci-device-netdev">Level 2 - QEMU PCI device + netdev</h2>
+<h2 id="level-2---qemu-pci-device--netdev">Level 2 - QEMU PCI device + netdev</h2>
 <blockquote>
 <p>Goal: the same netdev driver, now over <strong>real DMA / MMIO / MSI</strong> to a QEMU PCI device. Reuse
 principles (locked in by Level 1): <strong><code>core/</code> is not changed</strong> (D-12) - only <code>qemu-device/vnic.c</code>
@@ -247,7 +247,7 @@ already L2-ready (<code>dma_wmb</code>/<code>dma_rmb</code> D-21, map-error D-22
   (<code>qemu-system-x86_64 --version</code> on the WSL2 host); device source lives in <code>qemu-device/</code>, dropped
   into that QEMU tree (<code>hw/net/</code> + meson/Kconfig). SOP -&gt; <code>docs/dev-setup.md</code> (or a new doc).</p>
 </blockquote>
-<h3 id="phase-8-qemu-device-skeleton-mmio-msi-keystone">Phase 8 - QEMU device skeleton + MMIO + MSI (keystone)</h3>
+<h3 id="phase-8---qemu-device-skeleton--mmio--msi-keystone">Phase 8 - QEMU device skeleton + MMIO + MSI (keystone)</h3>
 <ul>
 <li>[x] device: QOM <code>TypeInfo</code> + <code>PCIDevice</code>, vendor/device ID (visible in <code>lspci</code>); BAR0 MMIO
       (<code>MemoryRegionOps</code>) over a register file mirroring <code>vnic_regs.h</code> (ID/VERSION/CAP read-only,
@@ -262,7 +262,7 @@ already L2-ready (<code>dma_wmb</code>/<code>dma_rmb</code> D-21, map-error D-22
   <code>0x564E3130</code>; reg read-back via real MMIO; a device-raised MSI reaches the ISR ("MSI self-test
   passed"). See <strong>L-06</strong> + <a href="phase8-bringup.html">results/phase8-bringup.md</a>.</li>
 </ul>
-<h3 id="phase-9-dma-datapath-via-device-internal-loopback-test-parity">Phase 9 - DMA datapath via device-internal loopback (test parity)</h3>
+<h3 id="phase-9---dma-datapath-via-device-internal-loopback-test-parity">Phase 9 - DMA datapath via device-internal loopback (test parity)</h3>
 <ul>
 <li>[x] driver HAL: <code>vnic_hal_ring_alloc</code> = <code>dma_alloc_coherent</code> (set <code>desc_dma</code>, program TDBAL/H,
       RDBAL/H); <code>vnic_hal_map</code> = <code>dma_map_single</code> (+ <code>vnic_hal_mapping_error</code> = <code>dma_mapping_error</code>);
@@ -281,7 +281,7 @@ already L2-ready (<code>dma_wmb</code>/<code>dma_rmb</code> D-21, map-error D-22
 <li><strong>Note</strong>: portable DMA (D-26) - core's <code>vnic_rx_clean</code> unmaps the old RX buffer before delivery
     (no-op on L1), so RX is correct under a vIOMMU / non-coherent host, not only on x86/q35.</li>
 </ul>
-<h3 id="phase-10-real-tap-backend-out-to-in-from-the-host">Phase 10 - real <code>tap</code> backend (out to / in from the host)</h3>
+<h3 id="phase-10---real-tap-backend-out-to--in-from-the-host">Phase 10 - real <code>tap</code> backend (out to / in from the host)</h3>
 <ul>
 <li>[x] device: add a NIC backend (<code>qemu_new_nic</code>/<code>NICConf</code>); TX path <code>qemu_send_packet</code> to the tap
       (instead of looping back); RX path <code>can_receive</code>/<code>receive</code> -&gt; <code>pci_dma_write</code> into RX + DD +
@@ -294,7 +294,7 @@ already L2-ready (<code>dma_wmb</code>/<code>dma_rmb</code> D-21, map-error D-22
 <li><strong>Output (DONE 2026-06-12)</strong>: real packets flow guest&lt;-&gt;host over the tap - <code>ping</code> 0% loss, <code>vnic0</code>
   RX&gt;0, RXAVAIL MSIs fire. See <strong>L-08</strong> + <a href="phase10-tap.html">results/phase10-tap.md</a>.</li>
 </ul>
-<h3 id="phase-11-finalize-netdev-l2-test-variant">Phase 11 - finalize netdev + L2 test variant</h3>
+<h3 id="phase-11---finalize-netdev--l2-test-variant">Phase 11 - finalize netdev + L2 test variant</h3>
 <ul>
 <li>[x] <code>level2/vnic_l2_main.c</code>: <code>alloc_etherdev</code> + the shared <code>vnic_netdev_ops</code> + <code>netif_napi_add</code>,
       min/max_mtu, <code>rx_buf_size</code> init (same as L1) - <strong>done in Phase 9</strong> (needed for <code>register_netdev</code>)</li>
@@ -310,7 +310,7 @@ already L2-ready (<code>dma_wmb</code>/<code>dma_rmb</code> D-21, map-error D-22
   reboots); 64-bit <code>STAT_*BYTES</code> (the u32 counters wrap past 4 GiB, L-09); TX doorbell moderation
   (ITR) as the TX analogue of NAPI batching (L-09) - candidates for Phase 12</li>
 </ul>
-<h3 id="phase-12-polish-finalize">Phase 12 - polish &amp; finalize</h3>
+<h3 id="phase-12---polish--finalize">Phase 12 - polish &amp; finalize</h3>
 <ul>
 <li>[x] performance analysis (real DMA / VM-exits vs L1 memcpy) - <code>scripts/{itr,perf}-sweep.sh</code>:</li>
 <li>[x] <strong>(a) TX doorbell moderation</strong> (<code>tx_coalesce</code>, <strong>D-32</strong>): off 414 Mbit/s -&gt; on 1.86 Gbit/s
@@ -339,7 +339,7 @@ already L2-ready (<code>dma_wmb</code>/<code>dma_rmb</code> D-21, map-error D-22
 <h2 id="advanced-backlog-scheduled-after-review">Advanced backlog (scheduled after review)</h2>
 <p>Items that bring the project closer to a production NIC; not on the main path. Schedule into a
 phase after review.</p>
-<h3 id="a1-iam-interrupt-auto-mask">A1 - IAM (Interrupt Auto Mask)</h3>
+<h3 id="a1---iam-interrupt-auto-mask">A1 - IAM (Interrupt Auto Mask)</h3>
 <ul>
 <li>[ ] add an <code>IAM</code> register (write-1-to-set; choose which causes auto-mask)</li>
 <li>[ ] device behavior: reading <code>ICR</code> auto-clears the corresponding <code>IMS</code> bits for IAM-selected causes (atomic ack + mask)</li>
@@ -347,7 +347,7 @@ phase after review.</p>
 <li><strong>Value</strong>: atomic ack + mask, removing the "read ICR -&gt; write IMC" race window; matches real e1000e / ixgbe design</li>
 <li><strong>Depends on</strong>: get the Level 2 baseline (single MSI + explicit IMC) working first</li>
 </ul>
-<h3 id="a2-interrupt-polling-adaptive-mode-comparison">A2 - Interrupt / Polling / Adaptive mode comparison</h3>
+<h3 id="a2---interrupt--polling--adaptive-mode-comparison">A2 - Interrupt / Polling / Adaptive mode comparison</h3>
 <ul>
 <li>[ ] add a <code>MODE</code> register (0=INT, 1=POLL, 2=ADAPTIVE); device decides whether to raise interrupts</li>
 <li>[ ] driver supports forced pure-interrupt / pure-polling / adaptive</li>
@@ -355,7 +355,7 @@ phase after review.</p>
 <li><strong>Value</strong>: quantify the interrupt vs polling throughput / CPU / latency trade-off</li>
 <li><strong>Note</strong>: the baseline NAPI is already an interrupt + polling hybrid; this adds a "force a fixed mode" comparison tool</li>
 </ul>
-<h3 id="a3-msi-x-multi-queue-rss">A3 - MSI-X / multi-queue / RSS</h3>
+<h3 id="a3---msi-x--multi-queue--rss">A3 - MSI-X / multi-queue / RSS</h3>
 <ul>
 <li>[ ] single MSI -&gt; MSI-X multi-vector</li>
 <li>[ ] multiple TX/RX queues</li>
@@ -363,7 +363,7 @@ phase after review.</p>
 <li><strong>Value</strong>: matches the multi-queue architecture of production high-speed NICs (ENA / NVIDIA class)</li>
 <li><strong>Depends on</strong>: Level 2 baseline done</li>
 </ul>
-<h3 id="a4-jumbo-multi-descriptor-rx-intel-style-bufferframe-register-split">A4 - Jumbo multi-descriptor RX + Intel-style buffer/frame register split</h3>
+<h3 id="a4---jumbo-multi-descriptor-rx--intel-style-bufferframe-register-split">A4 - Jumbo multi-descriptor RX + Intel-style buffer/frame register split</h3>
 <ul>
 <li>[ ] split <code>MAXFRM</code> into <code>RXBSZ</code> (RX buffer size) + max frame length + <code>CTRL.LPE</code> (long packet enable), mirroring Intel <code>RCTL.BSIZE</code> / <code>RLPML</code> / <code>LPE</code></li>
 <li>[ ] RX supports a single packet spanning multiple descriptors (one buffer per segment, last sets <code>EOP</code>)</li>
@@ -371,7 +371,7 @@ phase after review.</p>
 <li><strong>Value</strong>: real-NIC scatter / multi-buffer RX, and the separation of "buffer size" from "max frame"</li>
 <li><strong>Depends on</strong>: single-buffer RX baseline done</li>
 </ul>
-<h3 id="a6-stateless-offloads-checksum-tso-lro-gro-already-in-use">A6 - Stateless offloads: checksum + TSO (+ LRO; GRO already in use)</h3>
+<h3 id="a6---stateless-offloads-checksum--tso--lro-gro-already-in-use">A6 - Stateless offloads: checksum + TSO (+ LRO; GRO already in use)</h3>
 <ul>
 <li>[ ] <strong>checksum offload</strong>: advertise <code>NETIF_F_HW_CSUM</code>; RX mark <code>CHECKSUM_UNNECESSARY</code> (guest&lt;-&gt;host
       is local/trusted), TX accept <code>CHECKSUM_PARTIAL</code>; the device "computes"/marks. Removes the
@@ -386,7 +386,7 @@ phase after review.</p>
   unlocks TSO/LRO; TSO is per-packet amortization without jumbo (complements MTU)</li>
 <li><strong>Depends on</strong>: Level 2 baseline; <strong>checksum offload first</strong> (TSO requires it)</li>
 </ul>
-<h3 id="a5-rx-buffer-model-b-page_pool-build_skb-copy-break">A5 - RX buffer Model B (page_pool / build_skb / copy-break)</h3>
+<h3 id="a5---rx-buffer-model-b-page_pool--build_skb--copy-break">A5 - RX buffer Model B (page_pool / build_skb / copy-break)</h3>
 <ul>
 <li>[ ] post plain buffers / pages into the RX ring instead of pre-allocated skbs (D-18 rejects this for the baseline, which uses Model A)</li>
 <li>[ ] build the skb at completion with <code>build_skb</code> / <code>napi_build_skb</code>; attach the page as a frag</li>
@@ -405,7 +405,7 @@ phase after review.</p>
   refill must not lag enough to starve the device of buffers.</li>
 <li><strong>Depends on</strong>: Model A RX baseline (Phase 3) done</li>
 </ul>
-<h2 id="cross-cutting-ongoing-in-force">Cross-cutting (ongoing - in force)</h2>
+<h2 id="cross-cutting-ongoing---in-force">Cross-cutting (ongoing - in force)</h2>
 <ul>
 <li>[x] commit after each phase, tag when appropriate (<code>v0.1-phase5</code> / <code>-phase9</code> / <code>-level2</code>)</li>
 <li>[x] keep README / CHANGELOG / architecture.md in sync when changing code (incl. frontmatter date and version)</li>

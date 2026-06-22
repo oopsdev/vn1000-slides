@@ -54,7 +54,7 @@ hr{border:0;border-top:1px solid var(--line);margin:2em 0}
 <h1>Phase 9 - Level 2 datapath test run (raw evidence)</h1>
 <div class="meta"></div>
 </header>
-<h1 id="phase-9-level-2-datapath-test-run-raw-evidence">Phase 9 - Level 2 datapath test run (raw evidence)</h1>
+<h1 id="phase-9---level-2-datapath-test-run-raw-evidence">Phase 9 - Level 2 datapath test run (raw evidence)</h1>
 <p><code>tests/run-all.sh</code> on Level 2 (<code>vnic-l2.ko</code>) over real MMIO/DMA/MSI against the self-built QEMU
 device. See <a href="lessons-learned.html">lessons-learned L-07</a> and TODO Phase 9.</p>
 <ul>
@@ -63,7 +63,7 @@ device. See <a href="lessons-learned.html">lessons-learned L-07</a> and TODO Pha
 <li><strong>Invocation</strong>: <code>sudo env MODULE="$PWD/vnic-l2.ko" IFACE=enp0s3 bash ../tests/run-all.sh</code>
   (IFACE forced to the udev-renamed name for this run; the <code>36fcc54</code> fix pins it back to <code>vnic0</code>)</li>
 </ul>
-<h2 id="datapath-result-all-functional-checks-pass">Datapath result - all functional checks pass</h2>
+<h2 id="datapath-result---all-functional-checks-pass">Datapath result - all functional checks pass</h2>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -128,7 +128,7 @@ the PCI netdev out from under the test:</p>
 <p>The "interface present" checks ran in the ~5 ms window between <code>register_netdev</code> (<code>vnic0</code>) and udev
 finishing the rename to <code>enp0s3</code>; everything that ran after the rename settled passed. Root cause and
 fix (pin the name with <code>NET_NAME_USER</code>, commit <code>36fcc54</code>) are in L-07.</p>
-<h2 id="post-fix-re-run-all-green">Post-fix re-run - all-green</h2>
+<h2 id="post-fix-re-run---all-green">Post-fix re-run - all-green</h2>
 <p>With the name pinned (<code>36fcc54</code>), re-run at the default <code>IFACE=vnic0</code> (no override):</p>
 <pre><code>  01-smoke         PASS        (16/16; iperf3 ~611 Mbps, Retr 0, rx==tx 847714, 0 drop/err)
   02-lifecycle     PASS        (insmod/rmmod x8 + up/down x8, no &quot;missing&quot; - name is stable)

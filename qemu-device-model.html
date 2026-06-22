@@ -194,7 +194,7 @@ same process.</p>
 runs there and uses <strong>nested</strong> KVM to run the guest. The process/thread picture above is unchanged.</p>
 </blockquote>
 <hr>
-<h2 id="2-config-space-access-which-qemu-callback">2. Config-space access -&gt; which QEMU callback</h2>
+<h2 id="2-config-space-access---which-qemu-callback">2. Config-space access -&gt; which QEMU callback</h2>
 <p><strong>Guest side.</strong> The kernel reads/writes config space with <code>pci_read_config_dword()</code> etc. On x86
 those go through the host-bridge mechanism - legacy <strong>CF8/CFC</strong> I/O ports, or <strong>MMCONFIG/ECAM</strong> for
 PCIe extended config. Most config writes are done <em>by the PCI core</em>, not our driver: BAR sizing,
@@ -214,7 +214,7 @@ its own config side effects (then usually calls <code>pci_default_write_config</
 <p><em>Takeaway:</em> for VN1000 we likely <strong>do not</strong> override config access - the defaults handle BAR
 mapping and MSI-enable. Our registers live in the BAR (MMIO), not config space.</p>
 <hr>
-<h2 id="3-mmio-bar-access-which-qemu-callback">3. MMIO (BAR) access -&gt; which QEMU callback</h2>
+<h2 id="3-mmio-bar-access---which-qemu-callback">3. MMIO (BAR) access -&gt; which QEMU callback</h2>
 <p><strong>QEMU side.</strong> In <code>realize</code> the device creates a <code>MemoryRegion</code> with I/O ops and registers it as a
 BAR:</p>
 <pre><code class="language-c">static const MemoryRegionOps vnic_mmio_ops = {
@@ -285,7 +285,7 @@ to publish how far buffers are available:
 <p>(<code>ICR</code>/<code>IMS</code>/<code>IMC</code> have their own side effects - read-to-clear <code>ICR</code>, RW1S <code>IMS</code>, RW1C <code>IMC</code> - see
 background-knowledge topic 10.)</p>
 <hr>
-<h2 id="4-device-dma-guest-memory-and-the-guest-side-setup">4. Device DMA -&gt; guest memory (and the guest-side setup)</h2>
+<h2 id="4-device-dma---guest-memory-and-the-guest-side-setup">4. Device DMA -&gt; guest memory (and the guest-side setup)</h2>
 <p><strong>QEMU side.</strong> The device reaches guest RAM with the PCI DMA helpers - it autonomously reads/writes
 memory the driver prepared:</p>
 <pre><code class="language-c">pci_dma_read (PCIDevice *d, dma_addr_t addr, void *buf, dma_addr_t len);  /* read guest mem  */
@@ -312,7 +312,7 @@ barriers, D-21) and/or the completion <strong>MSI</strong> (section 5).</p>
 returns a <code>dma_addr_t</code> and the device <code>pci_dma_read/write</code>s it. The core driver treats the token as
 opaque (D-12), so this swap needs no core change.</p>
 <hr>
-<h2 id="5-msi-the-guest-interrupt">5. MSI -&gt; the guest interrupt</h2>
+<h2 id="5-msi---the-guest-interrupt">5. MSI -&gt; the guest interrupt</h2>
 <p><strong>QEMU side.</strong> The device declares MSI in <code>realize</code> and fires it on completion:</p>
 <pre><code class="language-c">msi_init(&amp;s-&gt;pdev, /*cap offset*/ 0, /*nr_vectors*/ 1, /*msi64bit*/ true,
          /*per_vector_mask*/ false, errp);     /* once */
@@ -388,7 +388,7 @@ count is far below the packet count. Second, the <strong>mask is the driver's th
 when the poll finishes and re-arms <code>IMS</code>, any still-pending cause fires once more - which is exactly
 what stops NAPI from missing a completion that arrived mid-poll.</p>
 <hr>
-<h2 id="6-the-nic-backend-choosing-it-and-how-the-device-calls-it">6. The NIC backend - choosing it, and how the device calls it</h2>
+<h2 id="6-the-nic-backend---choosing-it-and-how-the-device-calls-it">6. The NIC backend - choosing it, and how the device calls it</h2>
 <p>Sections 1-5 are about the <strong>guest &lt;-&gt; device</strong> edge. This section is the other edge: <strong>device &lt;-&gt;
 the outside world</strong>. A QEMU NIC is two separate objects - a device front-end (<code>-device vnic</code>) and a
 <strong>backend</strong> (<code>-netdev &lt;type&gt;,id=n0</code>), wired together with <code>netdev=n0</code>. The device is
@@ -422,7 +422,7 @@ s-&gt;nic = qemu_new_nic(&amp;net_vnic_info, &amp;s-&gt;conf, object_get_typenam
 <p><em>L1 analogue:</em> none - Level 1 had no external backend; its "network" was the internal loopback
 engine. The VN1000 keeps that as <code>loopback=on</code>, so <code>qemu_send_packet</code>/<code>receive()</code> are used only in
 <code>loopback=off</code> (tap) mode; the descriptor-ring + MSI half (sections 3-5) is identical either way.</p>
-<h3 id="62-choosing-the-backend-netdev-type">6.2 Choosing the backend (<code>-netdev &lt;type&gt;</code>)</h3>
+<h3 id="62-choosing-the-backend--netdev-type">6.2 Choosing the backend (<code>-netdev &lt;type&gt;</code>)</h3>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -472,7 +472,7 @@ engine. The VN1000 keeps that as <code>loopback=on</code>, so <code>qemu_send_pa
 </tbody>
 </table></div>
 <p>The device model is the same for all of these; only the <code>-netdev</code> differs.</p>
-<h3 id="63-how-user-slirp-works-the-contrast-with-tap">6.3 How <code>user</code> (slirp) works - the contrast with tap</h3>
+<h3 id="63-how-user-slirp-works---the-contrast-with-tap">6.3 How <code>user</code> (slirp) works - the contrast with tap</h3>
 <p><code>tap</code> hands <strong>raw Ethernet frames</strong> to <code>/dev/net/tun</code>, so they enter the <strong>host kernel</strong> network
 stack like a real NIC's would; the host then routes/NATs/bridges them. <strong>slirp</strong> instead runs a
 <strong>userspace TCP/IP stack + virtual router inside the QEMU process</strong> (the <code>libslirp</code> library): it
@@ -484,7 +484,7 @@ connections), but also why the host cannot initiate to the guest (except <code>h
 real L2 interface to <code>tcpdump</code>. ("Slirp" is the name of a mid-1990s program that emulated a SLIP/PPP
 link to give shell users IP connectivity - a play on <strong>SLIP</strong> (Serial Line IP), not an acronym.)</p>
 <hr>
-<h2 id="summary-guest-action-qemu-hook">Summary - guest action &lt;-&gt; QEMU hook</h2>
+<h2 id="summary---guest-action---qemu-hook">Summary - guest action &lt;-&gt; QEMU hook</h2>
 <div class="tablewrap"><table>
 <thead>
 <tr>

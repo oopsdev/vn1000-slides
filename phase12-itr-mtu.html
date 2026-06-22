@@ -54,11 +54,11 @@ hr{border:0;border-top:1px solid var(--line);margin:2em 0}
 <h1>Phase 12 - ITR moderation and MTU sweeps</h1>
 <div class="meta"></div>
 </header>
-<h1 id="phase-12-itr-moderation-and-mtu-sweeps">Phase 12 - ITR moderation and MTU sweeps</h1>
+<h1 id="phase-12---itr-moderation-and-mtu-sweeps">Phase 12 - ITR moderation and MTU sweeps</h1>
 <p>Perf analysis of the two device levers beyond the TX doorbell (results/phase12-tx-doorbell.md):
 interrupt moderation (ITR, D-33) and MTU. Guest &lt;-&gt; host over the tap, QEMU 6.2 + KVM.
 See <a href="lessons-learned.html">lessons-learned L-11 (ITR)</a> and L-12 (MTU).</p>
-<h2 id="itr-sweep-scriptsitr-sweepsh-iperf3-r-mtu-1500">ITR sweep (<code>scripts/itr-sweep.sh</code>, iperf3 -R, MTU 1500)</h2>
+<h2 id="itr-sweep-scriptsitr-sweepsh-iperf3--r-mtu-1500">ITR sweep (<code>scripts/itr-sweep.sh</code>, iperf3 -R, MTU 1500)</h2>
 <pre><code>itr_us   interrupts   ints/s     rx_drop   rx_throughput
 0        8494         849        0         3.10 Gbits/sec
 50       3894         389        0         2.79 Gbits/sec
@@ -70,7 +70,7 @@ See <a href="lessons-learned.html">lessons-learned L-11 (ITR)</a> and L-12 (MTU)
 (itr=0 is already only ~849/s, not per-packet); ITR trims further by batching more per interrupt. No
 drops even at ~14 ints/s because NAPI keeps polling in softirq under load (the interrupt only restarts
 it after idle). See L-11. (Latency cost of ITR not yet measured - backlog.)</p>
-<h2 id="mtu-sweep-scriptsperf-sweepsh-iperf3-r-itr0-dur30-two-runs">MTU sweep (<code>scripts/perf-sweep.sh</code>, iperf3 -R, itr=0, DUR=30, two runs)</h2>
+<h2 id="mtu-sweep-scriptsperf-sweepsh-iperf3--r-itr0-dur30-two-runs">MTU sweep (<code>scripts/perf-sweep.sh</code>, iperf3 -R, itr=0, DUR=30, two runs)</h2>
 <pre><code>MTU    ints/s (r1/r2)   rx_drop   rx_throughput (r1 / r2)
 1500   1044 / 430       0         2.99 / 2.51 Gbits/sec
 3000    694 / 1296      0         4.33 / 4.04 Gbits/sec

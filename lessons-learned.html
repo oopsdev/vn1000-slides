@@ -171,7 +171,7 @@ and any follow-up. Link to the raw data under <code>results/</code>.</p>
      interrupt swings - and two 30 s runs were needed to separate the throughput signal from noise.
      On KVM/WSL2, measure long and repeat before concluding.</li>
 </ul>
-<h2 id="l-11-itr-moderation-60x-fewer-interrupts-at-flat-throughput-but-napi-is-the-primary-moderator">L-11 ITR moderation: ~60x fewer interrupts at flat throughput - but NAPI is the primary moderator</h2>
+<h2 id="l-11-itr-moderation-60x-fewer-interrupts-at-flat-throughput---but-napi-is-the-primary-moderator">L-11 ITR moderation: ~60x fewer interrupts at flat throughput - but NAPI is the primary moderator</h2>
 <ul>
 <li><strong>Date / commit</strong>: 2026-06-15. D-33; <code>scripts/itr-sweep.sh</code>. Raw:
   <a href="phase12-itr-mtu.html">results/phase12-itr-mtu.md</a>.</li>
@@ -194,7 +194,7 @@ and any follow-up. Link to the raw data under <code>results/</code>.</p>
   delayed up to ITR us -&gt; higher RTT). A ping-RTT-per-ITR sweep is the missing half; adaptive DIM is
   also backlog.</li>
 </ul>
-<h2 id="l-10-tx-doorbell-batching-xmit_more-45xd-tx-the-vm-exit-was-the-bottleneck">L-10 TX doorbell batching (xmit_more) ~4.5x'd TX - the VM-exit was the bottleneck</h2>
+<h2 id="l-10-tx-doorbell-batching-xmit_more-45xd-tx---the-vm-exit-was-the-bottleneck">L-10 TX doorbell batching (xmit_more) ~4.5x'd TX - the VM-exit was the bottleneck</h2>
 <ul>
 <li><strong>Date / commit</strong>: 2026-06-15. Change <code>394b2d5</code> (D-32). Raw:
   <a href="phase12-tx-doorbell.html">results/phase12-tx-doorbell.md</a>.</li>
@@ -322,7 +322,7 @@ and any follow-up. Link to the raw data under <code>results/</code>.</p>
   (global). <strong>Confirmed</strong>: with the name pinned the rename race is gone and the full suite is
   <strong>all-green (6/6, overall PASS)</strong> at the default <code>IFACE=vnic0</code> (iperf3 ~611 Mbps, Retr 3, 0 drops).</li>
 </ul>
-<h2 id="l-06-phase-8-keystone-works-on-a-self-built-qemu-and-three-bring-up-footguns">L-06 Phase 8 keystone works on a self-built QEMU - and three bring-up footguns</h2>
+<h2 id="l-06-phase-8-keystone-works-on-a-self-built-qemu---and-three-bring-up-footguns">L-06 Phase 8 keystone works on a self-built QEMU - and three bring-up footguns</h2>
 <ul>
 <li><strong>Date / commit</strong>: 2026-06-12 (validated); Phase 8 code <code>378a64b</code>. Raw dmesg:
   <a href="phase8-bringup.html">results/phase8-bringup.md</a>.</li>

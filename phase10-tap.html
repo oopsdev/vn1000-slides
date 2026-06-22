@@ -54,7 +54,7 @@ hr{border:0;border-top:1px solid var(--line);margin:2em 0}
 <h1>Phase 10 - real tap backend (guest &lt;-&gt; host) - evidence</h1>
 <div class="meta"></div>
 </header>
-<h1 id="phase-10-real-tap-backend-guest-host-evidence">Phase 10 - real tap backend (guest &lt;-&gt; host) - evidence</h1>
+<h1 id="phase-10---real-tap-backend-guest---host---evidence">Phase 10 - real tap backend (guest &lt;-&gt; host) - evidence</h1>
 <p>Level 2 with <code>loopback=off</code> + <code>-netdev tap</code> bridges real packets between the guest's <code>vnic0</code> and the
 WSL2 host over <code>vnic-tap0</code>. See <a href="lessons-learned.html">lessons-learned L-08</a> and TODO Phase 10.</p>
 <ul>
@@ -63,7 +63,7 @@ WSL2 host over <code>vnic-tap0</code>. See <a href="lessons-learned.html">lesson
 <li><strong>Host</strong>: <code>vnic-tap0</code> 192.168.20.1/24; guest <code>vnic0</code> 192.168.20.2/24</li>
 <li><strong>Launch</strong>: <code>sudo env QEMU=$HOME/qemu/build/qemu-system-x86_64 VNIC_TAP=vnic-tap0 VMDIR=$HOME/vnic-vm ./run-qemu.sh</code></li>
 </ul>
-<h2 id="guest-host-ping-after-the-rx-fix">guest -&gt; host ping (after the RX fix)</h2>
+<h2 id="guest---host-ping-after-the-rx-fix">guest -&gt; host ping (after the RX fix)</h2>
 <pre><code>$ ping -c3 192.168.20.1
 64 bytes from 192.168.20.1: icmp_seq=1 ttl=64 time=0.439 ms
 64 bytes from 192.168.20.1: icmp_seq=2 ttl=64 time=0.631 ms
@@ -90,7 +90,7 @@ even though host-side <code>tcpdump -ni vnic-tap0</code> showed both the request
 disabled the tap read handler while <code>RXEN</code> was clear (<code>can_receive</code> false) and nothing re-armed it
 once the driver enabled <code>RXEN</code>. Fix: <code>qemu_flush_queued_packets()</code> on <code>CTRL.RXEN</code> enable. The
 host-tap <code>tcpdump</code> was a red herring - it captures kernel-side, before the device reads.</p>
-<h2 id="external-reachability-guest-public-internet-through-vnic0">External reachability - guest -&gt; public internet through vnic0</h2>
+<h2 id="external-reachability---guest---public-internet-through-vnic0">External reachability - guest -&gt; public internet through vnic0</h2>
 <p>With the host as a router + NAT (<code>scripts/tap-nat.sh up</code>: <code>ip_forward=1</code> + outbound MASQUERADE out
 the WAN iface) and a guest default route via the tap, the guest reaches the <strong>public internet through
 vnic0</strong> - real ICMP / DNS / TCP / HTTP, not just the host:</p>
@@ -111,7 +111,7 @@ Windows -&gt; internet</code>, and back. This exercises the full Level 2 datapat
 arbitrary real traffic - a TCP handshake, DNS, a larger HTTP response - well beyond the loopback
 ping. Double-NAT, so latency/throughput are not representative, but functional correctness is shown.
 Outbound only; inbound to a guest service would need a per-service DNAT (+ Windows portproxy).</p>
-<h2 id="throughput-iperf3-guest-host-over-the-tap-l-09">Throughput - iperf3 guest &lt;-&gt; host over the tap (L-09)</h2>
+<h2 id="throughput---iperf3-guest---host-over-the-tap-l-09">Throughput - iperf3 guest &lt;-&gt; host over the tap (L-09)</h2>
 <p>QEMU 6.2 + KVM, <code>iperf3</code> 10 s each way (this is the <strong>per-packet doorbell</strong> baseline; Phase 12 / L-10
 later batches the TX doorbell -&gt; ~1.86 Gbit/s, see results/phase12-tx-doorbell.md).</p>
 <p>TX - guest -&gt; host (<code>iperf3 -c 192.168.20.1 -t 10</code>):</p>

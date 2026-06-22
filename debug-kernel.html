@@ -71,7 +71,7 @@ All steps run <strong>inside the guest</strong> (D-14: all kernel work in the gu
 (<code>results/</code>); running it under Stage 1 is the remaining Phase 5 item.</p>
 </blockquote>
 <hr>
-<h2 id="stage-0-slub_debug-boot-parameter-no-rebuild-partial">Stage 0 - <code>slub_debug</code> boot parameter (no rebuild, partial)</h2>
+<h2 id="stage-0---slub_debug-boot-parameter-no-rebuild-partial">Stage 0 - <code>slub_debug</code> boot parameter (no rebuild, partial)</h2>
 <p>Stock Ubuntu usually has <code>CONFIG_SLUB_DEBUG=y</code> (compiled in, off by default).
 Enabling it at boot turns on slab <strong>red-zoning / poisoning / use-after-free /
 double-free / sanity</strong> checks - a large slice of what KASAN finds, for free.</p>
@@ -92,12 +92,12 @@ slab corruption / UAF / double-free in our RX/TX buffer or skb handling now
 prints to <code>dmesg</code>, which the suite's <code>dmesg_clean</code> catches. lockdep, kmemleak
 and full KASAN still need a config build (Stage 1).</p>
 <hr>
-<h2 id="stage-1-build-a-debug-kernel-the-full-gate">Stage 1 - build a debug kernel (the full gate)</h2>
+<h2 id="stage-1---build-a-debug-kernel-the-full-gate">Stage 1 - build a debug kernel (the full gate)</h2>
 <h3 id="1-give-the-guest-more-resources">1. Give the guest more resources</h3>
 <p>KASAN roughly doubles memory and slows the build/run 2-3x. A 2 vCPU / 2 GiB
 guest is too small. Bump <a href="../scripts/run-qemu.sh"><code>scripts/run-qemu.sh</code></a> for the
 debug runs, e.g. <code>-smp 4 -m 6144</code>, and restart the guest.</p>
-<h3 id="2-build-deps-kernel-source">2. Build deps + kernel source</h3>
+<h3 id="2-build-deps--kernel-source">2. Build deps + kernel source</h3>
 <p>A vanilla stable kernel avoids the signing-key hassle of the Ubuntu source tree.</p>
 <pre><code class="language-bash">sudo apt install -y build-essential libncurses-dev bison flex libssl-dev \
                     libelf-dev bc dwarves cpio
@@ -106,7 +106,7 @@ ver=6.8.12     # pick one close to your guest's `uname -r`
 curl -LO https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$ver.tar.xz
 tar xf linux-$ver.tar.xz &amp;&amp; cd linux-$ver
 </code></pre>
-<h3 id="3-configure-stock-config-the-debug-checkers">3. Configure: stock config + the debug checkers</h3>
+<h3 id="3-configure-stock-config--the-debug-checkers">3. Configure: stock config + the debug checkers</h3>
 <pre><code class="language-bash">cp /boot/config-$(uname -r) .config
 scripts/config -d SYSTEM_TRUSTED_KEYS -d SYSTEM_REVOCATION_KEYS   # skip signing keys
 
@@ -159,7 +159,7 @@ sudo reboot                        # boot the new kernel (select it if not defau
 </code></pre>
 <p>If kmemleak is not set to auto-scan, add <code>kmemleak=on</code> to the kernel cmdline
 (same <code>GRUB_CMDLINE_LINUX_DEFAULT</code> edit as Stage 0).</p>
-<h3 id="5-rebuild-the-module-against-the-debug-kernel-run">5. Rebuild the module against the debug kernel + run</h3>
+<h3 id="5-rebuild-the-module-against-the-debug-kernel--run">5. Rebuild the module against the debug kernel + run</h3>
 <pre><code class="language-bash">uname -r                           # confirm the debug kernel is running
 cd ~/vnic/driver &amp;&amp; make           # builds against the new /lib/modules/.../build
 cd .. &amp;&amp; sudo bash tests/run-all.sh

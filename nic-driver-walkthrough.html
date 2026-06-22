@@ -54,7 +54,7 @@ hr{border:0;border-top:1px solid var(--line);margin:2em 0}
 <h1>NIC Driver Working Flow - a guided walkthrough of VN1000</h1>
 <div class="meta"><span>2026-06-16</span><span>v0.1.0</span><span>NikeChen</span></div>
 </header>
-<h1 id="nic-driver-working-flow-a-guided-walkthrough">NIC Driver Working Flow - a guided walkthrough</h1>
+<h1 id="nic-driver-working-flow---a-guided-walkthrough">NIC Driver Working Flow - a guided walkthrough</h1>
 <p>This is the <strong>start-here narrative</strong> for the project: how a Linux NIC driver actually works, end to
 end, told through VN1000. It links out to the detailed docs rather than repeating them - read it
 first, then follow the pointers. The goal of the whole repo is to <em>understand the NIC driver working
@@ -106,7 +106,7 @@ the device signals completion with an <strong>MSI</strong>, and the driver does 
 </tr>
 </tbody>
 </table></div>
-<h2 id="2-the-driver-lifecycle-init-probe-open-close-remove">2. The driver lifecycle: init -&gt; probe -&gt; open -&gt; close -&gt; remove</h2>
+<h2 id="2-the-driver-lifecycle-init---probe---open---close---remove">2. The driver lifecycle: init -&gt; probe -&gt; open -&gt; close -&gt; remove</h2>
 <p>Before any packet moves, the driver goes through a fixed lifecycle. The TX/RX datapath (sections 3
 and 4) is only what runs <strong>between open and close</strong>; the rest is bring-up and teardown.</p>
 <p><strong>module init (<code>module_init</code>, at <code>insmod</code>)</strong> - register the driver with its subsystem.

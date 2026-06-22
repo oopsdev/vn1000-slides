@@ -91,8 +91,8 @@ happens in the guest, device work on the host - both sync through the same remot
 <h1 id="one-time-on-the-wsl2-host">one-time, on the WSL2 host:</h1>
 <p>git clone https://github.com/oopsdev/Linux_NIC_Simulation.git ~/vnic   # -&gt; REPO=~/vnic</p>
 <h1 id="after-editing-qemu-devicevnicc-inside-the-guest-publish-then-pull-on-the-host">after editing qemu-device/vnic.c inside the guest, publish then pull on the host:</h1>
-<h1 id="guest-git-commit-am-git-push">guest:  git commit -am "..." &amp;&amp; git push</h1>
-<h1 id="host-cd-vnic-git-pull">host:   cd ~/vnic &amp;&amp; git pull</h1>
+<h1 id="guest-git-commit--am---git-push">guest:  git commit -am "..." &amp;&amp; git push</h1>
+<h1 id="host-cd-vnic--git-pull">host:   cd ~/vnic &amp;&amp; git pull</h1>
 <p>```</p>
 <p>(Alternatives if you must move uncommitted edits: <code>scp -P 2222 &lt;guest-user&gt;@localhost:...</code> over the
 run-qemu.sh SSH forward, or point <code>REPO</code> at the Windows checkout via <code>/mnt/c/...</code>. Both are manual
@@ -118,13 +118,13 @@ EOF
 </code></pre>
 <p>(<code>hw/net/</code> is the natural home for a NIC model. The device's QOM type name is <code>vnic</code>, so the guest
 sees it via <code>-device vnic</code>.)</p>
-<h2 id="5-configure-build">5. Configure + build</h2>
+<h2 id="5-configure--build">5. Configure + build</h2>
 <pre><code class="language-bash">./configure --target-list=x86_64-softmmu     # KVM is enabled by default on Linux
 make -j&quot;$(nproc)&quot;                            # binary: build/qemu-system-x86_64
 </code></pre>
 <p>A rebuild after editing <code>qemu-device/vnic.c</code> is: re-<code>cp</code> it to <code>hw/net/vnic.c</code> (step 4), then
 <code>make -j -C ~/qemu</code> (or <code>ninja -C ~/qemu/build</code>).</p>
-<h2 id="6-run-the-guest-under-the-self-built-qemu-attach-the-device">6. Run the guest under the self-built QEMU + attach the device</h2>
+<h2 id="6-run-the-guest-under-the-self-built-qemu--attach-the-device">6. Run the guest under the self-built QEMU + attach the device</h2>
 <p><a href="../scripts/run-qemu.sh"><code>scripts/run-qemu.sh</code></a> honours two env vars:</p>
 <ul>
 <li><code>QEMU=</code> - path to the QEMU binary (default <code>qemu-system-x86_64</code>)</li>
@@ -150,7 +150,7 @@ sudo insmod driver/vnic-l2.ko       # probe -&gt; vnic0 (name pinned, NET_NAME_U
 dmesg | tail                        # ID read back as 0x564E3130; &quot;MSI&quot; path exercised by the suite
 sudo env MODULE=&quot;$PWD/driver/vnic-l2.ko&quot; bash tests/run-all.sh   # full Level 1 suite over real DMA
 </code></pre>
-<h2 id="8-phase-10-run-with-a-real-tap-backend-guest-host">8. Phase 10 - run with a real <code>tap</code> backend (guest &lt;-&gt; host)</h2>
+<h2 id="8-phase-10---run-with-a-real-tap-backend-guest---host">8. Phase 10 - run with a real <code>tap</code> backend (guest &lt;-&gt; host)</h2>
 <p><code>loopback=off</code> + a <code>-netdev tap</code> makes the device bridge frames to a host tap instead of looping
 internally (D-30). <code>run-qemu.sh</code> builds this when <code>VNIC_TAP=&lt;ifname&gt;</code> is set.</p>
 <p><strong>Host (WSL2) - create + address the tap once</strong> (root; the tap is a point-to-point link to the
@@ -183,7 +183,7 @@ root for the QEMU side, but opening <code>/dev/net/tun</code> + KVM still typica
 own NAT is separate; this tap is a host&lt;-&gt;guest link inside WSL2. Tear down with
 <code>sudo ip tuntap del dev vnic-tap0 mode tap</code>.</p>
 </blockquote>
-<h3 id="81-reach-external-servers-from-the-guest-host-as-router-nat">8.1 Reach external servers from the guest (host as router + NAT)</h3>
+<h3 id="81-reach-external-servers-from-the-guest-host-as-router--nat">8.1 Reach external servers from the guest (host as router + NAT)</h3>
 <p>By itself the tap is only a host&lt;-&gt;guest link - the guest reaches <code>192.168.20.1</code> and nothing more,
 because the host's <code>net.ipv4.ip_forward</code> defaults to <strong>0</strong> (it acts as an end host, not a router) and
 the guest's <code>192.168.20.x</code> is a private, non-routable source. To let the guest reach the <strong>outside</strong>

@@ -654,7 +654,7 @@ both. This is the control/status handshake: the driver writes <code>CTRL.EN</cod
 additionally restores the power-on register state.</p>
 <p>Reset completion has no separate status bit; the self-clearing <code>CTRL.RST</code> is the sole completion signal.</p>
 </blockquote>
-<h3 id="46-mac_lo-mac_hi-0x0018-0x001c-rw">4.6 MAC_LO / MAC_HI (0x0018 / 0x001C, RW)</h3>
+<h3 id="46-mac_lo--mac_hi-0x0018--0x001c-rw">4.6 MAC_LO / MAC_HI (0x0018 / 0x001C, RW)</h3>
 <ul>
 <li><code>MAC_LO</code> bits[31:0] = MAC[0..3]</li>
 <li><code>MAC_HI</code> bits[15:0] = MAC[4..5], bit31 = <code>AV</code> (address valid)</li>
@@ -673,7 +673,7 @@ additionally restores the power-on register state.</p>
 <li><code>TDT/RDT</code>: maintained by the driver; <strong>a write acts as a doorbell</strong>, notifying the device of new work or newly available buffers</li>
 <li>empty: <code>HEAD == TAIL</code>; full: <code>(TAIL + 1) % N == HEAD</code></li>
 </ul>
-<h3 id="49-interrupt-cause-bits-shared-by-icr-ics-ims-imc">4.9 Interrupt cause bits (shared by ICR / ICS / IMS / IMC)</h3>
+<h3 id="49-interrupt-cause-bits-shared-by-icr--ics--ims--imc">4.9 Interrupt cause bits (shared by ICR / ICS / IMS / IMC)</h3>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -815,7 +815,7 @@ ISR does the same against the QEMU device, whose <code>ICR</code> read path is i
 </tr>
 </tbody>
 </table></div>
-<h3 id="53-status-the-dd-ownership-done-bit-vn_desc_">5.3 status - the DD ownership / done bit (VN_DESC_*)</h3>
+<h3 id="53-status---the-dd-ownership--done-bit-vn_desc_">5.3 status - the DD ownership / done bit (VN_DESC_*)</h3>
 <p>Bit 0 is <code>DD</code> (Descriptor Done); bits 31:1 are reserved.</p>
 <div class="tablewrap"><table>
 <thead>
@@ -898,7 +898,7 @@ got</strong> - <code>next_to_clean</code> (where to resume reclaiming/receiving)
 which may run ahead of the last <code>*DT</code> it published so it can batch the doorbell). There is no hardware
 register for "how far the <em>driver</em> has processed", and reading <code>*DH</code> each time would cost an MMIO
 read; tracking it in software (advanced by the in-memory <code>DD</code> bit) is both necessary and cheaper.</p>
-<h4 id="tx-ring-driver-produces-device-consumes">TX ring - driver produces, device consumes</h4>
+<h4 id="tx-ring---driver-produces-device-consumes">TX ring - driver produces, device consumes</h4>
 <p><code>TDH</code> (device consumer) and <code>TDT</code> (driver producer) split the ring. <strong>At open the ring is empty:</strong>
 <code>next_to_use = next_to_clean = 0</code> and <code>TDH = TDT = 0</code> - nothing is in flight; the driver fills
 forward from <code>next_to_use</code> (NTU) and the device follows at <code>TDH</code>. Example: the driver has filled
@@ -931,7 +931,7 @@ forward from <code>next_to_use</code> (NTU) and the device follows at <code>TDH<
    "saw <code>DD == 1</code>" <em>before</em> the following reads, so they cannot be hoisted ahead of the flag), then
    unmap/free <code>bufs[ntc]</code>, <code>next_to_clean++</code>, wake the queue if it was stopped.
 - empty: <code>TDH == TDT</code>    full: <code>(TDT + 1) % N == TDH</code> (one slot kept unused)</p>
-<h4 id="rx-ring-device-produces-driver-consumes">RX ring - device produces, driver consumes</h4>
+<h4 id="rx-ring---device-produces-driver-consumes">RX ring - device produces, driver consumes</h4>
 <p>At open the driver <strong>pre-posts an empty buffer into every usable slot</strong> (Model A) with <code>DD = 0</code> and
 writes <code>RDT</code> to publish them. <strong>Concretely at open:</strong> <code>next_to_clean = 0</code>, <code>RDH = 0</code>, <code>RDT =
 count - 1</code> (every usable slot posted, <code>DD = 0</code>, one slot kept unused); <code>next_to_use</code> is <strong>unused</strong> on
@@ -1020,7 +1020,7 @@ reads the payload:</p>
 <li>Baseline: the device signals completion by interrupt (throttled by <code>ITR</code>); the driver uses NAPI to switch between interrupt and polling (interrupt arrives -&gt; <code>IMC</code> mask and poll -&gt; <code>IMS</code> re-enable when drained), which is itself a hybrid of interrupt and polling.</li>
 <li>"Forced fixed mode (pure interrupt / pure polling / adaptive) + three-mode benchmark comparison" is an advanced item (TODO backlog A2, which introduces the <code>MODE</code> register).</li>
 </ul>
-<h3 id="66-teardown-reset">6.6 Teardown / Reset</h3>
+<h3 id="66-teardown--reset">6.6 Teardown / Reset</h3>
 <ul>
 <li>Pause: <code>CTRL.EN = 0</code> (stops TX/RX)</li>
 <li>Full reset: <code>CTRL.RST = 1</code>, resets ring pointers and statistics</li>

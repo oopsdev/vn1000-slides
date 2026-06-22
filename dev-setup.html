@@ -54,7 +54,7 @@ hr{border:0;border-top:1px solid var(--line);margin:2em 0}
 <h1>Development Environment SOP - Option B (WSL2 + QEMU Ubuntu guest)</h1>
 <div class="meta"><span>2026-06-15</span><span>v0.1.0</span><span>NikeChen</span></div>
 </header>
-<h1 id="development-environment-sop-option-b-wsl2-qemu-ubuntu-guest">Development environment SOP - Option B: WSL2 + QEMU Ubuntu guest</h1>
+<h1 id="development-environment-sop---option-b-wsl2--qemu-ubuntu-guest">Development environment SOP - Option B: WSL2 + QEMU Ubuntu guest</h1>
 <p>Run QEMU + an Ubuntu guest inside WSL2, and do <strong>all kernel-module development inside the guest</strong>.
 Rationale: see <a href="design-decisions.html">design-decisions.md</a> D-14 (the WSL2 custom kernel has no
 matching headers in apt; the guest has headers, kgdb is handy, and a panic only kills the guest;
@@ -76,7 +76,7 @@ nestedVirtualization=true
 </code></pre>
 <p>Then run <code>wsl --shutdown</code> in Windows PowerShell, restart WSL, and re-check <code>ls -l /dev/kvm</code>.</p>
 <hr>
-<h2 id="1-build-the-ubuntu-guest-cloud-image-cloud-init">1. Build the Ubuntu guest (cloud image + cloud-init)</h2>
+<h2 id="1-build-the-ubuntu-guest-cloud-image--cloud-init">1. Build the Ubuntu guest (cloud image + cloud-init)</h2>
 <pre><code class="language-bash">mkdir -p ~/vnic-vm &amp;&amp; cd ~/vnic-vm
 
 # 1.1 Download the Ubuntu 24.04 server cloud image (qcow2)
@@ -143,7 +143,7 @@ REPO=~/vnic                                   # your host checkout (or /mnt/c/Pr
 ln -sf &quot;$REPO/scripts/run-qemu.sh&quot; run-qemu.sh
 </code></pre>
 <hr>
-<h2 id="3-first-boot-login">3. First boot + login</h2>
+<h2 id="3-first-boot--login">3. First boot + login</h2>
 <pre><code class="language-bash">./run-qemu.sh
 # On first boot cloud-init creates the user, installs packages, and grows the rootfs (a few minutes).
 # The serial console shows a login prompt: user dev / password dev.
@@ -167,7 +167,7 @@ sudo touch /etc/cloud/cloud-init.disabled</code>
 Do <strong>not</strong> run <code>cloud-init clean</code> unless you want to force a full re-provision on the next boot.</p>
 </blockquote>
 <hr>
-<h2 id="4-verify-headers-hello-module">4. Verify: headers + hello module</h2>
+<h2 id="4-verify-headers--hello-module">4. Verify: headers + hello module</h2>
 <p>Inside the guest:</p>
 <pre><code class="language-bash">uname -r
 ls -d /lib/modules/$(uname -r)/build      # should exist (headers installed)
@@ -256,7 +256,7 @@ sudo mount -t 9p -o trans=virtio,version=9p2000.L vnic /mnt/vnic
 the slow side; for speed, share a native WSL path instead (clone the repo into <code>~/</code>).</p>
 </blockquote>
 <hr>
-<h2 id="6-kernel-module-debugging-gdb">6. Kernel / module debugging (gdb)</h2>
+<h2 id="6-kernel--module-debugging-gdb">6. Kernel / module debugging (gdb)</h2>
 <h3 id="61-attach-to-the-guest-kernel-boot-flow-debugging">6.1 Attach to the guest kernel (boot-flow debugging)</h3>
 <p>On the host (WSL), in another terminal:</p>
 <pre><code class="language-bash"># after run-qemu.sh is given -S to freeze at boot:
@@ -299,7 +299,7 @@ on the <strong>WSL2 host</strong>.</p>
 lsmod | grep -w tun || zcat /proc/config.gz 2&gt;/dev/null | grep CONFIG_TUN   # TUN support present?
 ip tuntap help &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo &quot;ip tuntap ok&quot;   # iproute2 has tuntap
 </code></pre>
-<h3 id="82-create-address-the-tap-once-per-host-boot">8.2 Create + address the tap (once per host boot)</h3>
+<h3 id="82-create--address-the-tap-once-per-host-boot">8.2 Create + address the tap (once per host boot)</h3>
 <pre><code class="language-bash">sudo ip tuntap add dev vnic-tap0 mode tap user &quot;$USER&quot;   # persistent L2 tap you own
 sudo ip addr replace 192.168.20.1/24 dev vnic-tap0       # host end of the point-to-point link
 sudo ip link set vnic-tap0 up

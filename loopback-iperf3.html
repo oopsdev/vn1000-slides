@@ -54,7 +54,7 @@ hr{border:0;border-top:1px solid var(--line);margin:2em 0}
 <h1>Level 1 internal-loopback iperf3 measurements</h1>
 <div class="meta"><span>2026-06-10</span><span>v0.1.0</span><span>NikeChen</span></div>
 </header>
-<h1 id="level-1-loopback-iperf3-tcp">Level 1 loopback - iperf3 TCP</h1>
+<h1 id="level-1-loopback---iperf3-tcp">Level 1 loopback - iperf3 TCP</h1>
 <p>Throughput of the Level 1 internal loopback (the engine swaps src/dst IP+MAC and
 feeds each TX frame back into the RX ring). <strong>Both the iperf3 client and server
 run on the same guest</strong>, so the number reflects client + server + engine + NAPI
@@ -127,7 +127,7 @@ ip -s link show vnic0                  # RX/TX packets + dropped
 transmitted frame looped back and nothing overflowed. (Per-cause counters like <code>STAT_RXDROP</code> are
 still worth exposing via <code>ethtool -S</code> / debugfs in Phase 6.)</p>
 <h2 id="raw-output">Raw output</h2>
-<h3 id="rx-ring-256-baseline">RX ring = 256 (baseline)</h3>
+<h3 id="rx-ring--256-baseline">RX ring = 256 (baseline)</h3>
 <pre><code>$ iperf3 -c 192.168.10.2 -t 5
 [ ID] Interval           Transfer     Bitrate         Retr  Cwnd
 [  5]   0.00-1.00   sec   622 MBytes  5.21 Gbits/sec  259    436 KBytes
@@ -139,7 +139,7 @@ still worth exposing via <code>ethtool -S</code> / debugfs in Phase 6.)</p>
 [  5]   0.00-5.00   sec  2.57 GBytes  4.41 Gbits/sec  745             sender
 [  5]   0.00-5.00   sec  2.57 GBytes  4.41 Gbits/sec                  receiver
 </code></pre>
-<h3 id="rx-ring-4096">RX ring = 4096</h3>
+<h3 id="rx-ring--4096">RX ring = 4096</h3>
 <pre><code>$ iperf3 -c 192.168.10.2 -t 5
 [ ID] Interval           Transfer     Bitrate         Retr  Cwnd
 [  5]   0.00-1.00   sec   414 MBytes  3.47 Gbits/sec    0   3.82 MBytes
@@ -151,7 +151,7 @@ still worth exposing via <code>ethtool -S</code> / debugfs in Phase 6.)</p>
 [  5]   0.00-5.01   sec  2.11 GBytes  3.62 Gbits/sec    0             sender
 [  5]   0.00-5.01   sec  2.11 GBytes  3.62 Gbits/sec                  receiver
 </code></pre>
-<h3 id="rx-ring-256-engine-backpressure-no-drop">RX ring = 256, engine backpressure (no drop)</h3>
+<h3 id="rx-ring--256-engine-backpressure-no-drop">RX ring = 256, engine backpressure (no drop)</h3>
 <pre><code>$ iperf3 -c 192.168.10.2 -t 5
 [ ID] Interval           Transfer     Bitrate         Retr  Cwnd
 [  5]   0.00-1.00   sec   839 MBytes  7.03 Gbits/sec    0   4.12 MBytes
@@ -163,7 +163,7 @@ still worth exposing via <code>ethtool -S</code> / debugfs in Phase 6.)</p>
 [  5]   0.00-5.00   sec  3.51 GBytes  6.03 Gbits/sec    0             sender
 [  5]   0.00-5.01   sec  3.51 GBytes  6.03 Gbits/sec                  receiver
 </code></pre>
-<h3 id="rx-ring-256-backpressure-tasklet-msi-phase-4">RX ring = 256, backpressure, tasklet MSI (Phase 4)</h3>
+<h3 id="rx-ring--256-backpressure-tasklet-msi-phase-4">RX ring = 256, backpressure, tasklet MSI (Phase 4)</h3>
 <pre><code>$ iperf3 -c 192.168.10.2 -t 5
 [ ID] Interval           Transfer     Bitrate         Retr  Cwnd
 [  5]   0.00-1.00   sec   876 MBytes  7.33 Gbits/sec    0   4.17 MBytes
