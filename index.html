@@ -220,7 +220,7 @@
         <div class="t">Each fragment is &le; MTU and shares the original <b>IP ID</b> + a <b>fragment offset</b>; the <b>MF</b> (more-fragments) flag is set on all but the last. <b>Reassembly happens only at the destination</b>, never mid-path. If the <b>DF</b> (don't-fragment) bit is set, the router instead <b>drops</b> it and returns <b>ICMP "fragmentation needed"</b> - this drives <b>Path MTU Discovery</b>. (IPv6: only the source fragments; TCP avoids it by sizing segments to the <b>MSS</b>.)</div>
       </div>
     </div>
-    <div class="card" style="margin-top:.5em"><span class="t">So: one IP journey, many Ethernet frames - the dst MAC is rewritten at every hop, the IP is not.</span></div>
+    <div class="card" style="margin-top:.5em"><span class="t">So: one IP journey, many Ethernet frames - <b>one frame per hop/link</b>; each hop rewrites <b>both the src and dst MAC</b> (src = its own egress MAC, dst = the next hop), while the <b>IP addresses never change</b> end to end.</span></div>
   </section>
 
   <!-- 4 RX flow -->
