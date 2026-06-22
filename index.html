@@ -208,7 +208,6 @@
           <li>The <b>L2 header is rewritten</b>: new src MAC = this router's egress MAC, <b class="kg">new dst MAC = the next hop's MAC</b> (resolved by ARP).</li>
           <li>If the <b>next link's MTU is smaller</b> than the packet, the hop must <b>fragment</b> it (or drop + signal) <span class="t">- see below</span>.</li>
         </ul>
-        <div class="card"><span class="t">So: one IP journey, many Ethernet frames - the dst MAC is rewritten at every hop, the IP is not.</span></div>
       </div>
     </div>
     <div class="two" style="margin-top:.5em">
@@ -221,6 +220,7 @@
         <div class="t">Each fragment is &le; MTU and shares the original <b>IP ID</b> + a <b>fragment offset</b>; the <b>MF</b> (more-fragments) flag is set on all but the last. <b>Reassembly happens only at the destination</b>, never mid-path. If the <b>DF</b> (don't-fragment) bit is set, the router instead <b>drops</b> it and returns <b>ICMP "fragmentation needed"</b> - this drives <b>Path MTU Discovery</b>. (IPv6: only the source fragments; TCP avoids it by sizing segments to the <b>MSS</b>.)</div>
       </div>
     </div>
+    <div class="card" style="margin-top:.5em"><span class="t">So: one IP journey, many Ethernet frames - the dst MAC is rewritten at every hop, the IP is not.</span></div>
   </section>
 
   <!-- 4 RX flow -->
