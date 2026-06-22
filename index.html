@@ -718,23 +718,70 @@
     </div>
   </section>
 
-  <!-- 17 dev env -->
+  <!-- 17a dev env: host prep + guest image -->
   <section class="slide">
-    <h2>6 &middot; Development environment</h2>
+    <h2>6.1 &middot; Dev environment &mdash; host prep &amp; the guest image</h2>
+    <p class="sub">Edit on Windows, build/run in a <b>QEMU Ubuntu guest</b> - kernel headers + kgdb, and a panic only kills the guest (D-14). These steps follow <code>dev-setup.md</code> &sect;0-4.</p>
     <div class="two">
       <div>
-        <h3>Host: WSL2 + a QEMU guest</h3>
+        <h3>0 &middot; Prepare the WSL2 host</h3>
         <ul>
-          <li>Edit on Windows; build/run in a <b>QEMU Ubuntu guest</b> (kernel headers available, kgdb works, a panic only kills the guest).</li>
-          <li>Guest built from an Ubuntu cloud image + cloud-init (<code>dev-setup.md</code>).</li>
-          <li><code>scripts/run-qemu.sh</code> boots it (q35, <code>-s</code> gdbstub).</li>
+          <li><code>apt install qemu-system-x86 qemu-utils cloud-image-utils gdb openssh-client</code></li>
+          <li><b>KVM</b> (acceleration): <code>ls -l /dev/kvm</code>. If absent, set <code>nestedVirtualization=true</code> in the Windows <code>.wslconfig</code> and <code>wsl --shutdown</code>; otherwise <code>run-qemu.sh</code> falls back to <b>TCG</b> (slower, still works).</li>
+        </ul>
+      </div>
+      <div>
+        <h3>1 &middot; Build the guest (cloud image + cloud-init)</h3>
+        <ul>
+          <li>Download the Ubuntu 24.04 server <b>cloud image</b> &rarr; <code>base.img</code>.</li>
+          <li><code>qemu-img create</code> a 20G <b>overlay</b> <code>disk.qcow2</code> backed by base (base stays clean).</li>
+          <li><code>user-data</code> (<code>#cloud-config</code>): user <code>dev</code>/<code>dev</code> + NOPASSWD sudo; packages <code>build-essential gcc gdb git kmod</code> + <code>linux-headers-$(uname -r)</code>. <code>meta-data</code>: a fixed <code>instance-id</code>.</li>
+          <li><code>cloud-localds seed.img user-data meta-data</code> - pack the cloud-init <b>seed disk</b> that auto-provisions the guest on first boot.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 17b dev env: boot + login -->
+  <section class="slide">
+    <h2>6.2 &middot; Dev environment &mdash; boot &amp; first login</h2>
+    <div class="two">
+      <div>
+        <h3>2 &middot; Boot script</h3>
+        <ul>
+          <li>Use the repo's <code>scripts/run-qemu.sh</code> <b>as-is</b> - symlink it into the image dir, don't hand-copy (a divergent copy silently ignores the Level 2 <code>QEMU=</code> / <code>VNIC_DEVICE=</code> vars and the device never appears in <code>lspci</code>).</li>
+          <li>Boots a <code>q35</code> guest on the serial console (<code>-nographic</code>) with the <b>gdbstub</b> open (<code>-s</code>, :1234; add <code>-S</code> to freeze at boot).</li>
+          <li>Env knobs: <code>VMDIR=</code> (image dir), <code>QEMU=</code> (binary path), <code>VNIC_DEVICE=1</code> (append <code>-device vnic</code>).</li>
+        </ul>
+      </div>
+      <div>
+        <h3>3 &middot; First boot + login</h3>
+        <ul>
+          <li><code>./run-qemu.sh</code> &rarr; on the <b>first</b> boot cloud-init creates the user, installs packages, and grows the rootfs (a few min).</li>
+          <li>Serial login <code>dev</code>/<code>dev</code> (leave the console: <b>Ctrl-A</b> then <b>X</b>), or from another terminal <code>ssh -p 2222 dev@localhost</code>.</li>
+          <li>The fixed <code>instance-id</code> + persisted <code>/var/lib/cloud</code> mean later boots skip the one-time work. Make boots a clean no-op: <code>sudo touch /etc/cloud/cloud-init.disabled</code> (do <i>not</i> <code>cloud-init clean</code>).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 17c dev env: verify + level 2 qemu -->
+  <section class="slide">
+    <h2>6.3 &middot; Dev environment &mdash; verify &amp; the Level 2 QEMU</h2>
+    <div class="two">
+      <div>
+        <h3>4 &middot; Verify: headers + a hello module</h3>
+        <ul>
+          <li><code>uname -r</code>; <code>ls -d /lib/modules/$(uname -r)/build</code> should exist (headers in place; else <code>apt install linux-headers-$(uname -r)</code>).</li>
+          <li>Build a tiny <code>hello.ko</code> (<code>module_init</code>/<code>module_exit</code> + an <code>obj-m</code> Makefile), then <code>sudo insmod hello.ko</code> / <code>sudo rmmod hello</code>.</li>
+          <li>Seeing <code>hello: init</code> / <code>hello: exit</code> in <code>dmesg</code> &rarr; the build / insmod / rmmod toolchain is OK.</li>
         </ul>
       </div>
       <div>
         <h3>Level 2: a self-built QEMU</h3>
         <ul>
-          <li>No stable out-of-tree device ABI -> the device (<code>qemu-device/vnic.c</code>) is compiled <b>into</b> a QEMU source tree (<code>hw/net/</code> + a meson/Kconfig hook), pinned to the guest's QEMU version.</li>
-          <li><code>QEMU=... VNIC_DEVICE=1 run-qemu.sh</code> boots the guest under it.</li>
+          <li>No stable out-of-tree device ABI &rarr; the device (<code>qemu-device/vnic.c</code>) is compiled <b>into</b> a QEMU source tree (<code>hw/net/</code> + a meson/Kconfig hook), pinned to the guest's QEMU version (D-27).</li>
+          <li><code>QEMU=... VNIC_DEVICE=1 run-qemu.sh</code> boots the guest under it; the device then shows up in <code>lspci</code>.</li>
           <li>SOP: <code>qemu-build.md</code>.</li>
         </ul>
       </div>
