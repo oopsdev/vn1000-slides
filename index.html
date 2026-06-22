@@ -325,7 +325,7 @@
     <div class="svgwrap">
     <img class="diagram" src="diagrams/host-address-space.svg" alt="How the host sees the NIC - address space, MMIO and DMA">
     </div>
-    <p class="cap">The CPU reaches RAM (load/store) and the NIC's registers through the <b>BAR0 MMIO window</b> (<code>readl</code>/<code>writel</code> - e.g. the TDT doorbell), both via the <b>MMU</b> (virtual -&gt; physical). The NIC's <b>DMA engine</b> is a bus master: it reads/writes the descriptor rings + buffers in RAM itself, with the <b>IOMMU</b> translating its DMA addresses (IOVA -&gt; physical); completions raise an <b>MSI</b>. The transceiver (PHY) drives the wire.</p>
+    <p class="cap">The CPU reaches RAM (load/store) and the NIC's registers through the <b>BAR0 MMIO window</b> (<code>readl</code>/<code>writel</code> - e.g. the TDT doorbell), both via the <b>MMU</b> (virtual -&gt; physical). The NIC's <b>DMA engine</b> is a bus master: it reads/writes the descriptor rings + buffers in RAM itself, with the <b>IOMMU</b> translating its DMA addresses (IOVA -&gt; physical); completions raise an <b>MSI</b>. The engine hands frames to the <b>MAC</b> (L2), then the <b>PHY</b> transceiver (PCS/PMA/SerDes - slide 1.5) drives the wire.</p>
   </section>
 
   <!-- 6 sample datasheet -->
