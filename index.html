@@ -232,32 +232,28 @@
     <p class="cap">Each layer verifies then strips its header. The NIC driver owns L1/L2 (DMA, MSI, NAPI - the rest of this deck); the kernel stack owns L3/L4 up to the socket.</p>
   </section>
 
-  <!-- 4c why a driver + asynchronous RX -->
-  <section class="slide compact">
-    <h2>1.4 &middot; Why a NIC driver - and why RX is asynchronous</h2>
+  <!-- 4c the driver as the stack<->hardware bridge -->
+  <section class="slide">
+    <h2>1.4 &middot; The NIC driver - bridging the stack and the hardware</h2>
     <div class="two">
       <div>
-        <h3>What the driver is for</h3>
+        <h3>What it is for</h3>
         <ul>
-          <li>Bridges the kernel <b>network stack</b> and the <b>NIC hardware</b> - registers a <code>net_device</code> so the OS sees an interface (e.g. <code>vnic0</code>).</li>
-          <li><b>TX</b>: take <code>skb</code>s from the stack (<code>ndo_start_xmit</code>) -&gt; TX ring -&gt; ring the doorbell.</li>
-          <li><b>RX</b>: wrap received frames in <code>skb</code>s and push them up the stack (<code>napi_gro_receive</code>).</li>
-          <li><b>Manage the device</b>: probe (PCI / MMIO / DMA / IRQ), descriptor rings, interrupts, stats, link, config (MTU, MAC, offloads).</li>
-          <li>Hides the register / descriptor / DMA detail behind the standard <b>netdev API</b>.</li>
+          <li>It sits between the kernel <b>network stack</b> and the <b>NIC hardware</b>, and registers a <code>net_device</code> so the OS sees an interface (e.g. <code>vnic0</code>).</li>
+          <li><b>The stack interface (netdev API)</b>: <b>TX</b> - the stack hands <code>skb</code>s down (<code>ndo_start_xmit</code>); <b>RX</b> - the driver hands <code>skb</code>s up (<code>napi_gro_receive</code>); plus open/stop, stats, MTU.</li>
+          <li>Everything below - registers, descriptor rings, DMA, interrupts - is <b>hidden behind that API</b>.</li>
         </ul>
       </div>
       <div>
-        <h3>RX is <i>unsolicited</i> - unlike a normal driver</h3>
+        <h3>One twist - RX is asynchronous</h3>
         <ul>
-          <li>A char/block driver is <b>request-driven</b>: the kernel calls <code>read()</code>/<code>write()</code>, the driver answers, the caller often <b>blocks</b> - work runs <b>on demand, in process context</b>.</li>
-          <li>A NIC's RX is <b>unsolicited</b>: frames arrive from the wire <b>at any time</b>, for no request - nobody called <code>read()</code>. That forces a different shape:</li>
-          <li><b>Interrupt + deferred poll (NAPI)</b>: IRQ on arrival, then mask RX IRQs and <b>poll</b> the ring in <b>softirq</b> to batch-drain &amp; re-arm - so it runs in IRQ/softirq context (<b>cannot sleep</b>) and avoids an interrupt storm.</li>
-          <li><b>Buffers posted in advance</b>: the device must have somewhere to DMA <i>before</i> a frame exists, so the driver <b>pre-fills</b> the RX ring and <b>refills</b> after use (a <code>read()</code> driver allocates only when asked).</li>
-          <li><b>No caller to back-pressure</b>: on overload frames are <b>dropped</b> (<code>rx_dropped</code>), not slowed; the data is demuxed to a socket later, waking a blocked <code>recv()</code>.</li>
+          <li>A normal driver is <b>request-driven</b>: the kernel calls <code>read()</code>, the driver answers.</li>
+          <li>But received frames arrive <b>unsolicited</b>, at any time - for no request.</li>
+          <li>So a NIC driver is built around <b>interrupts + polling (NAPI)</b> and <b>buffers posted in advance</b>, not around a blocking caller. <span class="t">(The how - section 3.)</span></li>
         </ul>
       </div>
     </div>
-    <div class="card" style="margin-top:.5em"><span class="t">In short - typical driver: the kernel <b>asks</b>, the driver <b>answers</b> (synchronous, process context). NIC RX: the network <b>delivers</b> unannounced, so the driver must <b>already be ready</b> - pre-posted buffers, interrupt + NAPI poll in softirq, and drop when overwhelmed.</span></div>
+    <p class="cap">This is exactly what the rest of the deck builds - a Linux PCIe NIC driver, for the (virtual) VN1000 device.</p>
   </section>
 
   <!-- 5 PCIe NIC anatomy -->
