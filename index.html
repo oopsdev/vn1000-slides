@@ -239,26 +239,28 @@
 
   <!-- 4c the driver as the stack<->hardware bridge -->
   <section class="slide">
-    <h2>1.4 &middot; The NIC driver - bridging the stack and the hardware</h2>
+    <h2>1.4 &middot; The network card &amp; its driver - what each does</h2>
     <div class="two">
       <div>
-        <h3>What it is for</h3>
+        <h3>What the NIC (hardware) does</h3>
         <ul>
-          <li>It sits between the kernel <b>network stack</b> and the <b>NIC hardware</b>, and registers a <code>net_device</code> so the OS sees an interface (e.g. <code>vnic0</code>).</li>
-          <li><b>The stack interface (netdev API)</b>: <b>TX</b> - the stack hands <code>skb</code>s down (<code>ndo_start_xmit</code>); <b>RX</b> - the driver hands <code>skb</code>s up (<code>napi_gro_receive</code>); plus open/stop, stats, MTU.</li>
-          <li>Everything below - registers, descriptor rings, DMA, interrupts - is <b>hidden behind that API</b>.</li>
+          <li>A PCIe device that moves <b>frames</b> between the wire and host memory.</li>
+          <li><b>TX</b>: serialise a buffer onto the link; <b>RX</b>: receive a frame off the link and <b>DMA</b> it into host RAM.</li>
+          <li>A bus-master <b>DMA engine</b> reads/writes the descriptor rings + packet buffers itself (by bus address); raises an <b>MSI</b> interrupt on completion.</li>
+          <li>Control surface = <b>BAR0/MMIO registers</b> + the rings; the <b>PHY/transceiver</b> drives the medium (plus MAC filtering and, on real NICs, checksum/offloads).</li>
         </ul>
       </div>
       <div>
-        <h3>One twist - RX is asynchronous</h3>
+        <h3>What the driver (software) does</h3>
         <ul>
-          <li>A normal driver is <b>request-driven</b>: the kernel calls <code>read()</code>, the driver answers.</li>
-          <li>But received frames arrive <b>unsolicited</b>, at any time - for no request.</li>
-          <li>So a NIC driver is built around <b>interrupts + polling (NAPI)</b> and <b>buffers posted in advance</b>, not around a blocking caller. <span class="t">(The how - section 3.)</span></li>
+          <li>Registers a <code>net_device</code> so the OS sees an interface (e.g. <code>vnic0</code>) and routes traffic to it.</li>
+          <li><b>TX</b>: take <code>skb</code>s from the stack (<code>ndo_start_xmit</code>), fill a descriptor, ring the doorbell.</li>
+          <li><b>RX</b>: on the completion interrupt, NAPI-poll the ring, wrap frames in <code>skb</code>s, push them up (<code>napi_gro_receive</code>).</li>
+          <li>Manages the device (probe: PCI / MMIO / DMA / IRQ; rings, stats, MTU, link) and <b>hides the registers / DMA / interrupts behind the netdev API</b> - including the unsolicited (async) RX via interrupt + NAPI.</li>
         </ul>
       </div>
     </div>
-    <p class="cap">This is exactly what the rest of the deck builds - a Linux PCIe NIC driver, for the (virtual) VN1000 device.</p>
+    <p class="cap">In short: the <b>card</b> moves frames by DMA + MSI; the <b>driver</b> turns that into a Linux <code>net_device</code>. This is exactly what the rest of the deck builds, for the (virtual) VN1000.</p>
   </section>
 
   <!-- 5 PCIe NIC anatomy -->
