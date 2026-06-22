@@ -55,6 +55,11 @@
   .slide.compact p,.slide.compact li{font-size:clamp(12px,1.25vw,15.5px); line-height:1.4}
   .slide.compact li{margin:.12em 0}
   .slide.compact .node{padding:.4em .7em} .slide.compact .node .t{font-size:.8em; line-height:1.36}
+  /* cozy: a middle scale between normal and compact - smaller than default but still readable */
+  .slide.cozy .sub{font-size:clamp(13.5px,1.45vw,18px); margin:.15em 0 .5em}
+  .slide.cozy h3{font-size:clamp(16px,1.65vw,20px); margin:.55em 0 .25em}
+  .slide.cozy p,.slide.cozy li{font-size:clamp(13px,1.4vw,17.5px); line-height:1.45}
+  .slide.cozy li{margin:.18em 0}
   .center{align-items:center; text-align:center; justify-content:center}
   .imgwrap{display:flex; justify-content:center; align-items:center; flex:1; min-height:0}
   .imgwrap img{max-width:100%; max-height:72vh; border-radius:10px; background:#fff;
@@ -719,7 +724,7 @@
   </section>
 
   <!-- 17a dev env: host prep + guest image -->
-  <section class="slide compact">
+  <section class="slide cozy">
     <h2>6.1 &middot; Dev environment &mdash; host prep &amp; the guest image</h2>
     <p class="sub">Edit on Windows, build/run in a <b>QEMU Ubuntu guest</b> - kernel headers + kgdb, and a panic only kills the guest (D-14). These steps follow <code>dev-setup.md</code> &sect;0-4.</p>
     <div class="two">
@@ -733,8 +738,7 @@
       <div>
         <h3>1 &middot; Build the guest (cloud image + cloud-init)</h3>
         <ul>
-          <li>Download the Ubuntu 24.04 server <b>cloud image</b> &rarr; <code>base.img</code>.</li>
-          <li><code>qemu-img create</code> a 20G <b>overlay</b> <code>disk.qcow2</code> backed by base (base stays clean).</li>
+          <li>Ubuntu 24.04 server <b>cloud image</b> &rarr; <code>base.img</code>; then <code>qemu-img create</code> a 20G <b>overlay</b> <code>disk.qcow2</code> backed by it (base stays clean).</li>
           <li><code>user-data</code> (<code>#cloud-config</code>): user <code>dev</code>/<code>dev</code> + NOPASSWD sudo; packages <code>build-essential gcc gdb git kmod</code> + <code>linux-headers-$(uname -r)</code>. <code>meta-data</code>: a fixed <code>instance-id</code>.</li>
           <li><code>cloud-localds seed.img user-data meta-data</code> - pack the cloud-init <b>seed disk</b> that auto-provisions the guest on first boot.</li>
         </ul>
@@ -743,7 +747,7 @@
   </section>
 
   <!-- 17b dev env: boot + login -->
-  <section class="slide compact">
+  <section class="slide cozy">
     <h2>6.2 &middot; Dev environment &mdash; boot &amp; first login</h2>
     <div class="two">
       <div>
@@ -766,7 +770,7 @@
   </section>
 
   <!-- 17c dev env: verify + level 2 qemu -->
-  <section class="slide compact">
+  <section class="slide cozy">
     <h2>6.3 &middot; Dev environment &mdash; verify &amp; the Level 2 QEMU</h2>
     <div class="two">
       <div>
