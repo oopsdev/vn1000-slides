@@ -104,7 +104,7 @@ schedule is deliberately tight.</p>
 <td><a href="#w2">W2</a></td>
 <td>06-30</td>
 <td><strong>TX + RX datapath</strong></td>
-<td>3.1, 3.2.x, 3.3.x, 5.2</td>
+<td>3.1, 3.2.x, 3.3.x, 3.4, 5.2, 5.3</td>
 <td>Phase 2 + Phase 3</td>
 <td><code>ping</code> works via internal loopback</td>
 </tr>
@@ -119,16 +119,16 @@ schedule is deliberately tight.</p>
 <tr>
 <td><a href="#w4">W4</a></td>
 <td>07-14</td>
-<td><strong>Level 1 complete</strong> - MTU, tests, gate</td>
+<td><strong>Level 1 complete</strong> - MTU, functional, tests, gate</td>
 <td>3.6, 3.8 (bg 11,12)</td>
-<td>Phase 5.3 + <code>tests/</code> + KASAN gate</td>
-<td>suite 01-06 green under KASAN; <strong>L1 done</strong></td>
+<td>Phase 5.3 + Phase 6 + Phase 7 + KASAN gate</td>
+<td>TCP/UDP + stats + <code>tests/</code> 01-06 green under KASAN; <strong>L1 done</strong></td>
 </tr>
 <tr>
 <td><a href="#w5">W5</a></td>
 <td>07-21</td>
 <td>L2 device model + MMIO + MSI</td>
-<td>4, 5.3, 5.4</td>
+<td>4</td>
 <td>Phase 8 (device + L2 probe)</td>
 <td><code>lspci</code> shows it; MSI self-test passes</td>
 </tr>
@@ -146,15 +146,15 @@ schedule is deliberately tight.</p>
 <td><strong>Level 2 complete</strong> - real tap NIC</td>
 <td>5.5 (bg 6)</td>
 <td>Phase 10/11 (tap backend)</td>
-<td>ping host&lt;-&gt;guest + tcpdump; <strong>L2 done</strong></td>
+<td>ping host&lt;-&gt;guest + tcpdump; <strong>L2 done</strong> -&gt; tag <code>v0.1-level2</code></td>
 </tr>
 <tr>
 <td><a href="#w8">W8</a></td>
 <td>08-11</td>
-<td>Performance + demo</td>
+<td>Performance + demo + L2 gate</td>
 <td>7, 8 (L-10/11/12, D-32/33)</td>
-<td>Phase 12 (sweeps + demo)</td>
-<td>benchmark table; demo recorded</td>
+<td>Phase 12 (sweeps + demo + L2 KASAN gate)</td>
+<td>benchmark table; demo; L2 gate clean</td>
 </tr>
 <tr>
 <td><a href="#w9">W9</a></td>
@@ -216,7 +216,8 @@ schedule is deliberately tight.</p>
 <li><strong>Meeting:</strong> the driver framework + HAL seam (D-12); TX end to end (skb -&gt; descriptor -&gt; <code>TDT</code>
   doorbell -&gt; completion; DD ownership + NTU/NTC); RX with pre-posted skbs (Model A, D-18), the
   internal IP-swap loopback, <code>napi_gro_receive</code>, refill.</li>
-<li><strong>Concepts:</strong> slides 3.1, 3.2.1/3.2.2, 3.3.1/3.3.2, 5.2; bg 1.</li>
+<li><strong>Concepts:</strong> slides 3.1, 3.2.1/3.2.2, 3.3.1/3.3.2, 3.4 (init &amp; probe), 5.2 (HAL seam), 5.3 (L1
+  in-kernel loopback dataflow); bg 1.</li>
 <li><strong>Lab (-&gt; W3):</strong> Phase 2 (TX path) + Phase 3 (RX path + NAPI + loopback).</li>
 <li><strong>Checkpoint:</strong> <code>ping &lt;peer&gt;</code> works through the loopback; TX/RX stats rise.</li>
 </ul>
@@ -234,17 +235,18 @@ schedule is deliberately tight.</p>
 <li><strong>Meeting:</strong> <strong>DMA mappings</strong> (coherent vs streaming, <code>dma_mapping_error</code>, bounce buffer,
   unmap-before-read - bg 11); <code>ndo_change_mtu</code>; teardown ordering (bg 12); the <strong>KASAN + lockdep +
   kmemleak</strong> gate.</li>
-<li><strong>Concepts:</strong> slides 3.6, 3.8; bg 11, bg 12; <a href="debug-kernel.html">debug-kernel.md</a>.</li>
-<li><strong>Lab (-&gt; W5):</strong> Phase 5.3 (MTU) + run <code>tests/</code> (01-06) + the KASAN/lockdep/kmemleak gate; read the
-  L2 intro ahead.</li>
-<li><strong>Milestone:</strong> <strong>Level 1 is functionally complete and verified.</strong></li>
+<li><strong>Concepts:</strong> slides 3.6, 3.8; bg 11, bg 12, bg 7 (throughput); <a href="debug-kernel.html">debug-kernel.md</a>.</li>
+<li><strong>Lab (-&gt; W5):</strong> Phase 5.3 (MTU) + <strong>Phase 6</strong> (TCP/UDP iperf functional check + <code>ip -s link</code> /
+  device <code>STAT_*</code> observability) + <strong>Phase 7</strong> (the <code>tests/</code> suite 01-06 + the L1 packet-size
+  benchmark, <code>results/</code>) + the KASAN/lockdep/kmemleak gate; read the L2 intro ahead.</li>
+<li><strong>Milestone:</strong> <strong>Level 1 is functionally complete and verified</strong> (functional + stress + gate all green).</li>
 </ul>
 <h3 id="w5">W5 - 07-21 - Level 2: the QEMU device model, MMIO and MSI</h3>
 <ul>
 <li><strong>Meeting:</strong> how QEMU emulates the PCIe device - QOM <code>TypeInfo</code>, <code>PCIDevice</code>, <code>MemoryRegionOps</code>
   (MMIO), <code>msi_init</code>/<code>msi_notify</code>; building it into a pinned QEMU (D-27).</li>
-<li><strong>Concepts:</strong> slides 4, 5.3, 5.4; <a href="qemu-device-model.html">qemu-device-model.md</a>,
-  <a href="qemu-build.html">qemu-build.md</a>; bg 5.</li>
+<li><strong>Concepts:</strong> slide 4 (the QEMU device model); <a href="qemu-device-model.html">qemu-device-model.md</a>,
+  <a href="qemu-build.html">qemu-build.md</a>; bg 5. (The L2 internal-loopback dataflow, slide 5.4, is covered at W6.)</li>
 <li><strong>Lab (-&gt; W6):</strong> Phase 8 - the device skeleton + the L2 probe (<code>pci_register_driver</code>, <code>pci_iomap</code>,
   <code>dma_set_mask</code>, <code>pci_alloc_irq_vectors</code>, <code>request_irq</code>).</li>
 <li><strong>Checkpoint:</strong> <code>lspci</code> shows <code>1234:11e9</code>; MMIO read-back; <strong>MSI self-test passes</strong>.</li>
@@ -263,16 +265,17 @@ schedule is deliberately tight.</p>
   host&lt;-&gt;guest connectivity; TUN/TAP background.</li>
 <li><strong>Concepts:</strong> slide 5.5; bg 6 (TUN/TAP); D-30.</li>
 <li><strong>Lab (-&gt; W8):</strong> Phase 10/11 - tap setup + the <code>VNIC_TAP=</code> run variant; verify ping + <code>tcpdump</code>.</li>
-<li><strong>Milestone:</strong> <strong>Level 2 is complete - <code>vnic0</code> is a real pingable NIC</strong> (L-08).</li>
+<li><strong>Milestone:</strong> <strong>Level 2 is complete - <code>vnic0</code> is a real pingable NIC</strong> (L-08) -&gt; tag <strong><code>v0.1-level2</code></strong>.</li>
 </ul>
 <h3 id="w8">W8 - 08-11 - Performance and the demo</h3>
 <ul>
 <li><strong>Meeting:</strong> real DMA vs L1 memcpy; <strong>TX doorbell moderation</strong> (D-32, ~4.5x); <strong>device ITR</strong> (D-33,
-  ~60x fewer interrupts); the <strong>MTU sweep</strong>; per-packet vs per-byte cost + VM-exits.</li>
-<li><strong>Concepts:</strong> slides 7, 8; bg 7; L-10/11/12.</li>
-<li><strong>Lab (-&gt; W9):</strong> Phase 12 - <code>scripts/{itr,perf}-sweep.sh</code>; record the demo (ping + <code>tcpdump</code> +
-  benchmark).</li>
-<li><strong>Checkpoint:</strong> benchmark table produced; demo recorded. <strong>Core project complete.</strong></li>
+  ~60x fewer interrupts); the <strong>MTU sweep</strong>; per-packet vs per-byte cost + VM-exits; and the <strong>L2</strong>
+  acceptance gate (the <code>dma_*</code> paths matter more here than on L1).</li>
+<li><strong>Concepts:</strong> slides 7, 8; bg 7; L-10/11/12; <a href="debug-kernel.html">debug-kernel.md</a>.</li>
+<li><strong>Lab (-&gt; W9):</strong> Phase 12 - <code>scripts/{itr,perf}-sweep.sh</code>; run the <strong>KASAN/lockdep/kmemleak gate on
+  L2</strong>; record the demo (ping + <code>tcpdump</code> + benchmark).</li>
+<li><strong>Checkpoint:</strong> benchmark table produced; L2 gate clean; demo recorded. <strong>Core project complete.</strong></li>
 </ul>
 <h3 id="w9">W9 - 08-18 - A6: stateless offloads</h3>
 <ul>
