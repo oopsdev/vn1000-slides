@@ -101,6 +101,9 @@
     <rect x="890" y="280" width="66" height="40" rx="5" fill="#c0504d"/><text x="923" y="305" fill="#fff">IP</text>
     <rect x="956" y="280" width="66" height="40" rx="5" fill="#7c6aad"/><text x="989" y="305" fill="#fff">TCP</text>
     <rect x="1022" y="280" width="168" height="40" rx="5" fill="#e0a55e"/><text x="1106" y="305" fill="#3a2a12" font-weight="400">Data</text>
+    <!-- L4: the N TCP segments are coalesced/reassembled into the byte stream; ghosts = the other segments -->
+    <rect x="900" y="170" width="300" height="40" rx="5" fill="#3b3357"/>
+    <rect x="895" y="175" width="300" height="40" rx="5" fill="#4d4470"/>
     <rect x="890" y="180" width="80" height="40" rx="5" fill="#7c6aad"/><text x="930" y="205" fill="#fff">TCP</text>
     <rect x="970" y="180" width="220" height="40" rx="5" fill="#e0a55e"/><text x="1080" y="205" fill="#3a2a12" font-weight="400">Data</text>
     <rect x="890" y="100" width="300" height="40" rx="6" fill="#e0a55e"/><text x="1040" y="125" fill="#3a2a12">Data ( HTTP GET / )</text>
@@ -110,6 +113,14 @@
     <line x1="1040" y1="394" x2="1040" y2="322" stroke="#34d399" stroke-width="2.5" marker-end="url(#agr)"/><text x="1030" y="360">strip MAC, check FCS</text>
     <line x1="1040" y1="278" x2="1040" y2="222" stroke="#34d399" stroke-width="2.5" marker-end="url(#agr)"/><text x="1030" y="253">for me? -&gt; strip IP</text>
     <line x1="1040" y1="178" x2="1040" y2="142" stroke="#34d399" stroke-width="2.5" marker-end="url(#agr)"/><text x="1030" y="165">demux port -&gt; socket</text>
+  </g>
+  <!-- reassembly annotations: N TCP segments (L4) -> one app byte stream (L7); mirrors the source's segmentation -->
+  <g text-anchor="end">
+    <text x="880" y="116" fill="#fcd34d" font-size="10" font-weight="700">app byte</text>
+    <text x="880" y="129" fill="#fcd34d" font-size="10" font-weight="700">stream</text>
+    <text x="880" y="186" fill="#c4b5fd" font-size="10.5" font-weight="700">&#215; N segments</text>
+    <text x="880" y="200" fill="#a5b4fc" font-size="9.5">coalesced into</text>
+    <text x="880" y="212" fill="#a5b4fc" font-size="9.5">the byte stream</text>
   </g>
 
   <!-- takeaway -->
