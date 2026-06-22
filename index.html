@@ -248,7 +248,7 @@
           <li>A PCIe device that moves <b>frames</b> between the wire and host memory; its control surface is <b>BAR0/MMIO registers</b> + the descriptor rings.</li>
           <li><b>TX</b>: send a buffer onto the link; <b>RX</b>: receive a frame off the link and <b>DMA</b> it into host RAM (MAC filtering; real NICs add checksum/offloads).</li>
           <li>A bus-master <b>DMA engine</b> reads/writes the rings + packet buffers itself (by bus address) and raises an <b>MSI</b> interrupt on completion.</li>
-          <li><b>PHY + SerDes</b> (L1, the wire): the <b>SerDes</b> <i>serialises</i> the MAC's parallel data into a high-speed <b>serial bitstream</b> on the medium - and <i>deserialises</i> it on RX; the <b>PHY</b> adds line coding, clock recovery, and link / auto-negotiation. The <b>MAC</b> (digital framing + addressing) sits just above it.</li>
+          <li><b>PHY + SerDes</b> (L1): the <b>SerDes</b> <i>serialises</i> the MAC's parallel data into a high-speed <b>serial bitstream</b> (and <i>deserialises</i> on RX); the <b>PHY</b> adds line coding, clock recovery, and link / auto-neg. The <b>MAC</b> (L2 framing) sits above.</li>
         </ul>
       </div>
       <div>
@@ -261,7 +261,7 @@
         </ul>
       </div>
     </div>
-    <p class="cap">In short: the <b>card</b> moves frames by DMA + MSI; the <b>driver</b> turns that into a Linux <code>net_device</code>. This is exactly what the rest of the deck builds, for the (virtual) VN1000.</p>
+    <p class="cap">In short: the <b>card</b> moves frames (DMA + MSI); the <b>driver</b> makes it a Linux <code>net_device</code> - what the rest of the deck builds (the virtual VN1000).</p>
   </section>
 
   <!-- 4d PHY internals: MAC / PCS / PMA / SerDes -->
