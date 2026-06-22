@@ -58,25 +58,25 @@
   <!-- NIC (shifted right to widen the IOMMU corridor; bottom-aligned with the host) -->
   <rect x="745" y="118" width="480" height="502" rx="10" fill="#1e293b" fill-opacity="0.5" stroke="#34d399" stroke-opacity="0.6" stroke-width="1.5"/>
   <text x="763" y="140" fill="#34d399" font-size="14" font-weight="700">NIC</text>
-  <rect x="769" y="150" width="196" height="106" rx="8" fill="#243449" stroke="#34d399" stroke-width="1.5"/>
-  <text x="867" y="176" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">DMA engine</text>
-  <rect x="789" y="190" width="156" height="52" rx="5" fill="#2b3b52" stroke="#475569"/>
-  <text x="867" y="223" text-anchor="middle" fill="#cbd5e1" font-size="12">FIFO</text>
+  <rect x="769" y="150" width="150" height="106" rx="8" fill="#243449" stroke="#34d399" stroke-width="1.5"/>
+  <text x="844" y="176" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">DMA engine</text>
+  <rect x="789" y="190" width="110" height="52" rx="5" fill="#2b3b52" stroke="#475569"/>
+  <text x="844" y="223" text-anchor="middle" fill="#cbd5e1" font-size="12">FIFO</text>
   <!-- MAC (L2) sits between the DMA engine and the PHY; MAC<->PHY is the MII-family interface (see slide 1.5) -->
-  <rect x="998" y="150" width="72" height="106" rx="8" fill="#243449" stroke="#34d399" stroke-width="1.5"/>
-  <text x="1034" y="190" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">MAC</text>
-  <text x="1034" y="209" text-anchor="middle" fill="#cbd5e1" font-size="9">framing/FCS</text>
+  <rect x="975" y="150" width="72" height="106" rx="8" fill="#243449" stroke="#34d399" stroke-width="1.5"/>
+  <text x="1011" y="190" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">MAC</text>
+  <text x="1011" y="209" text-anchor="middle" fill="#cbd5e1" font-size="9">framing/FCS</text>
   <rect x="1103" y="150" width="106" height="106" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
   <text x="1156" y="190" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">Transceiver</text>
   <text x="1156" y="210" text-anchor="middle" fill="#cbd5e1" font-size="9">PHY - PCS/PMA/SerDes</text>
   <!-- DMA-engine FIFO <-> MAC <-> PHY: frames both ways (TX out, RX in); MAC<->PHY is the MII -->
-  <line x1="965" y1="203" x2="998" y2="203" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
-  <text x="981" y="143" text-anchor="middle" fill="#94a3b8" font-size="10">frames</text>
-  <line x1="1070" y1="203" x2="1103" y2="203" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
-  <text x="1086" y="143" text-anchor="middle" fill="#94a3b8" font-size="10">MII</text>
+  <line x1="919" y1="203" x2="975" y2="203" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
+  <text x="947" y="143" text-anchor="middle" fill="#94a3b8" font-size="10">frames</text>
+  <line x1="1047" y1="203" x2="1103" y2="203" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
+  <text x="1075" y="143" text-anchor="middle" fill="#94a3b8" font-size="10">MII</text>
   <!-- DMA engine is driven by the ring registers (base / head / tail) in the CSR -->
-  <line x1="867" y1="256" x2="867" y2="294" stroke="#94a3b8" stroke-width="2" marker-start="url(#hg)" marker-end="url(#hg)"/>
-  <text x="877" y="280" fill="#94a3b8" font-size="10">ring base / head / tail</text>
+  <line x1="844" y1="256" x2="844" y2="294" stroke="#94a3b8" stroke-width="2" marker-start="url(#hg)" marker-end="url(#hg)"/>
+  <text x="854" y="280" fill="#94a3b8" font-size="10">ring base / head / tail</text>
 
   <!-- Register file (CSR): the SAME registers as BAR0, in the device - same offset bands, row-aligned -->
   <rect x="763" y="294" width="446" height="314" rx="8" fill="#243449" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6 4"/>
