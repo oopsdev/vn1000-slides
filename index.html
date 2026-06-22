@@ -174,7 +174,7 @@
     <div class="svgwrap">
     <img class="diagram" src="diagrams/tcp-tx-encap.svg" alt="TCP TX encapsulation across source, router and destination">
     </div>
-    <p class="cap">Encapsulation adds one header per layer (ports identify the connection, IP the host, MAC the <i>next hop</i>). Blue = encapsulate, green = decapsulate. Routing &amp; ARP detail on the next slide.</p>
+    <p class="cap"><b>L4 segments first:</b> TCP treats the application data as a continuous <b>byte stream</b> and splits it into <b>MSS-sized segments</b> (~1460 B = MTU &minus; IP &minus; TCP), each carrying its own TCP header &mdash; a small <code>GET</code> fits one segment, a bulk transfer becomes many (see <b>3.9</b> for the TSO/GSO offload of this split). Then encapsulation adds one header per layer (ports identify the connection, IP the host, MAC the <i>next hop</i>). Blue = encapsulate, green = decapsulate. Routing &amp; ARP detail on the next slide.</p>
   </section>
 
   <!-- 3 IP routing & forwarding & ARP -->
