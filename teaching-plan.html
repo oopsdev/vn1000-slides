@@ -62,7 +62,8 @@ schedule is deliberately tight.</p>
 <li><strong>Weekly meeting:</strong> every <strong>Tuesday 08:00-09:00 (Taiwan time, UTC+8)</strong> - 1 hour, synchronous.</li>
 <li><strong>Cadence:</strong> the meeting is a <strong>checkpoint + lecture + goal-set</strong>, not the lab itself. Students build
   full-time <strong>between</strong> meetings; each meeting (1) reviews last week's deliverable, (2) teaches the
-  week's concept from the slides, (3) hands out the next lab.</li>
+  week's concept from the slides, (3) hands out the next lab. <strong>W1 is a pure kickoff</strong>, so the first
+  review happens at W2 - <strong>checkpoints/deliverables begin at W2</strong>.</li>
 <li><strong>Shape:</strong> the <strong>core driver is finished by W8</strong> - Level 1 by <strong>W4</strong>, Level 2 (real tap NIC) by
   <strong>W7</strong>, performance + demo by <strong>W8</strong>. The summer's remaining time (<strong>W9-W13</strong>) is spent on the
   <strong>advanced backlog (A1-A6)</strong> as real curriculum, finishing with an integration + report week.</li>
@@ -93,10 +94,10 @@ schedule is deliberately tight.</p>
 <tr>
 <td><a href="#w1">W1</a></td>
 <td>06-23</td>
-<td>Recap + anatomy + <strong>env + skeleton</strong></td>
+<td><strong>Kickoff</strong> + recap + anatomy + env + skeleton</td>
 <td>1.1-1.4, 2.1-2.4, 5.1</td>
 <td>Phase 0 + Phase 1</td>
-<td><code>vnic0</code> in <code>ip link</code>; hello module + guest ready</td>
+<td><em>kickoff - no deliverable; env + skeleton reviewed at W2</em></td>
 </tr>
 <tr>
 <td><a href="#w2">W2</a></td>
@@ -197,15 +198,17 @@ schedule is deliberately tight.</p>
 </tbody>
 </table></div>
 <h2 id="week-by-week-detail">Week-by-week detail</h2>
-<h3 id="w1">W1 - 06-23 - Recap, anatomy, environment, and the skeleton</h3>
+<h3 id="w1">W1 - 06-23 - Kickoff: recap, anatomy, environment, and the skeleton</h3>
 <ul>
-<li><strong>Meeting:</strong> course intro; the TCP/IP packet journey + the driver's stack&lt;-&gt;hardware role (1.1-1.4);
-  PCIe NIC anatomy + the VN1000 datasheet (2.1-2.4); the project goal (5.1).</li>
+<li><strong>Kickoff meeting:</strong> course intro + goals; the TCP/IP packet journey + the driver's stack&lt;-&gt;hardware
+  role (1.1-1.4); PCIe NIC anatomy + the VN1000 datasheet (2.1-2.4); the project goal (5.1). This is
+  the <strong>kickoff</strong> - there is no prior week to review, so the first checkpoint lands at W2.</li>
 <li><strong>Concepts:</strong> slides 1.1-1.4, 2.1-2.4, 5.1; <a href="vn1000-datasheet.html">vn1000-datasheet.md</a>; bg 8.</li>
 <li><strong>Lab (-&gt; W2):</strong> Phase 0 (WSL2 + QEMU guest, hello module - <a href="dev-setup.html">dev-setup.md</a>) <strong>and</strong>
   Phase 1 (repo layout, <code>vnic_regs.h</code>, fake registers, <code>alloc_etherdev</code> + <code>register_netdev</code>,
   <code>net_device_ops</code>).</li>
-<li><strong>Checkpoint:</strong> guest boots over SSH; hello module loads; <code>vnic0</code> appears in <code>ip link</code>.</li>
+<li><strong>Deliverable (reviewed at the W2 meeting):</strong> guest boots over SSH; hello module loads; <code>vnic0</code>
+  appears in <code>ip link</code>.</li>
 </ul>
 <h3 id="w2">W2 - 06-30 - The TX and RX datapath</h3>
 <ul>
