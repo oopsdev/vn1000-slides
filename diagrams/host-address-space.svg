@@ -3,8 +3,9 @@
      Standalone copy of slide 2.2 (docs/slides/vnic-slides.html); dark background
      baked in so it reads on a light markdown page. The BAR0 window (host side)
      and the CSR register file (device side) are drawn as the SAME offset-band
-     list, row-aligned, to show they are one set of registers in two spaces. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 52 1280 590" width="1280" height="590"
+     list, row-aligned, to show they are one set of registers in two spaces.
+     The MMU (CPU side) and IOMMU (NIC side) translate the two access paths. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 52 1340 590" width="1340" height="590"
      font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img"
      aria-label="The CPU accesses RAM and the NIC registers through the BAR0 MMIO window, both via the MMU (virtual to physical); the same registers are the device's CSR file; the NIC DMA engine reads and writes the rings in RAM through the IOMMU (IOVA to physical); the transceiver drives the wire">
   <defs>
@@ -15,17 +16,17 @@
     <marker id="hc" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#7dd3fc"/></marker>
   </defs>
 
-  <rect x="-60" y="0" width="1280" height="650" fill="#0f172a"/>
+  <rect x="-60" y="0" width="1340" height="650" fill="#0f172a"/>
 
   <!-- CPU -->
-  <rect x="30" y="270" width="70" height="100" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
-  <text x="65" y="326" text-anchor="middle" fill="#fff" font-size="19" font-weight="700">CPU</text>
+  <rect x="14" y="270" width="64" height="100" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
+  <text x="46" y="326" text-anchor="middle" fill="#fff" font-size="18" font-weight="700">CPU</text>
 
   <!-- MMU: every CPU memory access (RAM load/store + MMIO) is translated here (VA -> PA) -->
-  <rect x="120" y="278" width="64" height="84" rx="7" fill="#243449" stroke="#c084fc" stroke-width="1.5"/>
-  <text x="152" y="315" text-anchor="middle" fill="#c084fc" font-size="15" font-weight="700">MMU</text>
-  <text x="152" y="333" text-anchor="middle" fill="#cbd5e1" font-size="9.5">VA &#8594; PA</text>
-  <line x1="100" y1="320" x2="120" y2="320" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
+  <rect x="128" y="278" width="58" height="84" rx="7" fill="#243449" stroke="#c084fc" stroke-width="1.5"/>
+  <text x="157" y="315" text-anchor="middle" fill="#c084fc" font-size="15" font-weight="700">MMU</text>
+  <text x="157" y="333" text-anchor="middle" fill="#cbd5e1" font-size="9.5">VA &#8594; PA</text>
+  <line x1="78" y1="320" x2="128" y2="320" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
 
   <!-- HOST ADDRESS SPACE -->
   <rect x="200" y="60" width="400" height="560" rx="10" fill="#1e293b" fill-opacity="0.5" stroke="#64748b" stroke-dasharray="7 5"/>
@@ -54,67 +55,67 @@
     <rect x="240" y="558" width="320" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="400" y="582">0x400  STATS x6 (RO)</text>
   </g>
 
-  <!-- NIC (narrower block; bottom-aligned with the host) -->
-  <rect x="660" y="118" width="480" height="502" rx="10" fill="#1e293b" fill-opacity="0.5" stroke="#34d399" stroke-opacity="0.6" stroke-width="1.5"/>
-  <text x="678" y="140" fill="#34d399" font-size="14" font-weight="700">NIC</text>
-  <rect x="684" y="150" width="196" height="106" rx="8" fill="#243449" stroke="#34d399" stroke-width="1.5"/>
-  <text x="782" y="176" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">DMA engine</text>
-  <rect x="704" y="190" width="156" height="52" rx="5" fill="#2b3b52" stroke="#475569"/>
-  <text x="782" y="223" text-anchor="middle" fill="#cbd5e1" font-size="12">FIFO</text>
-  <rect x="992" y="150" width="124" height="106" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
-  <text x="1054" y="198" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">Transceiver</text>
-  <text x="1054" y="218" text-anchor="middle" fill="#cbd5e1" font-size="12">(PHY)</text>
+  <!-- NIC (shifted right to widen the IOMMU corridor; bottom-aligned with the host) -->
+  <rect x="710" y="118" width="480" height="502" rx="10" fill="#1e293b" fill-opacity="0.5" stroke="#34d399" stroke-opacity="0.6" stroke-width="1.5"/>
+  <text x="728" y="140" fill="#34d399" font-size="14" font-weight="700">NIC</text>
+  <rect x="734" y="150" width="196" height="106" rx="8" fill="#243449" stroke="#34d399" stroke-width="1.5"/>
+  <text x="832" y="176" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">DMA engine</text>
+  <rect x="754" y="190" width="156" height="52" rx="5" fill="#2b3b52" stroke="#475569"/>
+  <text x="832" y="223" text-anchor="middle" fill="#cbd5e1" font-size="12">FIFO</text>
+  <rect x="1042" y="150" width="124" height="106" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
+  <text x="1104" y="198" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">Transceiver</text>
+  <text x="1104" y="218" text-anchor="middle" fill="#cbd5e1" font-size="12">(PHY)</text>
   <!-- DMA engine FIFO <-> transceiver: frames both ways (TX out, RX in) -->
-  <line x1="880" y1="203" x2="992" y2="203" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
-  <text x="936" y="193" text-anchor="middle" fill="#94a3b8" font-size="10">frames</text>
+  <line x1="930" y1="203" x2="1042" y2="203" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
+  <text x="986" y="193" text-anchor="middle" fill="#94a3b8" font-size="10">frames</text>
   <!-- DMA engine is driven by the ring registers (base / head / tail) in the CSR -->
-  <line x1="782" y1="256" x2="782" y2="294" stroke="#94a3b8" stroke-width="2" marker-start="url(#hg)" marker-end="url(#hg)"/>
-  <text x="792" y="280" fill="#94a3b8" font-size="10">ring base / head / tail</text>
+  <line x1="832" y1="256" x2="832" y2="294" stroke="#94a3b8" stroke-width="2" marker-start="url(#hg)" marker-end="url(#hg)"/>
+  <text x="842" y="280" fill="#94a3b8" font-size="10">ring base / head / tail</text>
 
   <!-- Register file (CSR): the SAME registers as BAR0, in the device - same offset bands, row-aligned -->
-  <rect x="678" y="294" width="446" height="314" rx="8" fill="#243449" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="690" y="314" fill="#fbbf24" font-size="13" font-weight="700">Register file (CSR)</text>
-  <text x="690" y="329" fill="#9ca3af" font-size="11">the same registers BAR0 maps - here, in the device:</text>
+  <rect x="728" y="294" width="446" height="314" rx="8" fill="#243449" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="740" y="314" fill="#fbbf24" font-size="13" font-weight="700">Register file (CSR)</text>
+  <text x="740" y="329" fill="#9ca3af" font-size="11">the same registers BAR0 maps - here, in the device:</text>
   <g font-family="monospace" font-size="12" text-anchor="middle" fill="#e2e8f0">
-    <rect x="694" y="338" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="901" y="362">0x000  ID VERSION CAP</text>
-    <rect x="694" y="382" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="901" y="406">0x010  CTRL STATUS MAC_LO MAC_HI MAXFRM</text>
-    <rect x="694" y="426" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="901" y="450">0x100  TDBAL TDBAH TDLEN TDH TDT</text>
-    <rect x="694" y="470" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="901" y="494">0x200  RDBAL RDBAH RDLEN RDH RDT</text>
-    <rect x="694" y="514" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="901" y="538">0x300  ICR ICS IMS IMC ITR</text>
-    <rect x="694" y="558" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="901" y="582">0x400  TXPKTS TXBYTES RXPKTS RXBYTES TXDROP RXDROP</text>
+    <rect x="744" y="338" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="951" y="362">0x000  ID VERSION CAP</text>
+    <rect x="744" y="382" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="951" y="406">0x010  CTRL STATUS MAC_LO MAC_HI MAXFRM</text>
+    <rect x="744" y="426" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="951" y="450">0x100  TDBAL TDBAH TDLEN TDH TDT</text>
+    <rect x="744" y="470" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="951" y="494">0x200  RDBAL RDBAH RDLEN RDH RDT</text>
+    <rect x="744" y="514" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="951" y="538">0x300  ICR ICS IMS IMC ITR</text>
+    <rect x="744" y="558" width="414" height="38" rx="4" fill="#2b3b52" stroke="#475569"/><text x="951" y="582">0x400  TXPKTS TXBYTES RXPKTS RXBYTES TXDROP RXDROP</text>
   </g>
 
-  <!-- arrows -->
-  <line x1="184" y1="300" x2="222" y2="255" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
+  <!-- arrows: RAM load/store + MMIO both exit through the MMU -->
+  <line x1="186" y1="300" x2="222" y2="255" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
   <text x="205" y="248" text-anchor="middle" fill="#94a3b8" font-size="11">load / store</text>
 
-  <path d="M152,362 L152,440 L222,440" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-start="url(#hb)" marker-end="url(#hb)"/>
-  <text x="187" y="432" text-anchor="middle" fill="#38bdf8" font-size="11">MMIO  readl / writel</text>
+  <path d="M157,362 L157,440 L222,440" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-start="url(#hb)" marker-end="url(#hb)"/>
+  <text x="189" y="432" text-anchor="middle" fill="#38bdf8" font-size="11">MMIO  readl / writel</text>
 
   <!-- TDBAL / RDBAL hold the base addresses of the rings in RAM -->
-  <path d="M694,445 H625 V162 H562" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#hc)"/>
-  <path d="M694,489 H605 V236 H562" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#hc)"/>
+  <path d="M744,445 H625 V162 H562" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#hc)"/>
+  <path d="M744,489 H605 V236 H562" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#hc)"/>
   <text x="590" y="156" fill="#7dd3fc" font-size="10">TDBAL</text>
   <text x="590" y="230" fill="#7dd3fc" font-size="10">RDBAL</text>
 
   <!-- BAR0 and CSR are the same registers (row-aligned); placed low to clear the pointer lines -->
-  <line x1="578" y1="560" x2="694" y2="560" stroke="#fbbf24" stroke-width="2" stroke-dasharray="7 5" marker-start="url(#ha)" marker-end="url(#ha)"/>
-  <text x="636" y="540" text-anchor="middle" fill="#fbbf24" font-size="11">same regs</text>
-  <text x="636" y="552" text-anchor="middle" fill="#fbbf24" font-size="11">(BAR0 = CSR)</text>
+  <line x1="578" y1="560" x2="744" y2="560" stroke="#fbbf24" stroke-width="2" stroke-dasharray="7 5" marker-start="url(#ha)" marker-end="url(#ha)"/>
+  <text x="661" y="540" text-anchor="middle" fill="#fbbf24" font-size="11">same regs</text>
+  <text x="661" y="552" text-anchor="middle" fill="#fbbf24" font-size="11">(BAR0 = CSR)</text>
 
   <!-- IOMMU: the NIC's bus-master DMA to host RAM is translated/remapped here (IOVA -> PA) -->
-  <rect x="602" y="100" width="56" height="46" rx="7" fill="#243449" stroke="#c084fc" stroke-width="1.5"/>
-  <text x="630" y="120" text-anchor="middle" fill="#c084fc" font-size="12" font-weight="700">IOMMU</text>
-  <text x="630" y="137" text-anchor="middle" fill="#cbd5e1" font-size="9">IOVA &#8594; PA</text>
+  <rect x="618" y="100" width="58" height="46" rx="7" fill="#243449" stroke="#c084fc" stroke-width="1.5"/>
+  <text x="647" y="120" text-anchor="middle" fill="#c084fc" font-size="12" font-weight="700">IOMMU</text>
+  <text x="647" y="137" text-anchor="middle" fill="#cbd5e1" font-size="9">IOVA &#8594; PA</text>
   <!-- bus-master DMA: engine <-> IOMMU <-> RAM (orthogonal, routed above the TDBAL/RDBAL pointer lines) -->
-  <path d="M684,200 H668 V123 H658" fill="none" stroke="#34d399" stroke-width="3" marker-start="url(#hgr)" marker-end="url(#hgr)"/>
-  <path d="M602,123 H578" fill="none" stroke="#34d399" stroke-width="3" marker-start="url(#hgr)" marker-end="url(#hgr)"/>
-  <text x="628" y="80" text-anchor="middle" fill="#34d399" font-size="12" font-weight="700">bus-master DMA</text>
-  <text x="628" y="93" text-anchor="middle" fill="#34d399" font-size="11">reads/writes the rings</text>
+  <path d="M734,200 H716 V123 H676" fill="none" stroke="#34d399" stroke-width="3" marker-start="url(#hgr)" marker-end="url(#hgr)"/>
+  <path d="M618,123 H578" fill="none" stroke="#34d399" stroke-width="3" marker-start="url(#hgr)" marker-end="url(#hgr)"/>
+  <text x="647" y="80" text-anchor="middle" fill="#34d399" font-size="12" font-weight="700">bus-master DMA</text>
+  <text x="647" y="93" text-anchor="middle" fill="#34d399" font-size="11">reads/writes the rings</text>
 
-  <path d="M700,612 L700,634 L-30,634 L-30,322 L30,322" fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ha)"/>
+  <path d="M750,612 L750,634 L-30,634 L-30,322 L14,322" fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ha)"/>
   <text x="362" y="626" text-anchor="middle" fill="#fbbf24" font-size="12">MSI interrupt -&gt; CPU</text>
 
-  <line x1="1116" y1="203" x2="1190" y2="203" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
-  <text x="1153" y="193" text-anchor="middle" fill="#94a3b8" font-size="11">Ethernet</text>
+  <line x1="1166" y1="203" x2="1240" y2="203" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
+  <text x="1203" y="193" text-anchor="middle" fill="#94a3b8" font-size="11">Ethernet</text>
 </svg>
