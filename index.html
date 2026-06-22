@@ -634,7 +634,7 @@
           <li><b>RX (coalesce)</b>: N&times;MSS frames &rarr; one skb. <b>GRO</b> merges in the <b>NAPI poll</b> (software); <b>LRO</b> merges in the <b>device</b>.</li>
           <li><b>MSS</b> = MTU &minus; IP &minus; TCP = 1460; frames stay &le; MTU &mdash; jumbo's win <i>without</i> jumbo on the wire.</li>
           <li>Needs <b>checksum offload</b> (the device must (re)checksum each segment).</li>
-          <li><b>VN1000</b>: <b>GRO on</b> (<code>napi_gro_receive</code>); TSO / LRO / checksum = <b>backlog A6</b> (the TX engine would become a segmenter).</li>
+          <li><b>VN1000</b>: <b>GRO on</b> (<code>napi_gro_receive</code>); TSO / LRO / checksum = <b>backlog A6</b> (the TX engine would become a segmenter). <span class="t">The SG vs no-SG TX path (1 vs 1+nr_frags descriptors, the avoided copy) is sketched in background-knowledge 14.7.</span></li>
         </ul>
       </div>
     </div>
