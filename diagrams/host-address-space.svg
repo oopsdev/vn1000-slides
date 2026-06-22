@@ -71,9 +71,9 @@
   <text x="1156" y="210" text-anchor="middle" fill="#cbd5e1" font-size="9">PHY - PCS/PMA/SerDes</text>
   <!-- DMA-engine FIFO <-> MAC <-> PHY: frames both ways (TX out, RX in); MAC<->PHY is the MII -->
   <line x1="919" y1="203" x2="975" y2="203" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
-  <text x="947" y="143" text-anchor="middle" fill="#94a3b8" font-size="10">frames</text>
+  <text x="947" y="195" text-anchor="middle" fill="#94a3b8" font-size="10">frames</text>
   <line x1="1047" y1="203" x2="1103" y2="203" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#hg)" marker-end="url(#hg)"/>
-  <text x="1075" y="143" text-anchor="middle" fill="#94a3b8" font-size="10">MII</text>
+  <text x="1075" y="195" text-anchor="middle" fill="#94a3b8" font-size="10">MII</text>
   <!-- DMA engine is driven by the ring registers (base / head / tail) in the CSR -->
   <line x1="844" y1="256" x2="844" y2="294" stroke="#94a3b8" stroke-width="2" marker-start="url(#hg)" marker-end="url(#hg)"/>
   <text x="854" y="280" fill="#94a3b8" font-size="10">ring base / head / tail</text>
