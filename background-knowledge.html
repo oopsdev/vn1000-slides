@@ -32,6 +32,8 @@ code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.
 pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
 pre code{border:0;padding:0;background:none}
 img{max-width:100%;height:auto;display:block;margin:1.1em auto;border-radius:8px}
+pre.mermaid{background:none;border:0;padding:0;overflow:visible;text-align:center;font-family:inherit}
+.mermaid svg{max-width:100%;height:auto}
 blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
   background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
 blockquote code{font-size:.86em}
@@ -97,7 +99,7 @@ numbered arrows in the figures.</p>
 <p><em>Figure 1 - the RX path as a component / data-flow diagram. Each descriptor's fill encodes its
 ownership (blue = NIC Owned, green = Driver Owned); it flips to Driver Owned at B3 and back to NIC
 Owned at E1. The sequence diagram below shows the same A-E steps ordered in time.</em></p>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid">sequenceDiagram
   participant D as CPU (Driver)
   participant M as Host Memory
   participant N as NIC
@@ -125,8 +127,7 @@ Owned at E1. The sequence diagram below shows the same A-E steps ordered in time
 
   Note over D,N: Step E - cleanup + recycle
   D-&gt;&gt;M: E1 clear descriptor fields, set status = NIC Owned
-  D-&gt;&gt;N: E2 write updated Tail to NIC CSR (recycle)
-</code></pre>
+  D-&gt;&gt;N: E2 write updated Tail to NIC CSR (recycle)</pre>
 <p><strong>Step A - driver init (ring buffer setup)</strong>
 - <strong>A1</strong>: the driver allocates and DMA-maps the Rx descriptor ring and the packet buffers in kernel
   space.
@@ -301,7 +302,7 @@ drivers.</p>
 <h3 id="21-before-napi---the-pure-interrupt-driven-model">2.1 Before NAPI - the pure interrupt-driven model</h3>
 <p>Without NAPI, a NIC driver handled every packet from interrupt context.</p>
 <p>Typical <strong>RX</strong> flow (old <code>netif_rx</code> model):</p>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid">sequenceDiagram
   participant NIC
   participant ISR as ISR hardirq
   participant BL as backlog queue
@@ -312,8 +313,7 @@ drivers.</p>
   ISR-&gt;&gt;BL: netif_rx enqueues skb
   ISR-&gt;&gt;SOFT: raise NET_RX_SOFTIRQ
   SOFT-&gt;&gt;BL: dequeue skb
-  SOFT-&gt;&gt;STACK: push up the stack
-</code></pre>
+  SOFT-&gt;&gt;STACK: push up the stack</pre>
 <ol>
 <li>A packet arrives, the NIC DMAs it into memory and <strong>raises an interrupt - one per packet</strong>.</li>
 <li>The hardware ISR (hardirq) acknowledges the device, wraps the packet in an <code>sk_buff</code>, and calls
@@ -479,7 +479,7 @@ next <code>ndo_start_xmit</code>), so it often needs no interrupt of its own. NA
 same <code>poll</code> as a convenience - it just does not count against <code>budget</code>.</p>
 <h3 id="24-after-napi---the-typical-flow">2.4 After NAPI - the typical flow</h3>
 <p><strong>RX</strong> with NAPI:</p>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid">sequenceDiagram
   participant NIC
   participant ISR as ISR hardirq
   participant POLL as poll softirq
@@ -488,8 +488,7 @@ same <code>poll</code> as a convenience - it just does not count against <code>b
   ISR-&gt;&gt;ISR: mask device IRQ, napi_schedule
   POLL-&gt;&gt;NIC: pull a batch from RX ring up to budget
   POLL-&gt;&gt;STACK: napi_gro_receive each skb
-  Note over POLL,NIC: drained - napi_complete, re-enable IRQ. still full - keep polling, IRQ off
-</code></pre>
+  Note over POLL,NIC: drained - napi_complete, re-enable IRQ. still full - keep polling, IRQ off</pre>
 <p><strong>TX completion</strong> with NAPI: submission (<code>ndo_start_xmit</code>) is unchanged - the driver puts the skb
 on the TX ring and rings the doorbell. The difference is <strong>completion</strong>: instead of a per-packet
 TX-done interrupt freeing one skb in the ISR, the driver <strong>reclaims completed TX descriptors in
@@ -1929,5 +1928,11 @@ frag (from a per-descriptor stashed addr/len), then <code>napi_consume_skb</code
 <p>VN1000 takes path (A); path (B) is what backlog <strong>A6</strong> (SG/TSO) would add.</p>
 <p class="footnote">Generated from <code>background-knowledge.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
 </div>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+</script>
+
 </body>
 </html>

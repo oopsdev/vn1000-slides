@@ -32,6 +32,8 @@ code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.
 pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
 pre code{border:0;padding:0;background:none}
 img{max-width:100%;height:auto;display:block;margin:1.1em auto;border-radius:8px}
+pre.mermaid{background:none;border:0;padding:0;overflow:visible;text-align:center;font-family:inherit}
+.mermaid svg{max-width:100%;height:auto}
 blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
   background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
 blockquote code{font-size:.86em}
@@ -110,7 +112,7 @@ adds 3-5; a real backend adds 6.</p>
 </ol>
 <p>The rest of this note is the per-action reference: which callback each guest operation hits, and its
 Level 1 analogue.</p>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid">sequenceDiagram
   participant D as Guest driver
   participant Q as QEMU vnic device
   participant M as Guest memory
@@ -123,8 +125,7 @@ Level 1 analogue.</p>
   Q-&gt;&gt;M: pci_dma_write status DD = 1
   Q-&gt;&gt;V: msi_notify(vector) - a memory write to the LAPIC MSI address
   V-&gt;&gt;D: the request_irq handler runs -&gt; napi_schedule
-  D-&gt;&gt;M: NAPI poll reads DD + packet (dma_rmb / dma_sync)
-</code></pre>
+  D-&gt;&gt;M: NAPI poll reads DD + packet (dma_rmb / dma_sync)</pre>
 <hr>
 <h2 id="1-how-qemu-emulates-a-pcie-device-and-how-the-guest-probes-it">1. How QEMU emulates a PCIe device, and how the guest probes it</h2>
 <p><strong>QEMU side.</strong> A device is a <strong>QOM</strong> (QEMU Object Model) type whose parent is <code>TYPE_PCI_DEVICE</code> and
@@ -528,5 +529,11 @@ becomes <code>msi_notify</code>. The guest driver's <code>core/</code> is unchan
 fake-register access + pointer tokens for <code>readl/writel</code> + <code>dma_*</code> (D-12).</p>
 <p class="footnote">Generated from <code>qemu-device-model.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
 </div>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+</script>
+
 </body>
 </html>

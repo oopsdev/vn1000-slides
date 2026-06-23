@@ -32,6 +32,8 @@ code{background:#0b1220;border:1px solid var(--line);border-radius:4px;padding:.
 pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:1em;overflow-x:auto}
 pre code{border:0;padding:0;background:none}
 img{max-width:100%;height:auto;display:block;margin:1.1em auto;border-radius:8px}
+pre.mermaid{background:none;border:0;padding:0;overflow:visible;text-align:center;font-family:inherit}
+.mermaid svg{max-width:100%;height:auto}
 blockquote{margin:.8em 0;padding:.5em 1em;border-left:4px solid var(--accent);
   background:rgba(56,189,248,.07);color:var(--muted);border-radius:0 8px 8px 0}
 blockquote code{font-size:.86em}
@@ -63,7 +65,7 @@ NAPI, and netdev integration - in a phased, demonstrable way.</p>
 two mirror each other across the MMIO / DMA / IRQ boundary.</strong> Every driver action has a matching
 device reaction.</p>
 <h2 id="2-system-layering">2. System layering</h2>
-<pre><code class="language-mermaid">flowchart TB
+<pre class="mermaid">flowchart TB
   app[&quot;User app / ping&quot;]
   stack[&quot;Linux net stack&quot;]
   drv[&quot;vnic driver&quot;]
@@ -77,8 +79,7 @@ device reaction.</p>
   drv --&gt;|L1 shared ring| eng
   drv --&gt;|L2 MMIO DMA MSI| dev
   dev --&gt; be
-  be --&gt; host
-</code></pre>
+  be --&gt; host</pre>
 <p>Four layers, do not conflate them:</p>
 <ol>
 <li><strong>Guest vnic driver</strong> - the <code>.ko</code> this project writes, driving the virtual NIC. &lt;- the real driver</li>
@@ -230,7 +231,7 @@ halves it drives.</p>
 <p>The engine is a kthread. It <strong>sleeps</strong> in <code>wait_event_interruptible(&amp;h-&gt;wq, ...)</code> and is woken by a
 doorbell - it is not a busy loop and uses no CPU when idle. One run walks the pending TX descriptors
 and, per frame, loops it into RX or stalls when RX is full:</p>
-<pre><code class="language-mermaid">flowchart TB
+<pre class="mermaid">flowchart TB
   wake[&quot;woken (TDT / RDT)&quot;]
   loop[&quot;next TX desc&quot;]
   full{&quot;RX slot free?&quot;}
@@ -245,8 +246,7 @@ and, per frame, loops it into RX or stalls when RX is full:</p>
   deliver --&gt; txdone
   txdone --&gt; loop
   full --&gt;|no| stall
-  stall --&gt; sched
-</code></pre>
+  stall --&gt; sched</pre>
 <ul>
 <li><strong>Wakeup condition</strong>: the wake comes from <code>wake_up_interruptible(&amp;h-&gt;wq)</code> inside <code>vnic_hal_wr32()</code>. The
   <strong>TX doorbell (<code>TDT</code>) always wakes</strong> the engine (new frames to consume); the <strong>RX refill doorbell
@@ -262,7 +262,7 @@ and, per frame, loops it into RX or stalls when RX is full:</p>
   cannot deadlock. Measured best on both axes - see lessons-learned L-02.</li>
 </ul>
 <h3 id="62-level-1-tx-flow">6.2 Level 1 TX flow</h3>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid">sequenceDiagram
   participant S as Net stack
   participant D as vnic driver
   participant E as L1 engine
@@ -273,8 +273,7 @@ and, per frame, loops it into RX or stalls when RX is full:</p>
   E-&gt;&gt;E: read TDH..TDT, loopback each frame into RX (see 6.1)
   E-&gt;&gt;D: `mark TX DD, **napi_schedule()**`
   D-&gt;&gt;D: `**vnic_poll()** -&gt; tx_clean - **napi_consume_skb()**, wake queue`
-  D-&gt;&gt;D: `**napi_complete_done()** when RX work lt budget`
-</code></pre>
+  D-&gt;&gt;D: `**napi_complete_done()** when RX work lt budget`</pre>
 <ul>
 <li>TX is <strong>zero-copy</strong> at Level 1: the descriptor <code>addr</code> is just the <code>skb-&gt;data</code> pointer (the token),
   no DMA mapping. <code>skb_linearize()</code> makes the frame contiguous so the engine can copy it in one go.</li>
@@ -284,7 +283,7 @@ and, per frame, loops it into RX or stalls when RX is full:</p>
 <h3 id="63-level-1-rx-flow">6.3 Level 1 RX flow</h3>
 <p>RX buffers are <strong>pre-posted</strong> - one skb per RX descriptor, allocated in <code>ndo_open</code> (Model A, D-18) -
 because the device needs somewhere to write before a frame arrives.</p>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid">sequenceDiagram
   participant E as L1 engine
   participant D as vnic driver
   participant S as Net stack
@@ -295,8 +294,7 @@ because the device needs somewhere to write before a frame arrives.</p>
   D-&gt;&gt;D: skb already posted - skb_put(len) + eth_type_trans (dst MAC = ours -&gt; PACKET_HOST)
   D-&gt;&gt;S: `**napi_gro_receive()** - delivered locally`
   D-&gt;&gt;E: alloc fresh skb, refill desc, ring RDT (also resumes a stalled engine)
-  Note over D: `**napi_complete_done()** when work lt budget`
-</code></pre>
+  Note over D: `**napi_complete_done()** when work lt budget`</pre>
 <ul>
 <li>The loopback swaps the <strong>Ethernet MAC</strong> (dst becomes our own address, so <code>eth_type_trans</code> marks it
   <code>PACKET_HOST</code> and the stack delivers it locally) and the <strong>IPv4 src/dst</strong> (so it looks like it came
@@ -315,7 +313,7 @@ RX buffer model (pre-posted skb, Model A, D-18) and the NAPI half are identical 
 Phase 12 performance knobs - TX doorbell batching (D-32) and ITR interrupt coalescing (D-33) - tune
 this same path.</p>
 <h3 id="71-level-2-tx-flow">7.1 Level 2 TX flow</h3>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid">sequenceDiagram
   participant S as Net stack
   participant D as vnic driver
   participant E as QEMU device
@@ -326,10 +324,9 @@ this same path.</p>
   E-&gt;&gt;E: pci_dma_read the packet from guest memory
   E-&gt;&gt;H: qemu_send_packet to the backend (tap / user)
   E-&gt;&gt;D: `raise MSI -&gt; ISR -&gt; **napi_schedule()**`
-  D-&gt;&gt;D: `**vnic_poll()** -&gt; tx_clean - dma_unmap, **napi_consume_skb()**`
-</code></pre>
+  D-&gt;&gt;D: `**vnic_poll()** -&gt; tx_clean - dma_unmap, **napi_consume_skb()**`</pre>
 <h3 id="72-level-2-rx-flow">7.2 Level 2 RX flow</h3>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid">sequenceDiagram
   participant H as Host network
   participant E as QEMU device
   participant D as vnic driver
@@ -340,8 +337,7 @@ this same path.</p>
   D-&gt;&gt;D: `**vnic_poll()** -&gt; rx_clean (up to budget)`
   D-&gt;&gt;D: skb_put + eth_type_trans
   D-&gt;&gt;S: `**napi_gro_receive()**`
-  D-&gt;&gt;E: `refill RX desc + RDT, **napi_complete_done()** -&gt; re-enable MSI (IMS)`
-</code></pre>
+  D-&gt;&gt;E: `refill RX desc + RDT, **napi_complete_done()** -&gt; re-enable MSI (IMS)`</pre>
 <p>The unchanged-vs-changed split across Level 1 and Level 2 is summarised in section 10.</p>
 <h3 id="73-annotated-datapath-diagrams-the-real-nic-model--level-2">7.3 Annotated datapath diagrams (the real-NIC model = Level 2)</h3>
 <p>The TX and RX diagrams below are the <strong>generic real-NIC datapath</strong> - descriptor ring + DMA + MSI +
@@ -433,7 +429,7 @@ concrete picture behind the conceptual datapath in section 1.</p>
 <h3 id="81-how-vnic_poll-gets-called-napi-trigger-chain">8.1 How vnic_poll gets called (NAPI trigger chain)</h3>
 <p><code>vnic_poll</code> is never called directly. It runs only after something calls <code>napi_schedule()</code>,
 which hands the device off to the <code>NET_RX_SOFTIRQ</code> machinery:</p>
-<pre><code class="language-mermaid">flowchart TB
+<pre class="mermaid">flowchart TB
   trig[&quot;Trigger source&quot;]
   sched[&quot;napi_schedule()&quot;]
   soft[&quot;net_rx_action()&quot;]
@@ -446,8 +442,7 @@ which hands the device off to the <code>NET_RX_SOFTIRQ</code> machinery:</p>
   soft --&gt; poll
   poll --&gt; work
   work --&gt;|work lt budget| done
-  done --&gt;|wait| trig
-</code></pre>
+  done --&gt;|wait| trig</pre>
 <p>Reading the chain (details kept here so the boxes stay short):</p>
 <ul>
 <li><strong>Trigger source</strong> - whatever calls <code>napi_schedule()</code>. It is <strong>not</strong> part of NAPI and differs by
@@ -522,7 +517,7 @@ engine (still a kthread - it is the <em>device</em>) no longer pokes NAPI; it se
 <strong>tasklet</strong> (softirq context - cannot sleep, runs deferred, separate from the engine), the closest
 software analogue to a hardware interrupt's handler. (Not a workqueue/kthread, which would run in
 process context; see design-decisions D-20.)</p>
-<pre><code class="language-mermaid">sequenceDiagram
+<pre class="mermaid">sequenceDiagram
   participant E as engine (device, kthread)
   participant I as MSI handler (tasklet)
   participant P as vnic_poll (softirq)
@@ -531,8 +526,7 @@ process context; see design-decisions D-20.)</p>
   I-&gt;&gt;I: read ICR (read-to-clear), mask cause via IMC
   I-&gt;&gt;P: napi_schedule
   P-&gt;&gt;P: clean TX, receive RX (up to budget)
-  P-&gt;&gt;E: napi_complete_done, re-enable cause via IMS
-</code></pre>
+  P-&gt;&gt;E: napi_complete_done, re-enable cause via IMS</pre>
 <p>Why the <code>IMS</code>/<code>IMC</code> mask matters: while the poll is draining, the cause stays <strong>masked</strong>, so engine
 completions accumulate in <code>ICR</code> without re-firing the MSI; the poll re-enables <code>IMS</code> only when it
 completes. That is exactly the real NIC interrupt + polling hybrid (and the basis of NAPI backing
@@ -669,5 +663,11 @@ RX = <code>e1000_clean_rx_irq</code>.</p>
 </table></div>
 <p class="footnote">Generated from <code>architecture.md</code> by <code>scripts/gen-docs-site.py</code>.</p>
 </div>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+</script>
+
 </body>
 </html>
