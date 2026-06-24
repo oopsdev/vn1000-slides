@@ -168,6 +168,7 @@ sudo IFACE=vnic_loop0 bash scripts/setup-vnic.sh   # assign IP + static neighbor
 <hr>
 <h2 id="references-reading-order">References (reading order)</h2>
 <ol>
+<li><strong>"How Hardware and Software Share a Queue: Understanding DMA Rings"</strong> (dev.to) — a gentle conceptual intro to the shared TX/RX descriptor ring: <a href="https://dev.to/ripan030/how-hardware-and-software-share-a-queue-understanding-dma-rings-pea">https://dev.to/ripan030/how-hardware-and-software-share-a-queue-understanding-dma-rings-pea</a></li>
 <li>Intel <strong>e1000e</strong> Linux driver — the most approachable head/tail ring register model</li>
 <li>Intel <strong>82574 datasheet</strong> — to cross-check the e1000e registers (TDBAL/TDH/TDT, etc.)</li>
 <li>Intel <strong>82599 datasheet</strong> + Linux <strong>ixgbe</strong> — production 10G NIC, NAPI, multi-queue</li>
