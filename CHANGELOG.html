@@ -62,6 +62,31 @@ Format based on <a href="https://keepachangelog.com/">Keep a Changelog</a>; vers
 <h2 id="unreleased">[Unreleased]</h2>
 <h3 id="added">Added</h3>
 <ul>
+<li><strong>Public HTML doc site + generators (new).</strong> <code>scripts/gen-docs-site.py</code> + <code>scripts/gen-docs-site.py</code>
+  render the whole interlinked Markdown set (<code>docs/*.md</code>, <code>README</code>/<code>TODO</code>/<code>CHANGELOG</code>, <code>results/*.md</code>,
+  <code>tests/README.md</code>) to flat <code>docs/slides/&lt;name&gt;.html</code>, which <code>deploy-slides.yml</code> mirrors to the public
+  <code>vn1000-slides</code> GitHub Pages site. Features: <strong>Mermaid</strong> rendering (mermaid@10.9.1, dark, only on
+  pages that use it), <strong>GitHub-compatible TOC slugs</strong> (so the docs' <code>---</code> anchors resolve in the HTML),
+  cross-doc <code>.md</code>→<code>.html</code> link rewriting (<code>docs/index.md</code>→<code>docs-index.html</code>; the three <code>README.md</code>→
+  <code>&lt;dir&gt;-readme.html</code>), <code>diagrams/</code> image handling, and <code>img{max-width:100%}</code>. Regenerate with
+  <code>python scripts/gen-docs-site.py</code>, then commit. Live: <a href="https://oopsdev.github.io/vn1000-slides/docs-index.html">https://oopsdev.github.io/vn1000-slides/docs-index.html</a>.</li>
+<li><strong>Slide deck expansion (<code>docs/slides/vnic-slides.html</code>).</strong> New/added: <strong>1.2</strong> IP fragmentation
+  (why/how, DF→ICMP→PMTUD); <strong>1.3</strong> "coalesced ≠ original" byte-stream callout; <strong>1.4</strong> the NIC vs the
+  driver (hardware functions vs driver role, incl. PHY+SerDes); <strong>1.5</strong> PHY internals (MAC/PCS/PMA/SerDes</li>
+<li>the MII family + MAC-driver vs PHY-driver / phylib·MDIO, project = MAC driver); <strong>2.1</strong> a MAC+PHY
+  anatomy node; <strong>3.1.1</strong> the <code>sk_buff</code> (diagram); dev-environment split into <strong>6.1/6.2/6.3</strong> from
+  <code>dev-setup.md</code> §0-4. A reusable <code>cozy</code> text scale was added for dense slides.</li>
+<li><strong><code>docs/diagrams/skb-layout.svg</code> (new)</strong> + slide 3.1.1 + background-knowledge topic 14: the skb's
+  <code>head/data/tail/end</code> pointers into the linear buffer (headroom | Eth/IP/TCP | payload | tailroom),
+  the layer-header offsets, and <code>skb_shinfo-&gt;frags</code> → payload pages (<code>data_len</code>); <code>skb_shinfo</code> lives at
+  <code>skb-&gt;end</code>.</li>
+<li><strong><code>docs/background-knowledge.md</code> topic 14 (new): the <code>sk_buff</code></strong> - metadata+data, linear vs
+  non-linear (head + page frags + frag_list), header-by-pointer ops, <code>skb_linearize</code> and its copy cost,
+  why the SG check is deferred to transmit, and <strong>14.7</strong> a TX-with-vs-without-<code>NETIF_F_SG</code> code sketch.</li>
+<li><strong><code>docs/diagrams/host-address-space.svg</code></strong> (slide 2.2): added the <strong>MMU</strong> (CPU-side, VA→PA) and
+  <strong>IOMMU</strong> (NIC-side, IOVA→PA) on the load/store, MMIO and bus-master-DMA paths, and a <strong>MAC</strong> block
+  between the DMA engine and the PHY transceiver (frames / MII links).</li>
+<li><strong><code>README.md</code> References</strong>: added the dev.to "Understanding DMA Rings" conceptual primer.</li>
 <li><strong><code>docs/teaching-plan.md</code> (new): a 13-week weekly teaching plan.</strong> Maps the project phases + slide
   deck onto one Tuesday milestone each (Tue 08:00-09:00 UTC+8) for full-time summer students, from
   2026-06-23 to 2026-09-15: Level 1 by W4, Level 2 (real tap NIC) by W7, performance + demo by W8,

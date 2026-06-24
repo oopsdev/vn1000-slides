@@ -73,6 +73,14 @@ performance analysis (L-10/11/12), and the docs/diagrams/slides. What is genuine
 - [x] Phase 5.2 verification trio (done 2026-06-18): error/teardown leak-UAF walk (found + fixed a
       <code>napi_disable</code> double-call on the failed-change_mtu path via a <code>priv-&gt;up</code> guard); <code>napi_consume_skb</code>
       only-in-NAPI - confirmed; <code>rx_dropped</code> not double-counted - confirmed (disjoint device/driver drops)</p>
+<p><strong>Teaching &amp; publishing (done 2026-06-22..24, ongoing)</strong>
+- [x] <strong>13-week summer teaching plan</strong> (<a href="teaching-plan.html">docs/teaching-plan.md</a>) - Tue 08:00-09:00
+      UTC+8, full-time students; L1 by W4, L2 by W7, perf+demo by W8, advanced backlog W9-W13.
+- [x] <strong>Public HTML doc site</strong>: the whole doc set renders (<code>scripts/gen-docs-site.py</code>) to
+      <code>docs/slides/*.html</code> and auto-mirrors to <code>vn1000-slides</code> (GitHub Pages) via <code>deploy-slides.yml</code>
+      (Mermaid, GitHub-TOC anchors, <code>.md</code>→<code>.html</code> links). <strong>Edit a doc → <code>python scripts/gen-docs-site.py</code>
+      → commit → CI mirrors.</strong> Slide deck expanded (1.2-1.5 networking/NIC/PHY/skb, 2.1/2.2 anatomy +
+      MMU/IOMMU/MAC, 3.1.1 skb, 6.1-6.3 dev-env); bg-knowledge to <strong>topic 14</strong> (sk_buff).</p>
 <p><strong>Optional / backlog (not on the main path)</strong>
 - Advanced backlog A1-A6 (IAM, forced INT/POLL/ADAPTIVE mode, MSI-X/multi-queue/RSS, jumbo
   multi-descriptor RX, checksum/TSO/LRO offloads, page_pool/build_skb RX) - see the section below
