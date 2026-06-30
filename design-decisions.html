@@ -163,7 +163,16 @@ the IP only (keeping ports) preserves the dst port, so it lands on the server.</
 or (b) the engine answering ARP itself; on loopback set the RX dst MAC = vnic0's own MAC
 (-&gt; <code>PACKET_HOST</code>), src MAC = B's fake MAC.
 <strong>Why</strong>: B does not exist -&gt; normal ARP gets no reply -&gt; the packet cannot be sent. Keep B on
-vnic0's subnet so strict <code>rp_filter</code> passes.</p>
+vnic0's subnet so strict <code>rp_filter</code> passes. The point is to <strong>leave the ARP/neighbour path on</strong> (so
+vnic0 behaves like a real NIC and the resolution stays observable) and merely <strong>pre-seed</strong> the one
+entry that has no responder.
+<strong>Rejected</strong>: snull's (LDD3) approach - set <strong><code>IFF_NOARP</code></strong> on the netdev so the stack <strong>never emits
+ARP at all</strong>, plus a custom <code>header_ops-&gt;create</code> (<code>snull_header</code>) that <strong>fabricates</strong> the Ethernet
+header (dest MAC = the device's own MAC with the low bit of the last byte toggled, which maps to its
+paired sn0/sn1). That needs zero external config, but it turns ARP <em>off</em> and the L2 addresses are fake -
+fine for snull's closed two-interface bounce, but VN1000 wants to <strong>look like a real NIC</strong>, so it keeps
+ARP intact and pre-seeds a static neighbour instead. (See D-05 / D-06 for why VN1000 also rejects
+snull's two-device + third-octet bit-flip topology.)</p>
 <h2 id="d-09-baseline-convergence-drop-mode--rst_done-single-msi">D-09 Baseline convergence (drop MODE / RST_DONE, single MSI)</h2>
 <p><strong>Decision</strong>: (1) drop the device-side <code>MODE</code> register - int/poll/adaptive is achieved by the
 driver's NAPI; (2) reset uses only the self-clearing <code>CTRL.RST</code>, drop <code>STATUS.RST_DONE</code>;
