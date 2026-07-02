@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Option A (augmented, fixed routing): host-address-space picture + PCIe Root Complex + Local APIC.
+     DMA and MSI both pass THROUGH the IOMMU (DMA remap / IRQ remap); MMIO does NOT touch the IOMMU
+     (CPU->MMU->BAR0, and BAR0=CSR forwarded by the RC below the IOMMU). MSI = a memory write to
+     0xFEE.. remapped to the Local APIC. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1340 600" width="1340" height="600"
+     font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img"
+     aria-label="Augmented host-address-space diagram. Left: CPU with MMU (VA to PA) and a Local APIC. Centre-left: host memory address space with RAM (TX/RX rings) and the BAR0 MMIO window. Centre: a PCIe Root Complex with an IOMMU (DMA remap IOVA to PA, IRQ remap IRTE). Right: the NIC with DMA engine, MAC, PHY transceiver, and CSR register file. MMIO goes CPU to MMU to the BAR0 window, and BAR0 equals CSR forwarded by the Root Complex (not through the IOMMU). DMA goes from the DMA engine through the IOMMU to RAM. MSI is a memory write from the CSR through the IOMMU interrupt-remap to the Local APIC to the CPU. Ethernet leaves the PHY.">
+  <defs>
+    <marker id="g"  markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="#94a3b8"/></marker>
+    <marker id="b"  markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="#38bdf8"/></marker>
+    <marker id="gr" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="#34d399"/></marker>
+    <marker id="a"  markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#fbbf24"/></marker>
+  </defs>
+  <rect x="0" y="0" width="1340" height="600" fill="#0f172a"/>
+
+  <text x="26" y="28" fill="#e2e8f0" font-size="15.5" font-weight="700">Host address space + PCIe Root Complex + Local APIC - the MMIO / DMA / MSI routing</text>
+
+  <!-- CPU + MMU + Local APIC -->
+  <rect x="26" y="250" width="104" height="86" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
+  <text x="78" y="299" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">CPU</text>
+  <rect x="182" y="262" width="78" height="62" rx="7" fill="#243449" stroke="#c084fc" stroke-width="1.5"/>
+  <text x="221" y="289" text-anchor="middle" fill="#c084fc" font-size="12.5" font-weight="700">MMU</text>
+  <text x="221" y="306" text-anchor="middle" fill="#cbd5e1" font-size="9">VA-&gt;PA</text>
+  <rect x="26" y="396" width="104" height="60" rx="8" fill="#243449" stroke="#fbbf24" stroke-width="1.5"/>
+  <text x="78" y="421" text-anchor="middle" fill="#fcd34d" font-size="12.5" font-weight="700">Local APIC</text>
+  <text x="78" y="438" text-anchor="middle" fill="#cbd5e1" font-size="9">per core</text>
+
+  <!-- HOST MEMORY ADDRESS SPACE -->
+  <rect x="280" y="84" width="286" height="456" rx="10" fill="#1e293b" fill-opacity="0.5" stroke="#64748b" stroke-dasharray="7 5"/>
+  <text x="423" y="104" text-anchor="middle" fill="#cbd5e1" font-size="12.5" font-weight="700">HOST MEMORY ADDRESS SPACE</text>
+  <rect x="298" y="112" width="250" height="140" rx="8" fill="#243449" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="310" y="131" fill="#38bdf8" font-size="12" font-weight="700">RAM (DRAM)</text>
+  <rect x="314" y="142" width="218" height="44" rx="5" fill="#2b3b52" stroke="#475569"/><text x="423" y="169" text-anchor="middle" fill="#fff" font-size="11">TX ring -&gt; buffers</text>
+  <rect x="314" y="198" width="218" height="44" rx="5" fill="#2b3b52" stroke="#475569"/><text x="423" y="225" text-anchor="middle" fill="#fff" font-size="11">RX ring -&gt; buffers</text>
+  <rect x="298" y="286" width="250" height="232" rx="8" fill="#243449" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="310" y="305" fill="#fbbf24" font-size="12" font-weight="700">MMIO window (BAR0)</text>
+  <g font-family="monospace" font-size="11" text-anchor="middle" fill="#e2e8f0">
+    <rect x="314" y="314" width="218" height="40" rx="4" fill="#2b3b52" stroke="#475569"/><text x="423" y="339">0x100 TX regs</text>
+    <rect x="314" y="360" width="218" height="40" rx="4" fill="#2b3b52" stroke="#475569"/><text x="423" y="385">0x200 RX regs</text>
+    <rect x="314" y="406" width="218" height="40" rx="4" fill="#2b3b52" stroke="#475569"/><text x="423" y="431">0x300 ICR/IMS/ITR</text>
+    <rect x="314" y="452" width="218" height="40" rx="4" fill="#2b3b52" stroke="#475569"/><text x="423" y="477">0x000 ID/CTRL/STAT</text>
+  </g>
+
+  <!-- PCIe Root Complex + IOMMU -->
+  <rect x="610" y="100" width="160" height="440" rx="10" fill="#1e293b" fill-opacity="0.55" stroke="#7dd3fc" stroke-width="1.7"/>
+  <text x="690" y="126" text-anchor="middle" fill="#7dd3fc" font-size="12.5" font-weight="700">PCIe Root</text>
+  <text x="690" y="142" text-anchor="middle" fill="#7dd3fc" font-size="12.5" font-weight="700">Complex</text>
+  <rect x="624" y="155" width="132" height="285" rx="8" fill="#243449" stroke="#c084fc" stroke-width="1.5"/>
+  <text x="690" y="204" text-anchor="middle" fill="#c084fc" font-size="12" font-weight="700">IOMMU</text>
+  <text x="690" y="282" text-anchor="middle" fill="#cbd5e1" font-size="9.5">DMA remap</text>
+  <text x="690" y="297" text-anchor="middle" fill="#cbd5e1" font-size="9.5">(IOVA-&gt;PA)</text>
+  <text x="690" y="374" text-anchor="middle" fill="#cbd5e1" font-size="9.5">IRQ remap</text>
+  <text x="690" y="389" text-anchor="middle" fill="#cbd5e1" font-size="9.5">(IRTE)</text>
+
+  <!-- NIC -->
+  <rect x="812" y="140" width="458" height="400" rx="10" fill="#1e293b" fill-opacity="0.5" stroke="#34d399" stroke-opacity="0.6" stroke-width="1.5"/>
+  <text x="830" y="160" fill="#34d399" font-size="13" font-weight="700">NIC</text>
+  <rect x="832" y="176" width="128" height="88" rx="8" fill="#243449" stroke="#34d399" stroke-width="1.5"/>
+  <text x="896" y="214" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="700">DMA engine</text>
+  <text x="896" y="232" text-anchor="middle" fill="#cbd5e1" font-size="9">bus master</text>
+  <rect x="1004" y="176" width="76" height="88" rx="8" fill="#243449" stroke="#34d399" stroke-width="1.5"/>
+  <text x="1042" y="214" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">MAC</text>
+  <text x="1042" y="232" text-anchor="middle" fill="#cbd5e1" font-size="8.5">framing/FCS</text>
+  <rect x="1126" y="176" width="128" height="88" rx="8" fill="#243449" stroke="#475569" stroke-width="1.5"/>
+  <text x="1190" y="214" text-anchor="middle" fill="#fff" font-size="11.5" font-weight="700">Transceiver</text>
+  <text x="1190" y="232" text-anchor="middle" fill="#cbd5e1" font-size="8.5">PHY PCS/PMA/SerDes</text>
+  <rect x="832" y="292" width="380" height="232" rx="8" fill="#243449" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="844" y="311" fill="#fbbf24" font-size="12" font-weight="700">Register file (CSR)</text>
+  <g font-family="monospace" font-size="11" text-anchor="middle" fill="#e2e8f0">
+    <rect x="848" y="320" width="348" height="40" rx="4" fill="#2b3b52" stroke="#475569"/><text x="1022" y="345">0x100 TDBAL..TDT</text>
+    <rect x="848" y="366" width="348" height="40" rx="4" fill="#2b3b52" stroke="#475569"/><text x="1022" y="391">0x200 RDBAL..RDT</text>
+    <rect x="848" y="412" width="348" height="40" rx="4" fill="#2b3b52" stroke="#475569"/><text x="1022" y="437">0x300 ICR ICS IMS IMC (MSI source)</text>
+    <rect x="848" y="458" width="348" height="40" rx="4" fill="#2b3b52" stroke="#475569"/><text x="1022" y="483">0x000 ID/CTRL/STATUS</text>
+  </g>
+
+  <!-- DMA engine driven by the ring registers in the CSR (base / head / tail) -->
+  <line x1="896" y1="256" x2="896" y2="300" stroke="#94a3b8" stroke-width="2" marker-start="url(#g)" marker-end="url(#g)"/>
+  <text x="908" y="281" text-anchor="start" fill="#94a3b8" font-size="9">ring base/head/tail</text>
+
+  <!-- MMU <-> CPU -->
+  <line x1="130" y1="293" x2="182" y2="293" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#g)" marker-end="url(#g)"/>
+
+  <!-- load/store: MMU -> RAM -->
+  <line x1="244" y1="262" x2="300" y2="216" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#g)" marker-end="url(#g)"/>
+  <text x="250" y="204" text-anchor="middle" fill="#94a3b8" font-size="9.5">load/store</text>
+
+  <!-- (1) MMIO (blue): CPU/MMU -> BAR0 window; BAR0 = CSR forwarded by the RC (below the IOMMU) -->
+  <path d="M221,324 V362 H298" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-start="url(#b)" marker-end="url(#b)"/>
+  <text x="234" y="352" fill="#38bdf8" font-size="9.5">MMIO</text>
+  <line x1="548" y1="472" x2="848" y2="472" stroke="#38bdf8" stroke-width="2.2" stroke-dasharray="7 5" marker-start="url(#b)" marker-end="url(#b)"/>
+  <text x="695" y="450" text-anchor="middle" fill="#38bdf8" font-size="9.5" font-weight="700">BAR0 = CSR</text>
+  <text x="695" y="463" text-anchor="middle" fill="#38bdf8" font-size="9">(RC-forwarded MMIO)</text>
+
+  <!-- (2) DMA (green): DMA engine -> IOMMU -> RAM (through the IOMMU) -->
+  <polyline points="832,220 720,220 720,178 548,178" fill="none" stroke="#34d399" stroke-width="3" marker-start="url(#gr)" marker-end="url(#gr)"/>
+  <text x="662" y="170" text-anchor="middle" fill="#34d399" font-size="9.5">DMA  IOVA-&gt;PA</text>
+
+  <!-- (3) MSI (amber): CSR ICR -> IOMMU IRQ-remap -> (loop under) -> Local APIC -> CPU -->
+  <line x1="848" y1="432" x2="758" y2="432" stroke="#fbbf24" stroke-width="2.5" marker-end="url(#a)"/>
+  <text x="800" y="424" text-anchor="middle" fill="#fcd34d" font-size="9">MSI 0xFEE..</text>
+  <polyline points="636,440 636,572 78,572 78,456" fill="none" stroke="#fbbf24" stroke-width="2.5" marker-end="url(#a)"/>
+  <text x="360" y="566" text-anchor="middle" fill="#fcd34d" font-size="10">MSI remapped (IRTE) -&gt; Local APIC</text>
+  <line x1="78" y1="396" x2="78" y2="336" stroke="#fbbf24" stroke-width="2.5" marker-end="url(#a)"/>
+  <text x="88" y="372" text-anchor="start" fill="#fcd34d" font-size="9.5">IRQ to core</text>
+
+  <!-- Ethernet: DMA engine <-> MAC <-> PHY -> wire -->
+  <line x1="960" y1="220" x2="1004" y2="220" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#g)" marker-end="url(#g)"/>
+  <text x="982" y="200" text-anchor="middle" fill="#94a3b8" font-size="9">frames</text>
+  <line x1="1080" y1="220" x2="1126" y2="220" stroke="#94a3b8" stroke-width="2.5" marker-start="url(#g)" marker-end="url(#g)"/>
+  <text x="1103" y="200" text-anchor="middle" fill="#94a3b8" font-size="9">MII</text>
+  <line x1="1254" y1="220" x2="1320" y2="220" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#g)"/>
+  <text x="1298" y="238" text-anchor="middle" fill="#94a3b8" font-size="9.5">Ethernet</text>
+</svg>

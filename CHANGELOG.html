@@ -62,6 +62,12 @@ Format based on <a href="https://keepachangelog.com/">Keep a Changelog</a>; vers
 <h2 id="unreleased">[Unreleased]</h2>
 <h3 id="added">Added</h3>
 <ul>
+<li><strong><code>docs/diagrams/host-mmio-dma-msi.svg</code> (new) + slide 2.2.1.</strong> The MMIO / DMA / MSI routing once the
+  <strong>PCIe Root Complex</strong> and <strong>Local APIC</strong> are drawn in (a deeper companion to slide 2.2 /
+  <code>host-address-space.svg</code>): MMIO is MMU-translated and <strong>forwarded by the RC to the device CSR - not via
+  the IOMMU</strong>; DMA goes <strong>through the IOMMU</strong> (IOVA→PA) to RAM; and an MSI is a memory write to <code>0xFEE..</code>
+  that the IOMMU <strong>interrupt-remaps</strong> (IRTE) to the target core's Local APIC. Shows the MMU (CPU side) /
+  IOMMU (device side) symmetry and the IOMMU's double duty (DMA remap + IRQ remap).</li>
 <li><strong>Public HTML doc site + generators (new).</strong> <code>scripts/gen-docs-site.py</code> + <code>scripts/gen-docs-site.py</code>
   render the whole interlinked Markdown set (<code>docs/*.md</code>, <code>README</code>/<code>TODO</code>/<code>CHANGELOG</code>, <code>results/*.md</code>,
   <code>tests/README.md</code>) to flat <code>docs/slides/&lt;name&gt;.html</code>, which <code>deploy-slides.yml</code> mirrors to the public

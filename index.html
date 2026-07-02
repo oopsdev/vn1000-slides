@@ -333,6 +333,15 @@
     <p class="cap">The CPU reaches RAM (load/store) and the NIC's registers through the <b>BAR0 MMIO window</b> (<code>readl</code>/<code>writel</code> - e.g. the TDT doorbell), both via the <b>MMU</b> (virtual -&gt; physical). The NIC's <b>DMA engine</b> is a bus master: it reads/writes the descriptor rings + buffers in RAM itself, with the <b>IOMMU</b> translating its DMA addresses (IOVA -&gt; physical); completions raise an <b>MSI</b>. The engine hands frames to the <b>MAC</b> (L2), then the <b>PHY</b> transceiver (PCS/PMA/SerDes - slide 1.5) drives the wire.</p>
   </section>
 
+  <!-- 5c MMIO / DMA / MSI routing (Root Complex + IOMMU + Local APIC) -->
+  <section class="slide">
+    <h2>2.2.1 &middot; MMIO / DMA / MSI routing - Root Complex, IOMMU &amp; Local APIC</h2>
+    <div class="svgwrap">
+    <img class="diagram" src="diagrams/host-mmio-dma-msi.svg" alt="MMIO, DMA and MSI routed through the PCIe Root Complex, IOMMU and Local APIC: MMIO from the CPU/MMU is forwarded by the Root Complex to the device CSR and does not go through the IOMMU; DMA goes through the IOMMU (IOVA to PA) to RAM; MSI is a memory write to 0xFEE remapped by the IOMMU interrupt-remap (IRTE) to the target core's Local APIC, which raises it to the CPU.">
+    </div>
+    <p class="cap">A closer look at slide 2.2's three transactions once the <b>PCIe Root Complex</b> and <b>Local APIC</b> are drawn in. <b>MMIO</b> - the CPU access is translated by the <b>MMU</b> (VA-&gt;PA) and the Root Complex forwards it down to the device CSR; the BAR0 window <i>is</i> the CSR, and it does <b>not</b> go through the IOMMU. <b>DMA</b> - the device's bus-master access goes through the <b>IOMMU</b> (IOVA-&gt;PA) to reach RAM. <b>MSI</b> - an interrupt is just a memory write to <code>0xFEE..</code>; the IOMMU <b>interrupt-remaps</b> it (IRTE) and delivers it to the target core's <b>Local APIC</b>, which raises it to the CPU. So the MMU (CPU side) and IOMMU (device side) mirror each other, and the IOMMU does double duty - DMA remap + IRQ remap.</p>
+  </section>
+
   <!-- 6 sample datasheet -->
   <section class="slide">
     <h2>2.3 &middot; Sample datasheet - the VN1000 register &amp; descriptor map</h2>
