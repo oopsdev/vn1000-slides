@@ -335,7 +335,7 @@
 
   <!-- 5c MMIO / DMA / MSI routing (Root Complex + IOMMU + Local APIC) -->
   <section class="slide compact">
-    <h2 style="font-size:clamp(18px,2.2vw,27px)">2.2.1 &middot; MMIO / DMA / MSI routing - Root Complex, IOMMU &amp; Local APIC</h2>
+    <h2 style="font-size:clamp(18px,2.2vw,27px)">2.2.1 &middot; When the IOMMU Steps In - MMIO / DMA / MSI Routing via the Root Complex &amp; Local APIC</h2>
     <div class="svgwrap">
     <img class="diagram" style="max-height:66vh;width:100%" src="diagrams/host-mmio-dma-msi.svg" alt="MMIO, DMA and MSI routed through the PCIe Root Complex, IOMMU and Local APIC: MMIO from the CPU/MMU is forwarded by the Root Complex to the device CSR and does not go through the IOMMU; DMA goes through the IOMMU (IOVA to PA) to RAM; MSI is a memory write to 0xFEE remapped by the IOMMU interrupt-remap (IRTE) to the target core's Local APIC, which raises it to the CPU.">
     </div>
